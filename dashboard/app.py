@@ -24,6 +24,12 @@ from phone_agent.phone_pool import PhonePoolManager
 from phone_agent.comfyui_integration import ComfyUIClient
 from phone_agent.social_automation import SocialMediaAutomation, Platform
 
+# Import screen streaming (path relative to dashboard directory)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+from phone_screen_streaming import StreamManager, StreamQuality, estimate_bandwidth
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'viral-content-automation-secret'
@@ -35,6 +41,7 @@ state = {
     'phone_manager': None,
     'automation': None,
     'comfyui_client': None,
+    'stream_manager': None,
     'generation_queue': [],
     'posting_queue': [],
     'analytics': {
@@ -43,7 +50,12 @@ state = {
         'platforms': {}
     },
     'active_tasks': [],
-    'logs': []
+    'logs': [],
+    'streaming': {
+        'active': False,
+        'quality': 'thumbnail',
+        'bandwidth_mbps': 0
+    }
 }
 
 
@@ -318,6 +330,155 @@ def serve_generated_file(filename):
     return send_from_directory('./generated_content', filename)
 
 
+@app.route('/api/screens/start', methods=['POST'])
+def start_screen_streaming():
+    """Start screen streaming for phones."""
+    data = request.json
+    quality = data.get('quality', 'thumbnail')
+    phone_names = data.get('phones', [])  # Empty = all phones
+
+    stream_manager = state.get('stream_manager')
+    phone_manager = state.get('phone_manager')
+
+    if not stream_manager or not phone_manager:
+        return jsonify({'error': 'Managers not initialized'}), 400
+
+    try:
+        quality_enum = StreamQuality(quality)
+
+        # Get phones to stream
+        if not phone_names:
+            # Stream all phones
+            phones_to_stream = [
+                {'name': name, 'device_id': info.device_id}
+                for name, info in phone_manager.phones.items()
+            ]
+        else:
+            phones_to_stream = [
+                {'name': name, 'device_id': phone_manager.phones[name].device_id}
+                for name in phone_names
+                if name in phone_manager.phones
+            ]
+
+        # Start streams
+        stream_manager.start_all(phones_to_stream, quality_enum)
+
+        # Update state
+        state['streaming']['active'] = True
+        state['streaming']['quality'] = quality
+
+        # Calculate bandwidth
+        bandwidth = estimate_bandwidth(len(phones_to_stream), quality_enum)
+        state['streaming']['bandwidth_mbps'] = bandwidth
+
+        log_event(f"Started streaming {len(phones_to_stream)} phones ({quality}, ~{bandwidth:.1f} Mbps)")
+
+        return jsonify({
+            'success': True,
+            'phones': len(phones_to_stream),
+            'quality': quality,
+            'estimated_bandwidth_mbps': bandwidth
+        })
+
+    except Exception as e:
+        log_event(f"Failed to start streaming: {str(e)}", "error")
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/screens/stop', methods=['POST'])
+def stop_screen_streaming():
+    """Stop all screen streaming."""
+    stream_manager = state.get('stream_manager')
+    if not stream_manager:
+        return jsonify({'error': 'Stream manager not initialized'}), 400
+
+    try:
+        stream_manager.stop_all()
+        state['streaming']['active'] = False
+        state['streaming']['bandwidth_mbps'] = 0
+
+        log_event("Stopped all screen streaming")
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        log_event(f"Failed to stop streaming: {str(e)}", "error")
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/screens/pause', methods=['POST'])
+def pause_screen_streaming():
+    """Pause screen streaming (keep threads alive but don't capture)."""
+    stream_manager = state.get('stream_manager')
+    if not stream_manager:
+        return jsonify({'error': 'Stream manager not initialized'}), 400
+
+    try:
+        stream_manager.pause_all()
+        log_event("Paused screen streaming")
+        return jsonify({'success': True})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/screens/resume', methods=['POST'])
+def resume_screen_streaming():
+    """Resume paused screen streaming."""
+    stream_manager = state.get('stream_manager')
+    if not stream_manager:
+        return jsonify({'error': 'Stream manager not initialized'}), 400
+
+    try:
+        stream_manager.resume_all()
+        log_event("Resumed screen streaming")
+        return jsonify({'success': True})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/screens/upgrade', methods=['POST'])
+def upgrade_screen_quality():
+    """Upgrade specific phone to higher quality."""
+    data = request.json
+    phone_name = data.get('phone_name')
+    quality = data.get('quality', 'full')
+
+    stream_manager = state.get('stream_manager')
+    if not stream_manager:
+        return jsonify({'error': 'Stream manager not initialized'}), 400
+
+    try:
+        quality_enum = StreamQuality(quality)
+        stream_manager.upgrade_quality(phone_name, quality_enum)
+
+        # Optionally downgrade others to save bandwidth
+        if data.get('downgrade_others', True):
+            stream_manager.downgrade_others(phone_name)
+
+        log_event(f"Upgraded {phone_name} to {quality} quality")
+
+        return jsonify({'success': True, 'phone': phone_name, 'quality': quality})
+
+    except Exception as e:
+        log_event(f"Failed to upgrade quality: {str(e)}", "error")
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/screens/stats')
+def get_screen_stats():
+    """Get screen streaming statistics."""
+    stream_manager = state.get('stream_manager')
+    if not stream_manager:
+        return jsonify({'error': 'Stream manager not initialized'}), 400
+
+    stats = stream_manager.get_aggregate_stats()
+    stats['streaming'] = state['streaming']
+
+    return jsonify(stats)
+
+
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection."""
@@ -352,6 +513,13 @@ def init_dashboard(
     state['comfyui_client'] = comfyui_client
     state['automation'] = automation
 
+    # Initialize stream manager with socketio callback
+    def on_frame(frame_data):
+        """Callback for screen frames - emit to all connected clients"""
+        socketio.emit('screen_frame', frame_data)
+
+    state['stream_manager'] = StreamManager(on_frame=on_frame)
+
     # Initialize analytics
     for platform in Platform:
         state['analytics']['platforms'][platform.value] = {
@@ -368,6 +536,7 @@ def init_dashboard(
     print(f"\n   📱 Managing {len(phone_manager.phones)} phones")
     print(f"   🎨 ComfyUI: {comfyui_client.server_url}")
     print(f"   🌐 Dashboard: http://localhost:{port}")
+    print(f"\n   📺 Screen Streaming: Available")
     print(f"\n   Open your browser and visit: http://localhost:{port}")
     print("\n" + "="*70 + "\n")
 
