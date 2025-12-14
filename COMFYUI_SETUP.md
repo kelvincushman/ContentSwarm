@@ -136,7 +136,7 @@ python main.py \
 
 4. **Export Workflow:**
    - Right-click → Export workflow as JSON
-   - Save to `~/Open-AutoGLM/comfyui_workflows/tiktok_video.json`
+   - Save to `~/ContentSwarm/comfyui_workflows/tiktok_video.json`
 
 ### Recommended Workflow Structure
 

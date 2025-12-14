@@ -32,8 +32,8 @@ A fully automated system that:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/kelvincushman/Open-AutoGLM
-cd Open-AutoGLM
+git clone <your-repo-url>
+cd ContentSwarm
 ```
 
 ### 2. Install Python Dependencies

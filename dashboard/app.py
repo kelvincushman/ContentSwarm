@@ -531,7 +531,7 @@ def init_dashboard(
     log_event("Dashboard initialized")
 
     print("\n" + "="*70)
-    print("🌐 Dashboard Starting...")
+    print("🌐 ContentSwarm Dashboard Starting...")
     print("="*70)
     print(f"\n   📱 Managing {len(phone_manager.phones)} phones")
     print(f"   🎨 ComfyUI: {comfyui_client.server_url}")

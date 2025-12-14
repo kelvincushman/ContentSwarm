@@ -48,7 +48,7 @@ A fully integrated system for automated viral content creation and distribution:
 ## 📁 Project Structure
 
 ```
-Open-AutoGLM/
+ContentSwarm/
 │
 ├── 📱 PHONE CONTROL
 │   ├── phone_agent/
