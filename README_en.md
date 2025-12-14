@@ -33,6 +33,93 @@ Phone Agent is a mobile intelligent assistant framework built on AutoGLM. It und
 
 `AutoGLM-Phone-9B` is optimized for Chinese mobile applications, while `AutoGLM-Phone-9B-Multilingual` supports English scenarios and is suitable for applications containing English or other language content.
 
+## 🎉 NEW: Viral Content Automation Features
+
+This repository now includes a complete viral content automation system for managing multiple phones and automating social media content generation and distribution:
+
+### 📱 Multi-Phone Control (20 Phones)
+- **Phone Pool Management**: Control 20 phones from one central agent with sequential switching
+- **Wireless ADB**: Connect phones via WiFi for cable-free operation
+- **Batch Operations**: Run tasks across multiple phones in parallel
+- **Configuration-Based**: JSON-based phone configuration for easy management
+
+👉 **[Complete Guide](PHONE_POOL_GUIDE.md)** | **[Quick Start](QUICK_START.md)**
+
+### 🎨 FREE Content Generation with ComfyUI
+- **Local Generation**: Generate unlimited images and videos on your RTX GPU
+- **Cost Savings**: Save $750-1,500/month vs. paid APIs like Veo3
+- **High Quality**: SDXL for images, AnimateDiff for videos
+- **Platform-Specific**: Custom workflows for TikTok, Instagram, YouTube Shorts
+
+👉 **[ComfyUI Setup Guide](COMFYUI_SETUP.md)** | **[RTX 5060 16GB Optimization](COMFYUI_SETUP.md#rtx-5060-16gb-optimization)**
+
+### 🤖 Social Media Automation Pipeline
+- **Discover**: Find trending content across TikTok, Instagram, YouTube, Twitter, Facebook
+- **Analyze**: Use 12labs AI to analyze viral videos
+- **Generate**: Create content with ComfyUI (FREE!) or Veo3
+- **Post**: Automatically distribute to all platforms using phone pool
+
+👉 **[Viral Content Strategy Guide](VIRAL_CONTENT_GUIDE.md)**
+
+### 🖥️ Real-Time Web Dashboard
+- **Live Monitoring**: Monitor all 20 phones in real-time
+- **Phone Control**: Select and control any phone from the web interface
+- **Content Generation**: Manage ComfyUI generation queue
+- **Automation**: Start/stop viral content pipeline
+- **Analytics**: Track performance across all platforms
+
+👉 **[Dashboard Documentation](dashboard/README.md)**
+
+### 📺 Live Screen Streaming
+- **Multi-Phone View**: See all 20 phone screens simultaneously
+- **Resizable Grid**: Adjust thumbnail size (100-250px)
+- **Toggleable**: Turn individual phone streams on/off to save bandwidth
+- **Click to Enlarge**: Select any phone for full-screen viewing
+- **Bandwidth Optimized**: ~4-6 Mbps for all 20 phones
+
+👉 **[Screen Streaming Analysis](SCREEN_STREAMING_ANALYSIS.md)**
+
+### 💰 Cost Comparison
+
+**Traditional Approach (Veo3 API):**
+- Video Generation: $5-10 per video
+- Monthly Cost: $750-1,500 (for 5 videos/day)
+
+**NEW: ComfyUI Approach:**
+- Video Generation: FREE (local GPU)
+- Monthly Cost: ~$10 (electricity)
+- **Savings: $740-1,490/month**
+
+### 🚀 Quick Start for Viral Content Automation
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+pip install -e .
+cd dashboard && pip install -r requirements.txt
+
+# 2. Setup ComfyUI (for FREE content generation)
+# See COMFYUI_SETUP.md for complete guide
+
+# 3. Configure your 20 phones
+# Edit phones_config.json with your phone IPs
+
+# 4. Start the dashboard
+cd dashboard
+python app.py
+
+# 5. Open http://localhost:5000
+# - View all phones in real-time
+# - Generate content with ComfyUI
+# - Run automation pipeline
+```
+
+**Complete Setup Guide**: [QUICK_START.md](QUICK_START.md)
+
+**System Overview**: [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)
+
+---
+
 ## Environment Setup
 
 ### 1. Python Environment
