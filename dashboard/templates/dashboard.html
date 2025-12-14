@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📱 Viral Content Automation Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>📱 Viral Content Automation</h1>
+                <div class="header-stats">
+                    <div class="stat">
+                        <span class="stat-label">Phones</span>
+                        <span class="stat-value" id="phone-count">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Generated</span>
+                        <span class="stat-value" id="total-generated">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Posted</span>
+                        <span class="stat-value" id="total-posted">0</span>
+                    </div>
+                    <div class="status-indicator" id="comfyui-status">
+                        <span class="status-dot"></span>
+                        <span>ComfyUI</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <nav class="nav">
+                    <button class="nav-item active" data-tab="overview">
+                        📊 Overview
+                    </button>
+                    <button class="nav-item" data-tab="phones">
+                        📱 Phones
+                    </button>
+                    <button class="nav-item" data-tab="generation">
+                        🎨 Generation
+                    </button>
+                    <button class="nav-item" data-tab="automation">
+                        🤖 Automation
+                    </button>
+                    <button class="nav-item" data-tab="analytics">
+                        📈 Analytics
+                    </button>
+                    <button class="nav-item" data-tab="logs">
+                        📜 Logs
+                    </button>
+                </nav>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="content">
+                <!-- Overview Tab -->
+                <div class="tab-content active" id="overview-tab">
+                    <h2>System Overview</h2>
+
+                    <div class="cards">
+                        <div class="card">
+                            <h3>📱 Phone Status</h3>
+                            <div class="phone-grid" id="phone-grid-preview"></div>
+                        </div>
+
+                        <div class="card">
+                            <h3>🎨 Generation Queue</h3>
+                            <div id="queue-preview">
+                                <p class="empty-state">No items in queue</p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3>📊 Quick Stats</h3>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-number" id="connected-phones">0</div>
+                                    <div class="stat-label">Connected</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-number" id="queue-size">0</div>
+                                    <div class="stat-label">In Queue</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-number" id="active-tasks">0</div>
+                                    <div class="stat-label">Active Tasks</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phones Tab -->
+                <div class="tab-content" id="phones-tab">
+                    <div class="tab-header">
+                        <h2>Phone Management</h2>
+                        <button class="btn btn-primary" onclick="refreshPhones()">
+                            🔄 Refresh
+                        </button>
+                    </div>
+
+                    <div class="phone-table-container">
+                        <table class="phone-table" id="phones-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Name</th>
+                                    <th>Device ID</th>
+                                    <th>Description</th>
+                                    <th>Tags</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="phones-table-body">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="control-panel">
+                        <h3>Quick Control</h3>
+                        <div class="control-form">
+                            <select id="phone-select" class="input">
+                                <option value="">Select phone...</option>
+                            </select>
+                            <input type="text" id="task-input" class="input" placeholder="Enter task...">
+                            <button class="btn btn-primary" onclick="runTask()">
+                                ▶ Run Task
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generation Tab -->
+                <div class="tab-content" id="generation-tab">
+                    <div class="tab-header">
+                        <h2>Content Generation</h2>
+                    </div>
+
+                    <div class="cards">
+                        <div class="card">
+                            <h3>🎨 New Generation</h3>
+                            <div class="generation-form">
+                                <textarea id="gen-prompt" class="input" rows="3" placeholder="Enter prompt for viral content..."></textarea>
+                                <select id="gen-platform" class="input">
+                                    <option value="tiktok">TikTok</option>
+                                    <option value="instagram">Instagram Reels</option>
+                                    <option value="youtube">YouTube Shorts</option>
+                                    <option value="twitter">Twitter</option>
+                                    <option value="facebook">Facebook</option>
+                                </select>
+                                <button class="btn btn-primary btn-lg" onclick="startGeneration()">
+                                    🎬 Generate Content
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3>📋 Generation Queue</h3>
+                            <div id="generation-queue" class="queue-list">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="generated-content">
+                        <h3>📁 Generated Content</h3>
+                        <div id="generated-grid" class="content-grid">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Automation Tab -->
+                <div class="tab-content" id="automation-tab">
+                    <div class="tab-header">
+                        <h2>Viral Automation Pipeline</h2>
+                        <div class="automation-status" id="automation-status">
+                            <span class="status-dot idle"></span>
+                            <span>Idle</span>
+                        </div>
+                    </div>
+
+                    <div class="cards">
+                        <div class="card">
+                            <h3>⚙️ Pipeline Configuration</h3>
+                            <div class="config-form">
+                                <div class="form-group">
+                                    <label>Discovery Limit (per platform)</label>
+                                    <input type="number" id="discovery-limit" class="input" value="10" min="1" max="50">
+                                </div>
+                                <div class="form-group">
+                                    <label>Content to Generate</label>
+                                    <input type="number" id="content-count" class="input" value="5" min="1" max="20">
+                                </div>
+                                <button class="btn btn-success btn-lg" onclick="startAutomation()">
+                                    🚀 Start Pipeline
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3>📊 Pipeline Progress</h3>
+                            <div class="progress-container">
+                                <div class="progress-step">
+                                    <div class="step-icon">🔍</div>
+                                    <div class="step-label">Discovery</div>
+                                    <div class="step-status" id="step-discovery">Pending</div>
+                                </div>
+                                <div class="progress-step">
+                                    <div class="step-icon">🔬</div>
+                                    <div class="step-label">Analysis</div>
+                                    <div class="step-status" id="step-analysis">Pending</div>
+                                </div>
+                                <div class="progress-step">
+                                    <div class="step-icon">🎨</div>
+                                    <div class="step-label">Generation</div>
+                                    <div class="step-status" id="step-generation">Pending</div>
+                                </div>
+                                <div class="progress-step">
+                                    <div class="step-icon">📤</div>
+                                    <div class="step-label">Posting</div>
+                                    <div class="step-status" id="step-posting">Pending</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div class="tab-content" id="analytics-tab">
+                    <h2>Analytics & Performance</h2>
+
+                    <div class="cards">
+                        <div class="card">
+                            <h3>📊 Platform Stats</h3>
+                            <div class="platform-stats" id="platform-stats">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3>📈 Generation Stats</h3>
+                            <div class="gen-stats">
+                                <div class="stat-item">
+                                    <span>Total Generated:</span>
+                                    <strong id="analytics-generated">0</strong>
+                                </div>
+                                <div class="stat-item">
+                                    <span>Total Posted:</span>
+                                    <strong id="analytics-posted">0</strong>
+                                </div>
+                                <div class="stat-item">
+                                    <span>Success Rate:</span>
+                                    <strong id="analytics-success-rate">100%</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs Tab -->
+                <div class="tab-content" id="logs-tab">
+                    <div class="tab-header">
+                        <h2>System Logs</h2>
+                        <button class="btn btn-secondary" onclick="clearLogs()">
+                            🗑️ Clear
+                        </button>
+                    </div>
+
+                    <div class="logs-container">
+                        <div id="logs-list" class="logs-list">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
