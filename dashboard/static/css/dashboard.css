@@ -222,6 +222,11 @@ body {
     border: 1px solid var(--border);
 }
 
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+}
+
 .btn-lg {
     padding: 0.75rem 1.5rem;
     font-size: 1rem;
@@ -568,5 +573,350 @@ body {
 
     .control-form {
         flex-direction: column;
+    }
+}
+
+/* ===== SCREENS TAB ===== */
+
+/* Screen Controls */
+.screen-controls {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.select-input {
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    color: var(--text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.select-input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* Streaming Stats */
+.streaming-stats {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stat-badge .stat-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.stat-badge .stat-value {
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 1rem;
+}
+
+/* Screens Layout - Split View */
+.screens-layout {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Grid Container (Left Side) */
+.screens-grid-container {
+    background: var(--bg-card);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    max-height: 800px;
+    overflow-y: auto;
+}
+
+.screens-grid-container h3 {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+/* Phone Screens Grid */
+.screens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+/* Individual Phone Screen Item */
+.screen-item {
+    position: relative;
+    background: var(--bg-secondary);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.screen-item:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.screen-item.selected {
+    border-color: var(--success);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.screen-item.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.screen-item.disabled:hover {
+    border-color: transparent;
+    transform: none;
+}
+
+/* Canvas for phone screen */
+.screen-canvas {
+    width: 100%;
+    height: auto;
+    border-radius: 0.25rem;
+    background: #000;
+    aspect-ratio: 9 / 19.5; /* Phone aspect ratio */
+}
+
+/* Phone Label */
+.screen-label {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+/* Toggle Switch for Individual Phone */
+.screen-toggle {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 10;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 40px;
+    height: 20px;
+    background: var(--bg);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.toggle-switch.active {
+    background: var(--success);
+}
+
+.toggle-slider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s;
+}
+
+.toggle-switch.active .toggle-slider {
+    transform: translateX(20px);
+}
+
+/* Screen Viewer (Right Side) */
+.screen-viewer-container {
+    background: var(--bg-card);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.screen-viewer-container h3 {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.screen-viewer {
+    flex: 1;
+    background: #000;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 600px;
+    position: relative;
+}
+
+.screen-viewer img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.screen-viewer canvas {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.screen-viewer .empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.screen-viewer .empty-state p {
+    margin: 0.5rem 0;
+}
+
+.screen-viewer .empty-state .hint {
+    font-size: 0.875rem;
+    opacity: 0.7;
+}
+
+/* Viewer Controls */
+.viewer-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    justify-content: center;
+}
+
+/* Size Controls */
+.size-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.size-slider {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-secondary);
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--primary);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.size-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--primary);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.size-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    min-width: 80px;
+}
+
+/* Stream Info */
+.stream-info {
+    background: var(--bg-card);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    border-left: 4px solid var(--primary);
+}
+
+.stream-info h4 {
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.stream-info ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.stream-info li {
+    padding: 0.5rem 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.stream-info li strong {
+    color: var(--text);
+}
+
+/* Fullscreen Mode */
+.screen-viewer.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    border-radius: 0;
+    margin: 0;
+}
+
+/* Loading Indicator for Streams */
+.stream-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.stream-loading::after {
+    content: '...';
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+
+/* Responsive for Screens Tab */
+@media (max-width: 1024px) {
+    .screens-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .screens-grid-container {
+        max-height: 400px;
+    }
+
+    .screens-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     }
 }

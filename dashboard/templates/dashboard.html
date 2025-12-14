@@ -54,6 +54,9 @@
                     <button class="nav-item" data-tab="analytics">
                         📈 Analytics
                     </button>
+                    <button class="nav-item" data-tab="screens">
+                        📺 Screens
+                    </button>
                     <button class="nav-item" data-tab="logs">
                         📜 Logs
                     </button>
@@ -265,6 +268,94 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Screens Tab -->
+                <div class="tab-content" id="screens-tab">
+                    <div class="tab-header">
+                        <h2>📺 Phone Screens</h2>
+                        <div class="screen-controls">
+                            <select id="stream-quality" class="select-input">
+                                <option value="thumbnail">Thumbnail (4 Mbps)</option>
+                                <option value="medium">Medium (20 Mbps)</option>
+                                <option value="full">Full Quality (40 Mbps)</option>
+                            </select>
+                            <button class="btn btn-success" id="start-streaming-btn" onclick="startStreaming()">
+                                ▶ Start Streaming
+                            </button>
+                            <button class="btn btn-danger" id="stop-streaming-btn" onclick="stopStreaming()" style="display: none;">
+                                ⏹ Stop Streaming
+                            </button>
+                            <button class="btn btn-secondary" id="pause-streaming-btn" onclick="pauseStreaming()" style="display: none;">
+                                ⏸ Pause
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="streaming-stats">
+                        <div class="stat-badge">
+                            <span class="stat-label">Bandwidth:</span>
+                            <span class="stat-value" id="bandwidth-usage">0 Mbps</span>
+                        </div>
+                        <div class="stat-badge">
+                            <span class="stat-label">FPS:</span>
+                            <span class="stat-value" id="stream-fps">0</span>
+                        </div>
+                        <div class="stat-badge">
+                            <span class="stat-label">Active Streams:</span>
+                            <span class="stat-value" id="active-streams">0</span>
+                        </div>
+                    </div>
+
+                    <div class="screens-layout">
+                        <!-- Left: Thumbnail Grid (20 phones) -->
+                        <div class="screens-grid-container">
+                            <div class="size-controls">
+                                <span class="size-label">Grid Size:</span>
+                                <input type="range" class="size-slider" id="grid-size-slider"
+                                       min="100" max="250" value="150"
+                                       oninput="adjustGridSize(this.value)">
+                                <span class="size-label" id="grid-size-value">150px</span>
+                            </div>
+                            <h3>All Phones <button class="btn btn-secondary btn-sm" onclick="toggleAllPhones()">Toggle All</button></h3>
+                            <div class="screens-grid" id="screens-grid">
+                                <!-- Populated by JavaScript with 20 phone canvases -->
+                            </div>
+                        </div>
+
+                        <!-- Right: Enlarged View -->
+                        <div class="screen-viewer-container">
+                            <h3>Selected Phone: <span id="selected-phone-name">None</span></h3>
+                            <div class="screen-viewer" id="screen-viewer">
+                                <div class="empty-state">
+                                    <p>Click a phone in the grid to view full screen</p>
+                                    <p class="hint">Start streaming to see phone screens</p>
+                                </div>
+                            </div>
+                            <div class="viewer-controls">
+                                <button class="btn btn-secondary" onclick="captureScreenshot()" title="Take Screenshot">
+                                    📸 Screenshot
+                                </button>
+                                <button class="btn btn-secondary" onclick="refreshScreen()" title="Refresh">
+                                    🔄 Refresh
+                                </button>
+                                <button class="btn btn-secondary" onclick="toggleFullscreen()" title="Fullscreen">
+                                    ⛶ Fullscreen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stream-info">
+                        <h4>ℹ️ Streaming Information</h4>
+                        <ul>
+                            <li><strong>Thumbnail:</strong> 240×427 @ 5fps (~200 Kbps per phone, 4 Mbps total for 20 phones)</li>
+                            <li><strong>Medium:</strong> 720×1280 @ 15fps (~1 Mbps per phone, 20 Mbps total for 20 phones)</li>
+                            <li><strong>Full:</strong> 1080×1920 @ 30fps (~2 Mbps per phone, 40 Mbps total for 20 phones)</li>
+                            <li><strong>Tip:</strong> Click any phone in the grid to upgrade it to full quality (others stay as thumbnails)</li>
+                            <li><strong>Network:</strong> Ensure you have sufficient upload bandwidth for smooth streaming</li>
+                        </ul>
                     </div>
                 </div>
 

@@ -701,3 +701,427 @@ style.textContent = `
 }
 `;
 document.head.appendChild(style);
+
+// ===== SCREEN STREAMING FUNCTIONS =====
+
+// Screen streaming state
+let screenStreamingActive = false;
+let selectedScreenPhone = null;
+let phoneScreenStates = {}; // Track which phones have streaming enabled
+let frameStats = { count: 0, lastTime: Date.now() };
+
+// Initialize phone screen items when phones are loaded
+function initializePhoneScreens() {
+    const grid = document.getElementById('screens-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    phones.forEach(phone => {
+        // Initialize phone state (enabled by default)
+        phoneScreenStates[phone.name] = true;
+
+        const item = document.createElement('div');
+        item.className = 'screen-item';
+        item.dataset.phoneName = phone.name;
+
+        item.innerHTML = `
+            <div class="screen-toggle" onclick="event.stopPropagation(); togglePhoneStream('${phone.name}')">
+                <div class="toggle-switch active" id="toggle-${phone.name}">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+            <canvas class="screen-canvas" id="screen-${phone.name}" width="240" height="520"></canvas>
+            <div class="screen-label">${phone.name}</div>
+        `;
+
+        item.addEventListener('click', () => selectScreenForViewing(phone.name));
+
+        grid.appendChild(item);
+    });
+}
+
+// Toggle individual phone stream on/off
+function togglePhoneStream(phoneName) {
+    const toggle = document.getElementById(`toggle-${phoneName}`);
+    const item = document.querySelector(`[data-phone-name="${phoneName}"]`);
+
+    phoneScreenStates[phoneName] = !phoneScreenStates[phoneName];
+
+    if (phoneScreenStates[phoneName]) {
+        toggle.classList.add('active');
+        item.classList.remove('disabled');
+    } else {
+        toggle.classList.remove('active');
+        item.classList.add('disabled');
+
+        // Clear canvas
+        const canvas = document.getElementById(`screen-${phoneName}`);
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+
+    updateActiveStreamsCount();
+}
+
+// Toggle all phones on/off
+function toggleAllPhones() {
+    const allEnabled = Object.values(phoneScreenStates).every(s => s);
+    const newState = !allEnabled;
+
+    Object.keys(phoneScreenStates).forEach(phoneName => {
+        phoneScreenStates[phoneName] = newState;
+
+        const toggle = document.getElementById(`toggle-${phoneName}`);
+        const item = document.querySelector(`[data-phone-name="${phoneName}"]`);
+
+        if (newState) {
+            toggle?.classList.add('active');
+            item?.classList.remove('disabled');
+        } else {
+            toggle?.classList.remove('active');
+            item?.classList.add('disabled');
+        }
+    });
+
+    updateActiveStreamsCount();
+}
+
+// Adjust grid size with slider
+function adjustGridSize(size) {
+    const grid = document.getElementById('screens-grid');
+    const label = document.getElementById('grid-size-value');
+
+    if (grid) {
+        grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${size}px, 1fr))`;
+    }
+
+    if (label) {
+        label.textContent = `${size}px`;
+    }
+}
+
+// Start screen streaming
+async function startStreaming() {
+    const quality = document.getElementById('stream-quality')?.value || 'thumbnail';
+
+    try {
+        const response = await fetch('/api/screens/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quality: quality })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            screenStreamingActive = true;
+            showToast(`Started streaming ${data.phones} phones (${quality})`, 'success');
+
+            // Update UI
+            document.getElementById('start-streaming-btn').style.display = 'none';
+            document.getElementById('stop-streaming-btn').style.display = 'inline-block';
+            document.getElementById('pause-streaming-btn').style.display = 'inline-block';
+
+            // Update bandwidth display
+            updateStat('bandwidth-usage', `${data.estimated_bandwidth_mbps.toFixed(1)} Mbps`);
+
+            // Initialize phone screens if not already done
+            if (!phones.length) {
+                await loadPhones();
+            }
+            initializePhoneScreens();
+
+        } else {
+            showToast(`Failed to start streaming: ${data.error}`, 'error');
+        }
+
+    } catch (error) {
+        console.error('Failed to start streaming:', error);
+        showToast('Failed to start streaming', 'error');
+    }
+}
+
+// Stop screen streaming
+async function stopStreaming() {
+    try {
+        const response = await fetch('/api/screens/stop', {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            screenStreamingActive = false;
+            selectedScreenPhone = null;
+            showToast('Stopped streaming', 'success');
+
+            // Update UI
+            document.getElementById('start-streaming-btn').style.display = 'inline-block';
+            document.getElementById('stop-streaming-btn').style.display = 'none';
+            document.getElementById('pause-streaming-btn').style.display = 'none';
+
+            // Clear stats
+            updateStat('bandwidth-usage', '0 Mbps');
+            updateStat('stream-fps', '0');
+            updateStat('active-streams', '0');
+
+            // Clear all canvases
+            phones.forEach(phone => {
+                const canvas = document.getElementById(`screen-${phone.name}`);
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            });
+
+            // Clear viewer
+            const viewer = document.getElementById('screen-viewer');
+            if (viewer) {
+                viewer.innerHTML = `
+                    <div class="empty-state">
+                        <p>Click a phone in the grid to view full screen</p>
+                        <p class="hint">Start streaming to see phone screens</p>
+                    </div>
+                `;
+            }
+        }
+
+    } catch (error) {
+        console.error('Failed to stop streaming:', error);
+        showToast('Failed to stop streaming', 'error');
+    }
+}
+
+// Pause streaming
+async function pauseStreaming() {
+    try {
+        const response = await fetch('/api/screens/pause', {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            showToast('Streaming paused', 'success');
+            document.getElementById('pause-streaming-btn').textContent = '▶ Resume';
+            document.getElementById('pause-streaming-btn').onclick = resumeStreaming;
+        }
+
+    } catch (error) {
+        console.error('Failed to pause streaming:', error);
+    }
+}
+
+// Resume streaming
+async function resumeStreaming() {
+    try {
+        const response = await fetch('/api/screens/resume', {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            showToast('Streaming resumed', 'success');
+            document.getElementById('pause-streaming-btn').textContent = '⏸ Pause';
+            document.getElementById('pause-streaming-btn').onclick = pauseStreaming;
+        }
+
+    } catch (error) {
+        console.error('Failed to resume streaming:', error);
+    }
+}
+
+// Select phone for enlarged viewing
+async function selectScreenForViewing(phoneName) {
+    if (!screenStreamingActive) {
+        showToast('Start streaming first', 'error');
+        return;
+    }
+
+    if (!phoneScreenStates[phoneName]) {
+        showToast('This phone stream is disabled', 'error');
+        return;
+    }
+
+    selectedScreenPhone = phoneName;
+
+    // Update UI - highlight selected item
+    document.querySelectorAll('.screen-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`[data-phone-name="${phoneName}"]`)?.classList.add('selected');
+
+    // Update selected phone name
+    document.getElementById('selected-phone-name').textContent = phoneName;
+
+    // Upgrade to full quality
+    try {
+        const response = await fetch('/api/screens/upgrade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                phone_name: phoneName,
+                quality: 'full',
+                downgrade_others: true
+            })
+        });
+
+        if (response.ok) {
+            showToast(`Viewing ${phoneName} in full quality`, 'success');
+        }
+
+    } catch (error) {
+        console.error('Failed to upgrade quality:', error);
+    }
+}
+
+// Handle incoming screen frames
+socket.on('screen_frame', (data) => {
+    if (!screenStreamingActive) return;
+
+    const phoneName = extractPhoneName(data.device_id);
+    if (!phoneName || !phoneScreenStates[phoneName]) return;
+
+    // Update FPS counter
+    frameStats.count++;
+    const now = Date.now();
+    if (now - frameStats.lastTime >= 1000) {
+        updateStat('stream-fps', frameStats.count);
+        frameStats.count = 0;
+        frameStats.lastTime = now;
+    }
+
+    // Render to thumbnail canvas
+    const canvas = document.getElementById(`screen-${phoneName}`);
+    if (canvas) {
+        renderFrameToCanvas(canvas, data.frame);
+    }
+
+    // If this is the selected phone, also update the enlarged viewer
+    if (phoneName === selectedScreenPhone) {
+        updateEnlargedViewer(data.frame);
+    }
+});
+
+// Extract phone name from device ID
+function extractPhoneName(deviceId) {
+    const phone = phones.find(p => p.device_id === deviceId);
+    return phone ? phone.name : null;
+}
+
+// Render frame to canvas
+function renderFrameToCanvas(canvas, frameBase64) {
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    };
+
+    img.onerror = () => {
+        console.error('Failed to load frame image');
+    };
+
+    img.src = 'data:image/jpeg;base64,' + frameBase64;
+}
+
+// Update enlarged viewer
+function updateEnlargedViewer(frameBase64) {
+    const viewer = document.getElementById('screen-viewer');
+    if (!viewer) return;
+
+    // Create or update canvas
+    let canvas = viewer.querySelector('canvas');
+    if (!canvas) {
+        viewer.innerHTML = '<canvas id="viewer-canvas"></canvas>';
+        canvas = document.getElementById('viewer-canvas');
+    }
+
+    // Set canvas size for full quality (aspect ratio 9:19.5)
+    canvas.width = 1080;
+    canvas.height = 1920;
+
+    renderFrameToCanvas(canvas, frameBase64);
+}
+
+// Update active streams count
+function updateActiveStreamsCount() {
+    const activeCount = Object.values(phoneScreenStates).filter(s => s).length;
+    updateStat('active-streams', activeCount);
+}
+
+// Capture screenshot from selected phone
+function captureScreenshot() {
+    if (!selectedScreenPhone) {
+        showToast('Select a phone first', 'error');
+        return;
+    }
+
+    const viewer = document.getElementById('screen-viewer');
+    const canvas = viewer?.querySelector('canvas');
+
+    if (!canvas) {
+        showToast('No screen to capture', 'error');
+        return;
+    }
+
+    // Convert canvas to blob and download
+    canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${selectedScreenPhone}_${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        showToast('Screenshot saved', 'success');
+    });
+}
+
+// Refresh screen (request new frame)
+async function refreshScreen() {
+    if (!selectedScreenPhone) {
+        showToast('Select a phone first', 'error');
+        return;
+    }
+
+    // Downgrade and upgrade to force refresh
+    try {
+        await fetch('/api/screens/upgrade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                phone_name: selectedScreenPhone,
+                quality: 'full'
+            })
+        });
+
+        showToast('Refreshing...', 'success');
+
+    } catch (error) {
+        console.error('Failed to refresh:', error);
+    }
+}
+
+// Toggle fullscreen for viewer
+function toggleFullscreen() {
+    const viewer = document.getElementById('screen-viewer');
+
+    if (!document.fullscreenElement) {
+        viewer.requestFullscreen().catch(err => {
+            showToast(`Fullscreen error: ${err.message}`, 'error');
+        });
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+// Update showTab function to initialize screens when Screens tab is shown
+const originalShowTab = showTab;
+showTab = function(tabName) {
+    originalShowTab(tabName);
+
+    if (tabName === 'screens' && phones.length > 0 && !screenStreamingActive) {
+        initializePhoneScreens();
+    }
+};
