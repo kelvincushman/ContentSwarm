@@ -2,10 +2,6 @@
 
 **Viral Content Automation System for Multi-Phone Management**
 
-<p align="center">
-    👋 Join our <a href="https://discord.gg/QR7SARHRxK" target="_blank">Discord</a> community
-</p>
-
 ---
 
 ## 🚀 What is ContentSwarm?
