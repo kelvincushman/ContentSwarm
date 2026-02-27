@@ -23,6 +23,7 @@ from flask_cors import CORS
 from phone_agent.phone_pool import PhonePoolManager
 from phone_agent.comfyui_integration import ComfyUIClient
 from phone_agent.social_automation import SocialMediaAutomation, Platform
+from phone_agent.api import create_api_blueprint
 
 # Import screen streaming (path relative to dashboard directory)
 import sys
@@ -492,6 +493,23 @@ def handle_disconnect():
     log_event("Client disconnected")
 
 
+# ── OpenClaw Events Namespace ───────────────────────────────────
+
+@socketio.on('connect', namespace='/ws/events')
+def handle_events_connect():
+    """Handle OpenClaw bridge connection to events namespace."""
+    emit('connected', {'status': 'connected', 'namespace': '/ws/events'}, namespace='/ws/events')
+    log_event("OpenClaw events client connected")
+    state['openclaw_connected'] = True
+
+
+@socketio.on('disconnect', namespace='/ws/events')
+def handle_events_disconnect():
+    """Handle OpenClaw bridge disconnection from events namespace."""
+    log_event("OpenClaw events client disconnected")
+    state['openclaw_connected'] = False
+
+
 def init_dashboard(
     phone_manager: PhonePoolManager,
     comfyui_client: ComfyUIClient,
@@ -512,6 +530,12 @@ def init_dashboard(
     state['phone_manager'] = phone_manager
     state['comfyui_client'] = comfyui_client
     state['automation'] = automation
+    state['socketio'] = socketio
+    state['openclaw_connected'] = False
+
+    # Register ContentSwarm API blueprint for OpenClaw integration
+    api_blueprint = create_api_blueprint(state)
+    app.register_blueprint(api_blueprint, url_prefix='/api/v1')
 
     # Initialize stream manager with socketio callback
     def on_frame(frame_data):

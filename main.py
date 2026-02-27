@@ -351,6 +351,20 @@ Examples:
         help="Enable TCP/IP debugging on USB device (default port: 5555)",
     )
 
+    # OpenClaw integration
+    parser.add_argument(
+        "--openclaw",
+        action="store_true",
+        help="Start the OpenClaw bridge alongside the agent",
+    )
+
+    parser.add_argument(
+        "--openclaw-config",
+        type=str,
+        default=os.getenv("OPENCLAW_CONFIG", "openclaw_config.json"),
+        help="Path to OpenClaw bridge config file",
+    )
+
     # Other options
     parser.add_argument(
         "--quiet", "-q", action="store_true", help="Suppress verbose output"
@@ -448,6 +462,32 @@ def handle_device_commands(args) -> bool:
     return False
 
 
+def start_openclaw_bridge(config_path: str):
+    """Start the OpenClaw bridge in a background thread."""
+    import threading
+
+    def _run_bridge():
+        try:
+            from openclaw_bridge import OpenClawBridge, load_config
+            import asyncio
+
+            config = load_config(config_path)
+            bridge = OpenClawBridge(config)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(bridge.start())
+        except ImportError as e:
+            print(f"Failed to import OpenClaw bridge: {e}")
+            print("Make sure websockets is installed: pip install websockets")
+        except Exception as e:
+            print(f"OpenClaw bridge error: {e}")
+
+    thread = threading.Thread(target=_run_bridge, daemon=True)
+    thread.start()
+    print("OpenClaw bridge started in background")
+    return thread
+
+
 def main():
     """Main entry point."""
     args = parse_args()
@@ -491,6 +531,10 @@ def main():
         agent_config=agent_config,
     )
 
+    # Start OpenClaw bridge if requested
+    if args.openclaw:
+        start_openclaw_bridge(args.openclaw_config)
+
     # Print header
     print("=" * 50)
     print("Phone Agent - AI-powered phone automation")
@@ -499,6 +543,8 @@ def main():
     print(f"Base URL: {model_config.base_url}")
     print(f"Max Steps: {agent_config.max_steps}")
     print(f"Language: {agent_config.lang}")
+    if args.openclaw:
+        print(f"OpenClaw: bridge active (config: {args.openclaw_config})")
 
     # Show device info
     devices = list_devices()
