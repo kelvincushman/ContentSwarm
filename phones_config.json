@@ -1,124 +1,25 @@
 {
   "phones": [
     {
-      "device_id": "192.168.1.100:5555",
-      "name": "phone_01",
-      "description": "Phone 1 - Main testing device",
-      "tags": ["testing", "primary"]
+      "device_id": "auto",
+      "name": "zara",
+      "persona": "Zara",
+      "platforms": ["tiktok", "instagram"],
+      "description": "Phone 1 — Young female AI/lifestyle persona"
     },
     {
-      "device_id": "192.168.1.101:5555",
-      "name": "phone_02",
-      "description": "Phone 2",
-      "tags": ["testing"]
+      "device_id": "auto",
+      "name": "marcus",
+      "persona": "Marcus",
+      "platforms": ["linkedin", "twitter", "youtube"],
+      "description": "Phone 2 — Professional finance/AI persona"
     },
     {
-      "device_id": "192.168.1.102:5555",
-      "name": "phone_03",
-      "description": "Phone 3",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.103:5555",
-      "name": "phone_04",
-      "description": "Phone 4",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.104:5555",
-      "name": "phone_05",
-      "description": "Phone 5",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.105:5555",
-      "name": "phone_06",
-      "description": "Phone 6",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.106:5555",
-      "name": "phone_07",
-      "description": "Phone 7",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.107:5555",
-      "name": "phone_08",
-      "description": "Phone 8",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.108:5555",
-      "name": "phone_09",
-      "description": "Phone 9",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.109:5555",
-      "name": "phone_10",
-      "description": "Phone 10",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.110:5555",
-      "name": "phone_11",
-      "description": "Phone 11",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.111:5555",
-      "name": "phone_12",
-      "description": "Phone 12",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.112:5555",
-      "name": "phone_13",
-      "description": "Phone 13",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.113:5555",
-      "name": "phone_14",
-      "description": "Phone 14",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.114:5555",
-      "name": "phone_15",
-      "description": "Phone 15",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.115:5555",
-      "name": "phone_16",
-      "description": "Phone 16",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.116:5555",
-      "name": "phone_17",
-      "description": "Phone 17",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.117:5555",
-      "name": "phone_18",
-      "description": "Phone 18",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.118:5555",
-      "name": "phone_19",
-      "description": "Phone 19",
-      "tags": ["testing"]
-    },
-    {
-      "device_id": "192.168.1.119:5555",
-      "name": "phone_20",
-      "description": "Phone 20",
-      "tags": ["testing"]
+      "device_id": "auto",
+      "name": "jay",
+      "persona": "Jay",
+      "platforms": ["twitter", "tiktok", "reddit"],
+      "description": "Phone 3 — Trading/working class persona"
     }
   ]
 }

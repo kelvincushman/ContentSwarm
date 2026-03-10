@@ -604,6 +604,68 @@ Solution: Use non-interactive mode to specify tasks directly, or switch to a TTY
 
 ---
 
+## Nova Integration & USB Hub Setup
+
+### Persona-Phone Mapping
+
+ContentSwarm maps physical phones to content personas via USB hub:
+
+| Phone | Persona | Platforms | Description |
+|-------|---------|-----------|-------------|
+| Phone 1 | **Zara** | TikTok, Instagram | Young female AI/lifestyle persona |
+| Phone 2 | **Marcus** | LinkedIn, Twitter, YouTube | Professional finance/AI persona |
+| Phone 3 | **Jay** | Twitter, TikTok, Reddit | Trading/working class persona |
+
+Phones connect via USB hub and are identified by serial ID (e.g. `RFCN30XXXXX`). Run device discovery to auto-map:
+
+```bash
+python -m phone_agent.device_discovery
+```
+
+### Nova REST API
+
+ContentSwarm exposes a REST API on port **8771** so Nova can control posting:
+
+```bash
+python nova_api.py
+```
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/status` | List all phones + connection status + persona |
+| `POST` | `/post` | Queue and execute a post `{persona, platform, text, media_path}` |
+| `POST` | `/discover` | Run device discovery, update config |
+| `GET` | `/queue` | Show pending posts per persona |
+
+**Example — post a tweet as Marcus:**
+
+```bash
+curl -X POST http://localhost:8771/post \
+  -H "Content-Type: application/json" \
+  -d '{"persona": "marcus", "platform": "twitter", "text": "AI is reshaping finance. Thread incoming..."}'
+```
+
+### Content Queue
+
+Posts are queued and executed asynchronously. The queue also ingests JSON files from:
+```
+~/.openclaw/workspace/marketing/x-posts/*.json
+```
+
+Each JSON file should contain: `{"persona": "...", "platform": "...", "text": "...", "media_path": "..."}`
+
+### USB Hub Setup
+
+1. Connect a powered USB hub to your server
+2. Plug in Android phones (USB debugging enabled)
+3. Run `adb devices` to verify all phones appear
+4. Run `python -m phone_agent.device_discovery` to auto-map serials to personas
+5. Start the Nova API: `python nova_api.py`
+
+---
+
 ## 📜 Terms of Use
 
 > ⚠️ This project is for research and learning purposes only. It is strictly prohibited to use for illegal information acquisition, system interference, or any illegal activities. Please carefully review the [Terms of Use](resources/privacy_policy_en.txt).
