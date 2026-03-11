@@ -4,22 +4,28 @@
       "device_id": "auto",
       "name": "zara",
       "persona": "Zara",
+      "model": "Samsung Galaxy Note 10",
       "platforms": ["tiktok", "instagram"],
-      "description": "Phone 1 — Young female AI/lifestyle persona"
+      "description": "Phone 1 — Young female AI/lifestyle persona (Note 10)",
+      "tags": ["primary", "testing"]
     },
     {
       "device_id": "auto",
       "name": "marcus",
       "persona": "Marcus",
+      "model": "TBD",
       "platforms": ["linkedin", "twitter", "youtube"],
-      "description": "Phone 2 — Professional finance/AI persona"
+      "description": "Phone 2 — Professional finance/AI persona",
+      "tags": ["pending"]
     },
     {
       "device_id": "auto",
       "name": "jay",
       "persona": "Jay",
+      "model": "TBD",
       "platforms": ["twitter", "tiktok", "reddit"],
-      "description": "Phone 3 — Trading/working class persona"
+      "description": "Phone 3 — Trading/working class persona",
+      "tags": ["pending"]
     }
   ]
 }
