@@ -1,0 +1,12 @@
+# Temp files
+/tmp/
+*.png
+*.xml
+
+# Secrets
+.env
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
