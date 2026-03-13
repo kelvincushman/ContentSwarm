@@ -43,7 +43,7 @@ The result: post tweets, schedule threads, run DM funnels, and scale to a 10-pho
 |---|---|
 | Android automation | [ADB](https://developer.android.com/tools/adb) + [YADB](https://github.com/ysbing/YADB) |
 | Unicode/emoji input | [AdbKeyboard](https://github.com/senzhk/ADBKeyBoard) |
-| AI vision (optional) | [AutoGLM-Phone-9B](https://novita.ai) via Novita serverless |
+| AI vision (optional) | [AutoGLM-Phone-9B](https://novita.ai) — cloud or self-hosted (see GPU requirements) |
 | Queue management | Google Sheets (via [gws CLI](https://www.npmjs.com/package/@googleworkspace/cli)) |
 | Scheduler | Python cron on Linux server |
 | Orchestration | Custom `orchestrator.py` with threading + file locks |
@@ -112,6 +112,74 @@ ADB Host Machine
     └── orchestrator.py fans out tasks in parallel threads
         with per-device file locks to prevent collision
 ```
+
+---
+
+## AI Vision Layer (Optional)
+
+The core ADB + YADB automation requires **no GPU at all** — it reads the live UI layout directly from Android and is the recommended approach for all posting, threading, and DM funnel tasks.
+
+AutoGLM-Phone-9B is an optional vision layer that lets an AI *see* the phone screen and decide what to tap, useful for complex or unpredictable UI flows. It is **not required** for anything in this project's current feature set.
+
+### Option 1 — No GPU (Recommended)
+
+Pure ADB + YADB. All navigation via XML layout parsing in `device_nav.py`. Works on any Linux machine with a USB port.
+
+```
+Requirements: None beyond ADB + Python 3.10
+GPU: Not required
+```
+
+### Option 2 — Novita Serverless (Cloud GPU, pay-per-use)
+
+Run AutoGLM-Phone-9B via [Novita AI](https://novita.ai) without owning a GPU. Charged per inference call (~$0.001–0.005 per screen interaction).
+
+```
+Requirements: Novita API key (~/.secrets/novita-api)
+GPU: None — runs on Novita's infrastructure
+Best for: Occasional use, testing, users without local GPU
+```
+
+### Option 3 — Self-Hosted AutoGLM (Local GPU)
+
+Run AutoGLM-Phone-9B-Multilingual on your own machine for unlimited inference at no per-call cost.
+
+**Model specs:** 9 billion parameters, multilingual, phone UI understanding
+
+| Mode | Min VRAM | Recommended GPU | Notes |
+|---|---|---|---|
+| FP16 (full quality) | **18 GB** | RTX 4090 24GB, RTX 3090 24GB, A5000 24GB | Best results |
+| BF16 | **16 GB** | RTX 4080 Super 16GB, RTX 5060 Ti 16GB, RTX 4080 16GB | Good quality, our test hardware |
+| INT8 quantised | **10 GB** | RTX 3080 10GB, RTX 4070 12GB | Slight quality drop |
+| INT4 quantised | **6 GB** | RTX 3060 12GB*, RTX 4060 8GB* | Reduced accuracy — not recommended for UI automation |
+
+> ⚠️ *INT4 on 6–8 GB cards often fails to accurately identify small UI elements (buttons, text fields). Use cloud/FP16 for reliable automation.*
+
+**Minimum recommended for self-hosting:** RTX 3090 / RTX 4080 / any 24 GB card
+
+**Setup (self-hosted):**
+```bash
+# Clone AutoGLM
+git clone https://github.com/THUDM/AutoGLM-Phone
+cd AutoGLM-Phone
+
+# Install
+pip install -r requirements.txt
+
+# Download model (≈18 GB)
+huggingface-cli download THUDM/AutoGLM-Phone-9B-Multilingual
+
+# Run local inference server
+python serve.py --port 8771 --device cuda
+
+# Point ContentSwarm at it
+# In phones_config.json: "glm_endpoint": "http://localhost:8771"
+```
+
+**Our production setup:**
+- ADB + YADB for all posting/threading/DM automation (no GPU needed)
+- Novita serverless AutoGLM as fallback for complex visual flows
+- Local RTX 5060 Ti 16GB (ai-server) for BF16 inference when offline
 
 ---
 
