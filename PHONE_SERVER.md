@@ -1,0 +1,171 @@
+# Phone Control Server
+
+A standalone, LAN-accessible **REST + WebSocket** service that lets an external
+agent harness control one or many connected Android phones. It wraps the
+existing `phone_agent/` package — no phone logic is re-implemented.
+
+It exposes **two layers**:
+
+1. **Raw primitives** — your harness is the brain: pull screenshots, then
+   tap / swipe / type / launch / press keys. Works with *no* AI model.
+2. **High-level agent** — hand it a natural-language task and the on-device
+   vision-language model (`autoglm-phone-9b`) drives the phone to completion.
+
+> Lives alongside — and does not touch — `nova_api.py` (the older
+> posting-specific Flask API) or the posting workflows.
+
+---
+
+## Run
+
+```bash
+cd ~/contentswarm
+pip install -r requirements.txt            # adds fastapi + uvicorn
+export PHONE_API_KEY="choose-a-long-secret"   # omit ONLY on a fully trusted LAN
+python run_phone_server.py                  # binds 0.0.0.0:8770
+```
+
+### Environment variables
+
+| Var                 | Default                     | Meaning                                   |
+|---------------------|-----------------------------|-------------------------------------------|
+| `PHONE_SERVER_HOST` | `0.0.0.0`                   | Bind address (all LAN interfaces)         |
+| `PHONE_SERVER_PORT` | `8770`                      | Bind port                                 |
+| `PHONE_API_KEY`     | *(unset = OPEN)*            | Shared secret. **Set this.**              |
+| `VLM_BASE_URL`      | `http://localhost:8000/v1`  | OpenAI-compatible vision model endpoint   |
+| `VLM_MODEL`         | `autoglm-phone-9b`          | Model name for `/run`                     |
+| `PHONE_AGENT_LANG`  | `en`                        | Agent prompt language (`en` / `cn`)       |
+| `PHONE_AGENT_MAX_STEPS` | `50`                    | Default step cap for `/run`               |
+| `PHONE_STREAM_FPS`  | `2`                         | Default live-stream frame rate            |
+
+---
+
+## Auth
+
+- **REST:** header `X-API-Key: <key>`
+- **WebSocket:** query param `?api_key=<key>`
+- Enforced only when `PHONE_API_KEY` is set. Health check is always open.
+
+---
+
+## Device model & coordinates
+
+- A **device_id** is exactly what `adb devices` shows (e.g. `RF8M90JL60K` for
+  USB, or `192.168.1.50:5555` for WiFi).
+- Input endpoints accept **absolute pixels** by default. Set
+  `"normalized": true` to pass **0–1000 relative** coordinates instead — these
+  are scaled to the *screenshot* dimensions (the same space the vision model
+  uses), so a normalized tap lines up exactly with what you see in a screenshot.
+- One **lock per device**: requests to the same phone are serialized; different
+  phones run in parallel.
+
+---
+
+## REST endpoints
+
+### Meta / devices
+| Method | Path | Body / query | Notes |
+|---|---|---|---|
+| GET  | `/health` | — | Open, no auth |
+| GET  | `/devices` | — | List all adb devices + status/model |
+| POST | `/devices/connect` | `{address}` | `adb connect` a WiFi/remote phone |
+| POST | `/devices/disconnect` | `{address}` | — |
+| POST | `/devices/{id}/tcpip?port=5555` | — | Flip a USB phone to wireless; returns `wifi_address` |
+| GET  | `/devices/{id}/screen_size` | — | Screenshot framebuffer size |
+| GET  | `/devices/{id}/current_app` | — | Focused app name |
+
+### Screenshot
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/devices/{id}/screenshot` | Returns **PNG** bytes; `X-Screen-Width/Height` headers |
+| GET | `/devices/{id}/screenshot?format=base64` | Returns JSON `{width,height,is_sensitive,image_base64}` |
+
+### Raw input primitives (all POST)
+| Path | Body |
+|---|---|
+| `/devices/{id}/tap` | `{x, y, normalized?}` |
+| `/devices/{id}/double_tap` | `{x, y, normalized?}` |
+| `/devices/{id}/long_press` | `{x, y, normalized?}` |
+| `/devices/{id}/swipe` | `{start_x, start_y, end_x, end_y, duration_ms?, normalized?}` |
+| `/devices/{id}/type` | `{text, clear?}` — via ADB Keyboard IME |
+| `/devices/{id}/back` | — |
+| `/devices/{id}/home` | — |
+| `/devices/{id}/launch` | `{app}` — name must be in `phone_agent/config/apps.py` |
+| `/devices/{id}/action` | `{action, params}` — full ActionHandler vocabulary, 0–1000 coords |
+
+### High-level agent
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| POST | `/devices/{id}/run` | `{task, max_steps?, lang?, model_base_url?, model_name?}` | **Blocks**, returns full step transcript |
+| POST | `/devices/{id}/run/async` | same | Returns `{job_id}` immediately |
+| GET  | `/jobs/{job_id}` | — | Poll async job status/result |
+
+> `/run*` requires the vision model to be serving at `VLM_BASE_URL`
+> (start `autoglm-phone-9b` with sglang/vLLM — see `requirements.txt`).
+
+---
+
+## WebSocket endpoints
+
+### Live screen stream
+```
+ws://HOST:8770/ws/{id}/stream?api_key=KEY&fps=3
+```
+Server pushes `{type:"frame", width, height, is_sensitive, data(base64 png), ts}`.
+
+### Streaming agent run
+```
+ws://HOST:8770/ws/{id}/run?api_key=KEY
+```
+Client sends one JSON message: `{task, max_steps?, lang?}`.
+Server emits `{type:"step", index, step}` per step, then
+`{type:"done", finished, final_message, step_count}`.
+
+---
+
+## Quick harness examples
+
+### Raw control (Python)
+```python
+import requests
+B, H = "http://LENOVO_VM_IP:8770", {"X-API-Key": "your-secret"}
+
+# 1. see the screen
+shot = requests.get(f"{B}/devices/RF8M90JL60K/screenshot?format=base64", headers=H).json()
+
+# 2. your harness decides, then acts (normalized 0-1000 coords)
+requests.post(f"{B}/devices/RF8M90JL60K/tap",
+              headers=H, json={"x": 500, "y": 120, "normalized": True})
+requests.post(f"{B}/devices/RF8M90JL60K/type",
+              headers=H, json={"text": "hello world"})
+```
+
+### High-level task
+```python
+r = requests.post(f"{B}/devices/RF8M90JL60K/run",
+                  headers=H, json={"task": "Open Chrome and search for cats"})
+print(r.json()["final_message"])
+```
+
+---
+
+## Connecting more phones over WiFi (LAN)
+
+1. Plug the phone in via USB once, authorize the RSA prompt.
+2. `POST /devices/{usb_id}/tcpip` → note the returned `wifi_address`.
+3. Unplug USB. `POST /devices/connect {"address": "<wifi_address>"}`.
+4. The phone now appears in `/devices` as `ip:port` and is fully controllable.
+
+Each phone must have the **ADB Keyboard** app installed for `/type` to work
+(https://github.com/nicnocquee/AdbKeyboard).
+
+---
+
+## Notes / limitations
+
+- `/run*` needs the vision model running; the raw layer does not.
+- Async job registry is in-memory (cleared on restart).
+- Screenshots on DRM/"sensitive" screens return a black image with
+  `is_sensitive: true`.
+- Runs great under systemd or docker — it's a plain uvicorn app
+  (`phone_server.server:app`).

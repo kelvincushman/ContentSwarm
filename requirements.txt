@@ -3,6 +3,10 @@ openai>=2.9.0
 flask>=3.0.0
 adb-shell>=0.4.4
 
+# Phone Control Server (standalone LAN API — phone_server/)
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
 # For Model Deployment
 
 ## After installing sglang or vLLM, please run pip install -U transformers again to upgrade to 5.0.0rc0.
