@@ -4,15 +4,24 @@ A standalone, LAN-accessible **REST + WebSocket** service that lets an external
 agent harness control one or many connected Android phones. It wraps the
 existing `phone_agent/` package — no phone logic is re-implemented.
 
-It exposes **two layers**:
+It exposes **four layers**:
 
-1. **Raw primitives** — your harness is the brain: pull screenshots, then
-   tap / swipe / type / launch / press keys. Works with *no* AI model.
-2. **High-level agent** — hand it a natural-language task and the on-device
-   vision-language model (`autoglm-phone-9b`) drives the phone to completion.
+1. **Raw primitives** — your harness is the brain: pull screenshots + the live
+   UI hierarchy, then tap / swipe / type / launch / press keys. No AI model.
+2. **High-level agent** — hand it a natural-language task and a
+   vision-language model drives the phone to completion.
+3. **App onboarding** — a training session that teaches the server a new app
+   (screens, robust element selectors, reusable flows) and **saves** it.
+4. **App control** — any agent then opens the app, taps named elements, and
+   runs saved flows. **See [APP_ONBOARDING.md](APP_ONBOARDING.md).**
 
 > Lives alongside — and does not touch — `nova_api.py` (the older
 > posting-specific Flask API) or the posting workflows.
+
+**Module layout:** `phone_server/{config,deps,models,schemas,adb_ext,appstore,
+flows,onboarding}.py` + `phone_server/routers/{devices,agent,apps,onboard,
+streaming}.py`, assembled in `phone_server/server.py` (`uvicorn
+phone_server.server:app`).
 
 ---
 
@@ -37,6 +46,7 @@ python run_phone_server.py                  # binds 0.0.0.0:8770
 | `PHONE_AGENT_LANG`  | `en`                        | Agent prompt language (`en` / `cn`)       |
 | `PHONE_AGENT_MAX_STEPS` | `50`                    | Default step cap for `/run`               |
 | `PHONE_STREAM_FPS`  | `2`                         | Default live-stream frame rate            |
+| `PHONE_PROFILES_DIR`| `~/.contentswarm/phone_profiles` | Where onboarded app profiles are saved |
 
 ---
 
@@ -72,7 +82,9 @@ python run_phone_server.py                  # binds 0.0.0.0:8770
 | POST | `/devices/disconnect` | `{address}` | — |
 | POST | `/devices/{id}/tcpip?port=5555` | — | Flip a USB phone to wireless; returns `wifi_address` |
 | GET  | `/devices/{id}/screen_size` | — | Screenshot framebuffer size |
-| GET  | `/devices/{id}/current_app` | — | Focused app name |
+| GET  | `/devices/{id}/current_app` | — | Focused app name + resumed activity |
+| GET  | `/devices/{id}/ui` | `?interactable_only=` | Parsed live UI hierarchy (selector-based control) |
+| GET  | `/devices/{id}/packages` | — | Installed third-party packages (onboarding discovery) |
 
 ### Screenshot
 | Method | Path | Notes |
@@ -146,6 +158,22 @@ r = requests.post(f"{B}/devices/RF8M90JL60K/run",
                   headers=H, json={"task": "Open Chrome and search for cats"})
 print(r.json()["final_message"])
 ```
+
+### Onboarded app (no coordinates, no model)
+```python
+# after an app has been onboarded (see APP_ONBOARDING.md)
+requests.post(f"{B}/apps/twitter/devices/RF8M90JL60K/flows/post_tweet/run",
+              headers=H, json={"params": {"text": "hello from my agent"}})
+```
+
+---
+
+## App onboarding & control
+
+The `/onboard/*` and `/apps/*` routes let agents **teach** the server an app
+once, then drive it by named elements and flows — resilient to layout changes
+because targets resolve against the live view hierarchy. Full guide, endpoint
+tables, and the flow-step reference: **[APP_ONBOARDING.md](APP_ONBOARDING.md)**.
 
 ---
 

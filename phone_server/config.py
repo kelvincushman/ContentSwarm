@@ -29,6 +29,11 @@ class Settings:
     default_lang: str = os.environ.get("PHONE_AGENT_LANG", "en")
     default_max_steps: int = int(os.environ.get("PHONE_AGENT_MAX_STEPS", "50"))
 
+    # --- App profiles (onboarding output) live here ---
+    profiles_dir: str = os.environ.get(
+        "PHONE_PROFILES_DIR", os.path.expanduser("~/.contentswarm/phone_profiles")
+    )
+
     # --- Live stream defaults ---
     default_stream_fps: float = float(os.environ.get("PHONE_STREAM_FPS", "2"))
 
