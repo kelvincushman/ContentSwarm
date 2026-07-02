@@ -12,7 +12,6 @@ from phone_agent.adb import (
     back,
     double_tap,
     get_current_app,
-    get_screenshot,
     home,
     launch_app,
     long_press,
@@ -24,6 +23,7 @@ from phone_agent.actions.handler import ActionHandler
 from phone_server import adb_ext
 from phone_server.deps import (
     adb,
+    cached_screenshot,
     do_type_text,
     get_screen_size,
     lock_for,
@@ -148,8 +148,7 @@ async def packages(device_id: str) -> dict[str, Any]:
 @router.get("/devices/{device_id}/screenshot")
 async def screenshot(device_id: str, format: str = Query("png", pattern="^(png|base64)$")):
     await require_device(device_id)
-    async with lock_for(device_id):
-        shot = await run_in_threadpool(get_screenshot, device_id)
+    shot = await cached_screenshot(device_id)
     if format == "base64":
         return {
             "width": shot.width,

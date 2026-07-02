@@ -15,6 +15,16 @@ function isBlack(img) {
   } catch { return false; }
 }
 
+// Display-size presets for the screen image. "fit" fills the available
+// column width; the others are fixed target widths (height follows the
+// phone's real aspect ratio). Persisted so the choice survives tab switches.
+const SIZES = [
+  { key: "s", label: "S", width: 200 },
+  { key: "m", label: "M", width: 300 },
+  { key: "l", label: "L", width: 420 },
+  { key: "fit", label: "Fit", width: null },
+];
+
 // Live phone screen. Polls a screenshot and reports normalized 0-1000 click
 // coordinates via onPoint(nx, ny). `hint` labels what a click will do.
 export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", fps = 0.8 }) {
@@ -22,7 +32,11 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
   const [err, setErr] = useState(null);
   const [paused, setPaused] = useState(false);
   const [blank, setBlank] = useState(false);
+  const [sizeKey, setSizeKey] = useState(() => localStorage.getItem("ps_screen_size") || "fit");
   const imgRef = useRef(null);
+
+  useEffect(() => { localStorage.setItem("ps_screen_size", sizeKey); }, [sizeKey]);
+  const size = SIZES.find((s) => s.key === sizeKey) || SIZES[3];
 
   async function wake() {
     try { const r = await api(`/devices/${deviceId}/wake`, { method: "POST" }); setErr(r.locked ? "screen woken — phone is LOCKED, click Unlock (or enter PIN on device)" : null); }
@@ -71,6 +85,11 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
     <div className="livescreen">
       <div className="livescreen-bar">
         <span className="muted">{hint}</span>
+        <span className="sizepicker">
+          {SIZES.map((s) => (
+            <button key={s.key} className={sizeKey === s.key ? "chip active" : "chip"} onClick={() => setSizeKey(s.key)} title={s.width ? `${s.width}px wide` : "fill available width"}>{s.label}</button>
+          ))}
+        </span>
         <span>
           <button className="ghost" onClick={wake}>⏻ wake</button>
           <button className="ghost" onClick={unlock}>🔓 unlock</button>
@@ -81,6 +100,7 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
       {blank && !err && <div className="warn">Screen is black — the phone is asleep or on a secure lock screen (screenshots are blocked). Click <b>wake</b> and unlock the phone (PIN) on the device.</div>}
       {src ? (
         <img ref={imgRef} src={src} className="screen" onClick={click} alt="phone screen"
+          style={{ width: size.width ? `${size.width}px` : "100%", maxWidth: "100%", maxHeight: "78vh", height: "auto", margin: "0 auto" }}
           onLoad={(e) => setBlank(isBlack(e.target))} />
       ) : (
         <div className="screen empty">loading…</div>

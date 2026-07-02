@@ -8,9 +8,7 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
 
-from phone_agent.adb import get_screenshot
-
-from phone_server.deps import check_ws_key, connected_ids, lock_for, settings
+from phone_server.deps import cached_screenshot, check_ws_key, connected_ids, lock_for, settings
 from phone_server.routers.agent import build_agent, serialize_step
 from phone_server.schemas import RunBody
 
@@ -31,8 +29,7 @@ async def ws_stream(websocket: WebSocket, device_id: str, api_key: str | None = 
     interval = 1.0 / (fps or settings.default_stream_fps)
     try:
         while True:
-            async with lock_for(device_id):
-                shot = await run_in_threadpool(get_screenshot, device_id)
+            shot = await cached_screenshot(device_id)
             await websocket.send_json(
                 {
                     "type": "frame",

@@ -67,6 +67,29 @@ async def require_device(device_id: str) -> None:
         )
 
 
+# Coalesce concurrent screenshot pollers (multiple open tabs/panels) so they
+# share one ADB capture instead of each serializing their own behind the
+# per-device lock — without this, N viewers polling every ~1s each wait for
+# N * capture_time because captures queue up one at a time.
+_screenshot_cache: dict[str, tuple[float, object]] = {}
+_SCREENSHOT_CACHE_TTL = 0.6  # seconds; keep below the UI's polling interval
+
+
+async def cached_screenshot(device_id: str):
+    now = time.time()
+    cached = _screenshot_cache.get(device_id)
+    if cached and (now - cached[0]) < _SCREENSHOT_CACHE_TTL:
+        return cached[1]
+    async with lock_for(device_id):
+        cached = _screenshot_cache.get(device_id)
+        now = time.time()
+        if cached and (now - cached[0]) < _SCREENSHOT_CACHE_TTL:
+            return cached[1]
+        shot = await run_in_threadpool(get_screenshot, device_id)
+        _screenshot_cache[device_id] = (time.time(), shot)
+        return shot
+
+
 def get_screen_size(device_id: str) -> tuple[int, int]:
     """(width, height) of the screenshot framebuffer, cached.
 
