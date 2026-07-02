@@ -50,6 +50,33 @@ session id returned by `start`.
 | — | `DELETE /onboard/{sid}` | Discard the session (nothing saved). |
 | — | `GET /onboard/sessions` | List active sessions. |
 
+### Auto Train mode (console)
+
+The [web console](UI_CONSOLE.md)'s Onboard tab has a **⏺ Record** toggle — the
+fastest way to onboard an app. Enter a flow name, hit Record, then just use the
+phone through the live screen. No manual step-building or element-labeling:
+
+- **Every tap** is recorded as a `tap_element` step automatically. The server
+  derives a selector at the tap point (same mechanism as `/suggest`) and saves
+  a named element for it (`el_1`, `el_2`, … or a name derived from the tapped
+  control's text/content-desc when available) — no manual naming needed.
+- **Back / Home / Wait** quick-action buttons perform the action on the device
+  *and* record the matching step in one click.
+- **Type text…** performs a real `/type` call now, and records a `type` step —
+  you choose whether to save the text as a reusable `{{text}}` parameter
+  (recommended) or a literal.
+- **Auto screen detection** (on by default): when the resumed activity changes,
+  the server names and saves the new screen and inserts an `assert_screen`
+  step, so the recorded flow verifies it landed in the right place.
+- Stop recording any time; the flow is already saved into the session as you
+  go (each action is persisted incrementally) — click **Save app profile** to
+  write it to disk.
+
+This is equivalent to hand-building a flow via the API calls below, just
+performed automatically as you interact with the phone. Real ADB round-trips
+mean each recorded action can take a couple of seconds (tap + UI-dump for the
+selector + element save + step save) — that's expected, not a hang.
+
 ### Teaching by pointing
 The onboarding loop is designed so an operator (agent or human) **captures the
 screen, looks at the screenshot, and points at what matters** — the server turns

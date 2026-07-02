@@ -29,7 +29,7 @@ const SIZES = [
 // coordinates via onPoint(nx, ny). `hint` labels what a click will do.
 // `disabled` + `disabledReason`: block clicks with a visible overlay (e.g. no
 // onboarding session yet) instead of silently doing nothing.
-export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", fps = 0.8, disabled = false, disabledReason = "" }) {
+export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", fps = 0.8, disabled = false, disabledReason = "", markerVariant = "click-marker" }) {
   const [src, setSrc] = useState(null);
   const [err, setErr] = useState(null);
   const [paused, setPaused] = useState(false);
@@ -116,7 +116,7 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
             </div>
           )}
           {!disabled && lastClick && (
-            <span key={lastClick.id} className="click-marker" style={{ left: `${lastClick.xPct}%`, top: `${lastClick.yPct}%` }} />
+            <span key={lastClick.id} className={markerVariant} style={{ left: `${lastClick.xPct}%`, top: `${lastClick.yPct}%` }} />
           )}
         </div>
       ) : (
