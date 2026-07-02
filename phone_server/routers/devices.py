@@ -31,6 +31,7 @@ from phone_server.deps import (
     require_device,
     resolve_xy,
 )
+from phone_server.registry import REGISTRY
 from phone_server.schemas import (
     ActionBody,
     ConnectBody,
@@ -112,11 +113,17 @@ async def wake_device(device_id: str) -> dict[str, Any]:
 
 
 @router.post("/devices/{device_id}/unlock")
-async def unlock_device(device_id: str, body: UnlockBody) -> dict[str, Any]:
-    """Unlock the phone by entering a KNOWN numeric PIN over ADB (not a bypass)."""
+async def unlock_device(device_id: str, body: UnlockBody | None = None) -> dict[str, Any]:
+    """Unlock the phone with a KNOWN numeric PIN (not a bypass).
+
+    Uses the PIN in the body, or the device's stored PIN if none is given.
+    """
     await require_device(device_id)
+    pin = (body.pin if body else None) or REGISTRY.get_pin(device_id)
+    if not pin:
+        raise HTTPException(status_code=400, detail="No PIN provided and none stored for this device")
     async with lock_for(device_id):
-        ok = await run_in_threadpool(adb_ext.unlock, device_id, body.pin)
+        ok = await run_in_threadpool(adb_ext.unlock, device_id, pin)
     return {"ok": ok, "locked": not ok}
 
 

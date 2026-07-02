@@ -11,7 +11,7 @@ from phone_agent.adb import tap
 
 from phone_server import adb_ext
 from phone_server.appstore import STORE
-from phone_server.deps import lock_for, require_api_key, require_device
+from phone_server.deps import ensure_unlocked, lock_for, require_api_key, require_device
 from phone_server.flows import FlowRunner
 from phone_server.schemas import ElementTapBody, FindBody, FlowRunBody
 
@@ -54,6 +54,7 @@ async def open_app(app: str, device_id: str) -> dict[str, Any]:
     profile = _load(app)
     runner = FlowRunner(profile, device_id)
     async with lock_for(device_id):
+        await run_in_threadpool(ensure_unlocked, device_id)
         detail = await run_in_threadpool(runner._exec_step, _open_step(), {})
     return {"ok": True, "detail": detail}
 
@@ -122,6 +123,7 @@ async def run_flow(app: str, device_id: str, flow: str, body: FlowRunBody) -> di
 
     runner = FlowRunner(profile, device_id)
     async with lock_for(device_id):
+        await run_in_threadpool(ensure_unlocked, device_id)
         result = await run_in_threadpool(runner.run, flow_obj, body.params)
     return {
         "ok": result.ok,

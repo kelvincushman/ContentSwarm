@@ -26,6 +26,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+import asyncio
+
+from phone_server import janitor
 from phone_server.config import get_settings
 from phone_server.routers import agent, apps, config, devices, integration, onboard, registry, streaming
 
@@ -44,6 +47,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _start_janitor() -> None:
+    # Self-cleaning temp screenshots (no external cron needed).
+    asyncio.create_task(janitor.run_periodic(interval_sec=300, max_age_sec=300))
 
 
 @app.get("/health")

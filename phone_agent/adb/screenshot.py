@@ -73,9 +73,6 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
         img.save(buffered, format="PNG")
         base64_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-        # Cleanup
-        os.remove(temp_path)
-
         return Screenshot(
             base64_data=base64_data, width=width, height=height, is_sensitive=False
         )
@@ -83,6 +80,15 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
     except Exception as e:
         print(f"Screenshot error: {e}")
         return _create_fallback_screenshot(is_sensitive=False)
+
+    finally:
+        # Always remove the pulled temp file — even on the error/locked-screen
+        # path — so /tmp doesn't accumulate screenshot_*.png files.
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except OSError:
+            pass
 
 
 def _get_adb_prefix(device_id: str | None) -> list:

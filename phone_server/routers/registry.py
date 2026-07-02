@@ -11,7 +11,7 @@ from phone_server.appstore import STORE
 from phone_server.deps import adb, require_api_key
 from phone_server.models import Account
 from phone_server.registry import REGISTRY
-from phone_server.schemas import AccountBody, DeviceConfigPatch
+from phone_server.schemas import AccountBody, DeviceConfigPatch, PinBody
 
 router = APIRouter(dependencies=[Depends(require_api_key)], prefix="/registry")
 
@@ -37,6 +37,7 @@ async def devices_merged() -> dict[str, Any]:
                 "label": cfg.label,
                 "agent_model": {"base_url": eff["base_url"], "model_name": eff["model_name"]},
                 "accounts": [a.model_dump() for a in cfg.accounts.values()],
+                "has_pin": bool(cfg.pin),
                 "notes": cfg.notes,
             }
         )
@@ -45,7 +46,14 @@ async def devices_merged() -> dict[str, Any]:
 
 @router.get("/devices/{device_id}")
 async def get_device(device_id: str) -> dict[str, Any]:
-    return REGISTRY.get_device(device_id).model_dump()
+    return REGISTRY.get_device(device_id).public_dict()  # PIN redacted
+
+
+@router.put("/devices/{device_id}/pin")
+async def set_pin(device_id: str, body: PinBody) -> dict[str, Any]:
+    """Store (or clear, with empty string) the device unlock PIN for auto-unlock."""
+    dc = REGISTRY.set_pin(device_id, body.pin)
+    return {"ok": True, "has_pin": bool(dc.pin)}
 
 
 @router.put("/devices/{device_id}")

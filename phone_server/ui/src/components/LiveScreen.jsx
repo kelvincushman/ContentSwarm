@@ -29,10 +29,17 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
     catch (e) { setErr(String(e.message || e)); }
   }
   async function unlock() {
-    const pin = prompt("Enter the phone's PIN (entered over ADB — not stored):");
-    if (!pin) return;
-    try { const r = await api(`/devices/${deviceId}/unlock`, { method: "POST", body: { pin } }); setErr(r.ok ? null : "unlock failed — still locked (wrong PIN?)"); }
-    catch (e) { setErr(String(e.message || e)); }
+    // try the device's stored PIN first; fall back to a one-off prompt
+    try {
+      const r = await api(`/devices/${deviceId}/unlock`, { method: "POST", body: {} });
+      setErr(r.ok ? null : "unlock failed — still locked (wrong PIN?)");
+      return;
+    } catch {
+      const pin = prompt("No stored PIN. Enter the phone's PIN (over ADB):");
+      if (!pin) return;
+      try { const r = await api(`/devices/${deviceId}/unlock`, { method: "POST", body: { pin } }); setErr(r.ok ? null : "unlock failed — still locked (wrong PIN?)"); }
+      catch (e) { setErr(String(e.message || e)); }
+    }
   }
 
   useEffect(() => {

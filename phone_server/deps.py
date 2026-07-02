@@ -96,6 +96,24 @@ def norm_from_abs(device_id: str, x: int, y: int) -> list[int]:
     return [int(x / w * 1000), int(y / h * 1000)]
 
 
+def ensure_unlocked(device_id: str) -> bool:
+    """If the phone is on the keyguard and has a stored PIN, unlock it.
+
+    Returns True if the device is usable (already unlocked, or unlocked now).
+    Called transparently before flows / app opens / agent runs so agents never
+    handle the PIN themselves. Imports are local to avoid an import cycle.
+    """
+    from phone_server import adb_ext
+    from phone_server.registry import REGISTRY
+
+    if not adb_ext.keyguard_showing(device_id):
+        return True
+    pin = REGISTRY.get_pin(device_id)
+    if not pin:
+        return False
+    return adb_ext.unlock(device_id, pin)
+
+
 def do_type_text(device_id: str, text: str, clear: bool = True, restore: bool = True) -> None:
     """Type via the ADB Keyboard IME (Unicode/emoji-safe, base64 broadcast).
 

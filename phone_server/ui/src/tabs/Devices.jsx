@@ -25,6 +25,10 @@ export default function Devices() {
     await api(`/registry/devices/${dev}`, { method: "PUT", body: patch });
     load();
   }
+  async function savePin(dev, pin) {
+    await api(`/registry/devices/${dev}/pin`, { method: "PUT", body: { pin } });
+    load();
+  }
   async function connectWifi() {
     setMsg("connecting…");
     try { const r = await api("/devices/connect", { method: "POST", body: { address: addr } }); setMsg(r.message); load(); }
@@ -52,7 +56,7 @@ export default function Devices() {
         </div>
         {msg && <div className="muted small">{msg}</div>}
         <table className="tbl">
-          <thead><tr><th></th><th>Device</th><th>Label</th><th>Agent model</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Device</th><th>Label</th><th>Agent model</th><th>PIN</th><th></th></tr></thead>
           <tbody>
             {devices.map((d) => (
               <tr key={d.device_id} className={sel === d.device_id ? "selrow" : ""} onClick={() => setSel(d.device_id)}>
@@ -65,6 +69,11 @@ export default function Devices() {
                     <option value={d.agent_model.base_url + "|" + d.agent_model.model_name}>{d.agent_model.model_name}</option>
                     {allModels.map((m, i) => <option key={i} value={m.base + "|" + m.model}>{m.label}</option>)}
                   </select>
+                </td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <input type="password" style={{ width: 70 }} placeholder={d.has_pin ? "•••• set" : "set PIN"}
+                    onBlur={(e) => { if (e.target.value) { savePin(d.device_id, e.target.value); e.target.value = ""; } }} />
+                  {d.has_pin && <span className="muted small" title="auto-unlock enabled"> 🔓</span>}
                 </td>
                 <td><button className="ghost" onClick={(e) => { e.stopPropagation(); enableTcpip(d.device_id); }}>→WiFi</button></td>
               </tr>

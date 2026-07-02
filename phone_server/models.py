@@ -183,7 +183,15 @@ class DeviceConfig(BaseModel):
     model_name: Optional[str] = None
     model_base_url: Optional[str] = None
     accounts: dict[str, Account] = Field(default_factory=dict)
+    pin: Optional[str] = None  # numeric unlock PIN; NEVER returned by the API
     notes: str = ""
+
+    def public_dict(self) -> dict:
+        """model_dump with the PIN stripped and replaced by a has_pin flag."""
+        d = self.model_dump()
+        d.pop("pin", None)
+        d["has_pin"] = bool(self.pin)
+        return d
 
 
 class ModelHost(BaseModel):

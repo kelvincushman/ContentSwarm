@@ -205,6 +205,25 @@ tables, and the flow-step reference: **[APP_ONBOARDING.md](APP_ONBOARDING.md)**.
 
 ---
 
+## Locking, auto-unlock & disk hygiene
+
+**Locked phones show a black screen.** A secure keyguard blocks `screencap`.
+- `POST /devices/{id}/wake` turns the screen on; `GET /devices/{id}/current_app`
+  reports `locked`.
+- `POST /devices/{id}/unlock {pin}` enters a **known** PIN over ADB (not a
+  bypass). Store a per-phone PIN with `PUT /registry/devices/{id}/pin {pin}` and
+  the server **auto-unlocks** before flows, app opens, and agent runs — the
+  agent never handles the PIN. The PIN is redacted from all API responses and
+  `registry.json` is chmod `600`.
+
+**Temp screenshots self-clean.** Screenshots pull to a temp file that is always
+removed (even on the locked/black-screen path). A built-in janitor also sweeps
+stale `screenshot_*.png` every 5 min — no cron needed. For an OS-level extra,
+`scripts/cleanup_tmp_screenshots.sh` is cron-ready. Device side uses a single
+overwritten `/sdcard/tmp.png`, so nothing accumulates there.
+
+---
+
 ## Connecting more phones over WiFi (LAN)
 
 1. Plug the phone in via USB once, authorize the RSA prompt.

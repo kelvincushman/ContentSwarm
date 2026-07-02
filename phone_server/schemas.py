@@ -147,3 +147,7 @@ class AccountBody(BaseModel):
     app: Optional[str] = None
     handle: str = ""
     notes: str = ""
+
+
+class PinBody(BaseModel):
+    pin: str = Field("", description="Numeric unlock PIN; empty string clears it")

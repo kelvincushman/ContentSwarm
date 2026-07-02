@@ -63,6 +63,22 @@ class Registry:
         }
         with open(self.path, "w") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        # registry.json holds device PINs — restrict to owner read/write.
+        try:
+            os.chmod(self.path, 0o600)
+        except OSError:
+            pass
+
+    def set_pin(self, device_id: str, pin: Optional[str]) -> "DeviceConfig":
+        dc = self.devices.get(device_id) or DeviceConfig(device_id=device_id)
+        dc.pin = pin or None
+        self.devices[device_id] = dc
+        self.save()
+        return dc
+
+    def get_pin(self, device_id: str) -> Optional[str]:
+        dc = self.devices.get(device_id)
+        return dc.pin if dc else None
 
     # --- config ------------------------------------------------------------
 

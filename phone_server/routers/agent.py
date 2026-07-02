@@ -13,7 +13,7 @@ from phone_agent.agent import AgentConfig, PhoneAgent
 from phone_agent.config import get_system_prompt
 from phone_agent.model import ModelConfig
 
-from phone_server.deps import lock_for, require_api_key, require_device, settings
+from phone_server.deps import ensure_unlocked, lock_for, require_api_key, require_device, settings
 from phone_server.registry import REGISTRY
 from phone_server.schemas import RunBody
 
@@ -73,6 +73,7 @@ async def run_task(device_id: str, body: RunBody) -> dict[str, Any]:
     agent = build_agent(device_id, body)
     max_steps = body.max_steps or settings.default_max_steps
     async with lock_for(device_id):
+        await run_in_threadpool(ensure_unlocked, device_id)
         out = await run_in_threadpool(run_collect, agent, body.task, max_steps)
     return {"ok": True, "device_id": device_id, "task": body.task, **out}
 
@@ -88,6 +89,7 @@ async def run_task_async(device_id: str, body: RunBody) -> dict[str, Any]:
         max_steps = body.max_steps or settings.default_max_steps
         try:
             async with lock_for(device_id):
+                await run_in_threadpool(ensure_unlocked, device_id)
                 out = await run_in_threadpool(run_collect, agent, body.task, max_steps)
             JOBS[job_id].update(status="done", result=out)
         except Exception as e:  # noqa: BLE001
