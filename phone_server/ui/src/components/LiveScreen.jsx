@@ -27,12 +27,15 @@ const SIZES = [
 
 // Live phone screen. Polls a screenshot and reports normalized 0-1000 click
 // coordinates via onPoint(nx, ny). `hint` labels what a click will do.
-export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", fps = 0.8 }) {
+// `disabled` + `disabledReason`: block clicks with a visible overlay (e.g. no
+// onboarding session yet) instead of silently doing nothing.
+export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", fps = 0.8, disabled = false, disabledReason = "" }) {
   const [src, setSrc] = useState(null);
   const [err, setErr] = useState(null);
   const [paused, setPaused] = useState(false);
   const [blank, setBlank] = useState(false);
   const [sizeKey, setSizeKey] = useState(() => localStorage.getItem("ps_screen_size") || "fit");
+  const [lastClick, setLastClick] = useState(null); // {nx, ny, ts} — brief on-image feedback
   const imgRef = useRef(null);
 
   useEffect(() => { localStorage.setItem("ps_screen_size", sizeKey); }, [sizeKey]);
@@ -73,10 +76,13 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
   }, [deviceId, paused, fps]);
 
   function click(e) {
-    if (!onPoint || !imgRef.current) return;
+    if (!onPoint || !imgRef.current || disabled) return;
     const r = imgRef.current.getBoundingClientRect();
     const nx = Math.round(((e.clientX - r.left) / r.width) * 1000);
     const ny = Math.round(((e.clientY - r.top) / r.height) * 1000);
+    // Visible marker + fading confirmation so a click always shows *something*
+    // happened, even if the mode/API call itself gives no other feedback.
+    setLastClick({ xPct: (e.clientX - r.left) / r.width * 100, yPct: (e.clientY - r.top) / r.height * 100, nx, ny, id: Date.now() });
     onPoint(nx, ny);
   }
 
@@ -98,10 +104,21 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
       </div>
       {err && <div className="err">{err}</div>}
       {blank && !err && <div className="warn">Screen is black — the phone is asleep or on a secure lock screen (screenshots are blocked). Click <b>wake</b> and unlock the phone (PIN) on the device.</div>}
+      {disabled && disabledReason && <div className="warn">🚫 {disabledReason}</div>}
       {src ? (
-        <img ref={imgRef} src={src} className="screen" onClick={click} alt="phone screen"
-          style={{ width: "auto", height: "auto", maxWidth: size.width ? `${size.width}px` : "100%", maxHeight: "78vh", margin: "0 auto" }}
-          onLoad={(e) => setBlank(isBlack(e.target))} />
+        <div className="screen-wrap">
+          <img ref={imgRef} src={src} className={"screen" + (disabled ? " screen-disabled" : "")} onClick={click} alt="phone screen"
+            style={{ width: "auto", height: "auto", maxWidth: size.width ? `${size.width}px` : "100%", maxHeight: "78vh", margin: "0 auto" }}
+            onLoad={(e) => setBlank(isBlack(e.target))} />
+          {disabled && (
+            <div className="screen-overlay" style={{ maxWidth: size.width ? `${size.width}px` : "100%" }}>
+              <span>🔒 {disabledReason || "start a session to enable clicking"}</span>
+            </div>
+          )}
+          {!disabled && lastClick && (
+            <span key={lastClick.id} className="click-marker" style={{ left: `${lastClick.xPct}%`, top: `${lastClick.yPct}%` }} />
+          )}
+        </div>
       ) : (
         <div className="screen empty">loading…</div>
       )}

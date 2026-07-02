@@ -37,7 +37,11 @@ export default function Onboard() {
 
   async function onPoint(nx, ny) {
     if (!session) { setMsg("start a session first"); return; }
-    if (mode === "tap") { await api(`/devices/${device}/tap`, { method: "POST", body: { x: nx, y: ny, normalized: true } }); return; }
+    if (mode === "tap") {
+      await api(`/devices/${device}/tap`, { method: "POST", body: { x: nx, y: ny, normalized: true } });
+      setMsg(`✓ tapped (${nx}, ${ny}) — watch the phone / wait for the next screenshot refresh`);
+      return;
+    }
     const name = prompt("Element name (e.g. compose_button):");
     if (!name) return;
     await api(`/onboard/${session}/element`, { method: "POST", body: { name, from_x: nx, from_y: ny, normalized: true } });
@@ -88,7 +92,8 @@ export default function Onboard() {
             <button className={mode === "label" ? "chip active" : "chip"} onClick={() => setMode("label")}>Label element</button>
           </span>
         </h3>
-        <LiveScreen deviceId={device} onPoint={onPoint} hint={mode === "tap" ? "click to tap & navigate" : "click a control to name it"} />
+        <LiveScreen deviceId={device} onPoint={onPoint} hint={mode === "tap" ? "click to tap & navigate" : "click a control to name it"}
+          disabled={!session} disabledReason={!session ? "Click \"Start session\" above first — the screen isn't clickable until then" : ""} />
       </div>
 
       <div className="col">

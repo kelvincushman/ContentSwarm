@@ -51,6 +51,22 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .sizepicker .chip { padding: 3px 9px; }
 .screen { display: block; cursor: crosshair; }
 .screen.empty { min-height: 360px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.screen-wrap { position: relative; display: flex; justify-content: center; }
+.screen-disabled { cursor: not-allowed; filter: brightness(0.5); }
+.screen-overlay {
+  position: absolute; inset: 0; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 12px; background: rgba(0,0,0,.35); color: #fff; font-size: 13px; font-weight: 500;
+  pointer-events: none;
+}
+.click-marker {
+  position: absolute; width: 22px; height: 22px; margin-left: -11px; margin-top: -11px;
+  border: 2px solid var(--accent); border-radius: 50%; pointer-events: none;
+  animation: click-pulse 0.7s ease-out forwards;
+}
+@keyframes click-pulse {
+  0%   { transform: scale(0.4); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
 .err, .warn { color: var(--warn); font-size: 12px; padding: 4px 8px; }
 .err { color: var(--bad); }
 
