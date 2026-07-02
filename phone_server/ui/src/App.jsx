@@ -19,6 +19,7 @@ export default function App() {
   const [base, setBaseState] = useState(getBase());
   const [key, setKeyState] = useState(getKey());
   const [health, setHealth] = useState(null);
+  const [nonce, setNonce] = useState(0); // bump to remount tabs (forces refetch)
 
   // default base to same origin the console is served from
   useEffect(() => {
@@ -30,8 +31,16 @@ export default function App() {
 
   async function connect() {
     setBase(base); setKey(key);
-    try { setHealth(await api("/health")); }
-    catch (e) { setHealth({ error: String(e.message || e) }); }
+    try {
+      const h = await api("/health");
+      // validate the API key against a protected endpoint
+      try { await api("/registry/devices"); h.authed = true; }
+      catch { h.authed = false; }
+      setHealth(h);
+    } catch (e) {
+      setHealth({ error: String(e.message || e) });
+    }
+    setNonce((n) => n + 1); // remount tabs so they refetch with the new key
   }
   useEffect(() => { connect(); /* eslint-disable-next-line */ }, []);
 
@@ -43,8 +52,9 @@ export default function App() {
           <input value={base} onChange={(e) => setBaseState(e.target.value)} placeholder="http://host:8770" style={{ width: 200 }} />
           <input value={key} onChange={(e) => setKeyState(e.target.value)} placeholder="API key" type="password" style={{ width: 130 }} />
           <button onClick={connect}>Connect</button>
-          <span className={"pill " + (health?.ok ? "ok" : "bad")}>
-            {health?.ok ? `v${health.version}` : health?.error ? "error" : "…"}
+          <span className={"pill " + (health?.authed ? "ok" : health?.ok ? "warn" : "bad")}
+            title={health?.authed ? "connected & authenticated" : health?.ok ? "reachable but API key rejected" : "unreachable"}>
+            {health?.authed ? `v${health.version}` : health?.ok ? "bad key" : health?.error ? "offline" : "…"}
           </span>
         </div>
       </header>
@@ -55,7 +65,7 @@ export default function App() {
         ))}
       </nav>
 
-      <main className="content">
+      <main className="content" key={nonce}>
         {tab === "devices" && <Devices />}
         {tab === "onboard" && <Onboard />}
         {tab === "accounts" && <Accounts />}
