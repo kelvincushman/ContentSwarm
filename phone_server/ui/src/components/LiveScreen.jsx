@@ -25,7 +25,13 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
   const imgRef = useRef(null);
 
   async function wake() {
-    try { const r = await api(`/devices/${deviceId}/wake`, { method: "POST" }); setErr(r.locked ? "screen woken — but phone is LOCKED, unlock it (PIN) on the device" : null); }
+    try { const r = await api(`/devices/${deviceId}/wake`, { method: "POST" }); setErr(r.locked ? "screen woken — phone is LOCKED, click Unlock (or enter PIN on device)" : null); }
+    catch (e) { setErr(String(e.message || e)); }
+  }
+  async function unlock() {
+    const pin = prompt("Enter the phone's PIN (entered over ADB — not stored):");
+    if (!pin) return;
+    try { const r = await api(`/devices/${deviceId}/unlock`, { method: "POST", body: { pin } }); setErr(r.ok ? null : "unlock failed — still locked (wrong PIN?)"); }
     catch (e) { setErr(String(e.message || e)); }
   }
 
@@ -60,6 +66,7 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
         <span className="muted">{hint}</span>
         <span>
           <button className="ghost" onClick={wake}>⏻ wake</button>
+          <button className="ghost" onClick={unlock}>🔓 unlock</button>
           <button className="ghost" onClick={() => setPaused((p) => !p)}>{paused ? "▶ resume" : "⏸ pause"}</button>
         </span>
       </div>

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import time
 import xml.etree.ElementTree as ET
 from typing import Any, Optional
 
@@ -125,6 +126,35 @@ def wake(device_id: Optional[str] = None) -> None:
         capture_output=True,
         timeout=6,
     )
+
+
+def unlock(device_id: Optional[str] = None, pin: str = "") -> bool:
+    """Unlock a phone by entering a KNOWN numeric PIN over ADB.
+
+    This is NOT a bypass — it types the PIN you supply. Sequence: wake, swipe up
+    to reveal the PIN pad, send each digit as a keyevent, press Enter. Returns
+    True if the keyguard is gone afterwards.
+    """
+    p = _prefix(device_id)
+
+    def sh(*args):
+        subprocess.run(p + ["shell", *args], capture_output=True, timeout=6)
+
+    sh("input", "keyevent", "KEYCODE_WAKEUP")
+    time.sleep(0.5)
+    if not keyguard_showing(device_id):
+        return True
+    # reveal the PIN entry (dismiss the lock-screen curtain)
+    sh("input", "swipe", "540", "1800", "540", "600", "150")
+    time.sleep(0.6)
+    if pin:
+        for ch in pin:
+            if ch.isdigit():
+                sh("input", "keyevent", str(7 + int(ch)))  # KEYCODE_0..9 == 7..16
+                time.sleep(0.15)
+        sh("input", "keyevent", "KEYCODE_ENTER")
+        time.sleep(1.0)
+    return not keyguard_showing(device_id)
 
 
 def keyguard_showing(device_id: Optional[str] = None) -> bool:

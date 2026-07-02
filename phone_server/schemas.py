@@ -49,6 +49,10 @@ class LaunchBody(BaseModel):
     app: str = Field(..., description="App name known to phone_agent config/apps.py")
 
 
+class UnlockBody(BaseModel):
+    pin: str = Field(..., description="Known numeric device PIN (entered over ADB; not a bypass)")
+
+
 class ActionBody(BaseModel):
     action: str
     params: dict[str, Any] = Field(default_factory=dict)

@@ -40,6 +40,7 @@ from phone_server.schemas import (
     SwipeBody,
     TapBody,
     TypeBody,
+    UnlockBody,
 )
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -108,6 +109,15 @@ async def wake_device(device_id: str) -> dict[str, Any]:
         await run_in_threadpool(adb_ext.wake, device_id)
         locked = await run_in_threadpool(adb_ext.keyguard_showing, device_id)
     return {"ok": True, "locked": locked}
+
+
+@router.post("/devices/{device_id}/unlock")
+async def unlock_device(device_id: str, body: UnlockBody) -> dict[str, Any]:
+    """Unlock the phone by entering a KNOWN numeric PIN over ADB (not a bypass)."""
+    await require_device(device_id)
+    async with lock_for(device_id):
+        ok = await run_in_threadpool(adb_ext.unlock, device_id, body.pin)
+    return {"ok": ok, "locked": not ok}
 
 
 @router.get("/devices/{device_id}/ui")
