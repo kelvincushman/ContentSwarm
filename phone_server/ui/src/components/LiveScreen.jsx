@@ -100,7 +100,7 @@ export default function LiveScreen({ deviceId, onPoint, hint = "click to tap", f
       {blank && !err && <div className="warn">Screen is black — the phone is asleep or on a secure lock screen (screenshots are blocked). Click <b>wake</b> and unlock the phone (PIN) on the device.</div>}
       {src ? (
         <img ref={imgRef} src={src} className="screen" onClick={click} alt="phone screen"
-          style={{ width: size.width ? `${size.width}px` : "100%", maxWidth: "100%", maxHeight: "78vh", height: "auto", margin: "0 auto" }}
+          style={{ width: "auto", height: "auto", maxWidth: size.width ? `${size.width}px` : "100%", maxHeight: "78vh", margin: "0 auto" }}
           onLoad={(e) => setBlank(isBlack(e.target))} />
       ) : (
         <div className="screen empty">loading…</div>
