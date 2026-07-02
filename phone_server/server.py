@@ -20,13 +20,17 @@ from __future__ import annotations
 
 from typing import Any
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from phone_server.config import get_settings
-from phone_server.routers import agent, apps, devices, onboard, streaming
+from phone_server.routers import agent, apps, config, devices, integration, onboard, registry, streaming
 
 settings = get_settings()
+_UI_DIST = os.path.join(os.path.dirname(__file__), "ui", "dist")
 
 app = FastAPI(
     title="ContentSwarm Phone Control & App Onboarding Server",
@@ -58,3 +62,10 @@ app.include_router(agent.router, tags=["agent"])
 app.include_router(apps.router, tags=["apps"])
 app.include_router(onboard.router, tags=["onboard"])
 app.include_router(streaming.router, tags=["streaming"])
+app.include_router(config.router, tags=["config"])
+app.include_router(registry.router, tags=["registry"])
+app.include_router(integration.router, tags=["integration"])
+
+# Serve the built React console at / (if built). API routes are matched first.
+if os.path.isdir(_UI_DIST):
+    app.mount("/", StaticFiles(directory=_UI_DIST, html=True), name="ui")

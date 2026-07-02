@@ -122,3 +122,24 @@ class RecordStepBody(BaseModel):
     flow: str
     step: FlowStep
     description: str = ""
+
+
+# --- registry / accounts ---------------------------------------------------
+
+
+class DeviceConfigPatch(BaseModel):
+    label: Optional[str] = None
+    model_provider: Optional[str] = None
+    model_name: Optional[str] = None
+    model_base_url: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class AccountBody(BaseModel):
+    id: Optional[str] = None
+    name: str
+    platform: str
+    kind: str = "personal"
+    app: Optional[str] = None
+    handle: str = ""
+    notes: str = ""

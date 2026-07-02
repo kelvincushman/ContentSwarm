@@ -15,13 +15,24 @@ It exposes **four layers**:
 4. **App control** — any agent then opens the app, taps named elements, and
    runs saved flows. **See [APP_ONBOARDING.md](APP_ONBOARDING.md).**
 
+Plus a **web console** for humans and a **hookup-kit generator** for agents:
+- **[UI_CONSOLE.md](UI_CONSOLE.md)** — React console served at `/`: devices,
+  visual onboarding (click-to-label), accounts, settings, model selection.
+- **[AGENT_INTEGRATION.md](AGENT_INTEGRATION.md)** — generate a system prompt +
+  tool schemas + MCP config + REST cheatsheet from live state, for any agent.
+
 > Lives alongside — and does not touch — `nova_api.py` (the older
 > posting-specific Flask API) or the posting workflows.
 
 **Module layout:** `phone_server/{config,deps,models,schemas,adb_ext,appstore,
-flows,onboarding}.py` + `phone_server/routers/{devices,agent,apps,onboard,
-streaming}.py`, assembled in `phone_server/server.py` (`uvicorn
+flows,onboarding,registry,integration}.py` + `phone_server/routers/{devices,
+agent,apps,onboard,streaming,config,registry,integration}.py` + a React app in
+`phone_server/ui/`, assembled in `phone_server/server.py` (`uvicorn
 phone_server.server:app`).
+
+**New endpoint groups:** `/registry/*` (device configs + accounts), `/config` +
+`/config/models` (editable settings + model discovery), `/integration*` (hookup
+kit). Auto-generated OpenAPI at `/docs`.
 
 ---
 

@@ -14,6 +14,7 @@ from phone_agent.config import get_system_prompt
 from phone_agent.model import ModelConfig
 
 from phone_server.deps import lock_for, require_api_key, require_device, settings
+from phone_server.registry import REGISTRY
 from phone_server.schemas import RunBody
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -24,10 +25,12 @@ JOBS: dict[str, dict[str, Any]] = {}
 
 def build_agent(device_id: str, body: RunBody) -> PhoneAgent:
     lang = body.lang or settings.default_lang
+    # Resolve the model for this phone: request override > per-device > default > env.
+    resolved = REGISTRY.effective_model(device_id)
     model_config = ModelConfig(
-        base_url=body.model_base_url or settings.vlm_base_url,
-        api_key=settings.vlm_api_key,
-        model_name=body.model_name or settings.vlm_model,
+        base_url=body.model_base_url or resolved["base_url"],
+        api_key=resolved["api_key"],
+        model_name=body.model_name or resolved["model_name"],
     )
     agent_config = AgentConfig(
         max_steps=body.max_steps or settings.default_max_steps,

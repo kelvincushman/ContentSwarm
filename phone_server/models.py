@@ -152,3 +152,55 @@ class AppProfile(BaseModel):
             "onboarded_at": self.onboarded_at,
             "updated_at": self.updated_at,
         }
+
+
+# ---------------------------------------------------------------------------
+# Registry: device configs, accounts, and editable server config
+# ---------------------------------------------------------------------------
+
+
+class Account(BaseModel):
+    """A social account bound to a phone + app, targetable by agents.
+
+    e.g. {platform: facebook, kind: business, app: facebook, handle: "Acme Ltd"}.
+    """
+
+    id: str = ""
+    name: str
+    platform: str  # facebook | instagram | linkedin | x | tiktok | ...
+    kind: str = "personal"  # personal | business | creator | page
+    app: Optional[str] = None  # onboarded app slug this account uses
+    handle: str = ""  # @handle / page name / profile url
+    notes: str = ""
+
+
+class DeviceConfig(BaseModel):
+    """User-facing config + accounts for one phone."""
+
+    device_id: str
+    label: str = ""
+    model_provider: Optional[str] = None  # e.g. "ollama@192.168.55.231"
+    model_name: Optional[str] = None
+    model_base_url: Optional[str] = None
+    accounts: dict[str, Account] = Field(default_factory=dict)
+    notes: str = ""
+
+
+class ModelHost(BaseModel):
+    """An OpenAI-compatible model endpoint the console can pick models from."""
+
+    name: str
+    base_url: str
+    api_key: str = "EMPTY"
+    kind: str = "openai-compatible"  # openai-compatible | ollama
+
+
+class EditableConfig(BaseModel):
+    """Runtime-editable server settings (persisted; some override env)."""
+
+    default_model_base_url: Optional[str] = None
+    default_model_name: Optional[str] = None
+    default_lang: Optional[str] = None
+    stream_fps: Optional[float] = None
+    public_url: Optional[str] = None  # advertised base URL for the hookup kit
+    model_hosts: list[ModelHost] = Field(default_factory=list)

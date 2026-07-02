@@ -1,0 +1,7 @@
+node_modules/
+.vite/
+*.local
+# dist/ is intentionally committed so the server serves the console with no build
+# step. Re-include it despite the root .gitignore ignoring `dist/` everywhere.
+!dist/
+!dist/**
