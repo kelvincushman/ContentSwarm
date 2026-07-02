@@ -96,7 +96,18 @@ async def current_app(device_id: str) -> dict[str, Any]:
     await require_device(device_id)
     name = await run_in_threadpool(get_current_app, device_id)
     activity = await run_in_threadpool(adb_ext.get_current_activity, device_id)
-    return {"current_app": name, "activity": activity}
+    locked = await run_in_threadpool(adb_ext.keyguard_showing, device_id)
+    return {"current_app": name, "activity": activity, "locked": locked}
+
+
+@router.post("/devices/{device_id}/wake")
+async def wake_device(device_id: str) -> dict[str, Any]:
+    """Turn the screen on. Does NOT unlock a secure keyguard (enter the PIN on the device)."""
+    await require_device(device_id)
+    async with lock_for(device_id):
+        await run_in_threadpool(adb_ext.wake, device_id)
+        locked = await run_in_threadpool(adb_ext.keyguard_showing, device_id)
+    return {"ok": True, "locked": locked}
 
 
 @router.get("/devices/{device_id}/ui")

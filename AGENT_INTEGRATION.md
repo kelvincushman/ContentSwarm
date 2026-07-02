@@ -69,6 +69,35 @@ Add the block to your MCP client config (Claude Desktop, etc.).
 Copy-paste `curl` for phones, accounts, screenshot, tap, type, open app, and run
 flow — filled in with your first real device/app/flow.
 
+## Skills (alternative to MCP)
+
+Some agents (Claude Code, Hermes, OpenClaw) load **skills** — folders with a
+`SKILL.md` whose `description` tells the agent *when* to use it, so it
+self-invokes at the right moment. The server generates these from live state:
+
+```
+GET /integration/skills        # JSON: {skills:[{name,description}], files:[{path,content}]}
+GET /integration/skills.zip     # download all skill folders as a zip
+```
+Or use the **Skills** section of the console's Agent Hookup tab → *Download
+skills .zip*.
+
+Generated bundle:
+- **`phone-control/`** — base skill (`SKILL.md` + a `phone.py` CLI): screenshot,
+  tap, type, open app, run flow, list devices/accounts. Its description triggers
+  on any "control the phone / operate an app / post to a social account" intent.
+- **`<app>-<flow>/`** — one focused skill per onboarded flow (e.g.
+  `twitter-post-tweet`), with a trigger tuned to the app, platform, and linked
+  accounts, plus the exact call to run that flow.
+
+Install: unzip into the agent's skills directory
+(`~/.claude/skills`, `~/.hermes/skills`, or the OpenClaw workspace `skills/`).
+The agent reads each `description` and calls the skill when the task matches —
+no MCP server required.
+
+> Tip: set **Public URL** in Settings so skills embed your LAN address
+> (`http://192.168.55.124:8770`) instead of `localhost`.
+
 ## Recommended agent pattern
 
 1. `GET /registry/accounts` → resolve which **device + app + flow** matches the

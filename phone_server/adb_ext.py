@@ -118,6 +118,32 @@ def resolve_selector(
     return matches[0]
 
 
+def wake(device_id: Optional[str] = None) -> None:
+    """Turn the screen on (does not unlock a secure keyguard)."""
+    subprocess.run(
+        _prefix(device_id) + ["shell", "input", "keyevent", "KEYCODE_WAKEUP"],
+        capture_output=True,
+        timeout=6,
+    )
+
+
+def keyguard_showing(device_id: Optional[str] = None) -> bool:
+    """True if the lock screen (keyguard) is up — screenshots are blocked then."""
+    try:
+        r = subprocess.run(
+            _prefix(device_id) + ["shell", "dumpsys", "window"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+        )
+        for line in r.stdout.splitlines():
+            if "isKeyguardShowing=" in line:
+                return "isKeyguardShowing=true" in line
+    except Exception:
+        pass
+    return False
+
+
 def get_current_activity(device_id: Optional[str] = None) -> Optional[str]:
     """Best-effort resumed activity component, e.g. 'com.pkg/.MainActivity'."""
     p = _prefix(device_id)
