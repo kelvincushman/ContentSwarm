@@ -34,7 +34,7 @@ _UI_DIST = os.path.join(os.path.dirname(__file__), "ui", "dist")
 
 app = FastAPI(
     title="ContentSwarm Phone Control & App Onboarding Server",
-    version="0.2.0",
+    version="0.3.0",
     description="LAN REST + WebSocket control of Android phones, with an app "
     "onboarding/training system that lets agents learn and reuse apps.",
 )
@@ -51,7 +51,7 @@ async def health() -> dict[str, Any]:
     return {
         "ok": True,
         "service": "phone-control",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "auth": bool(settings.api_key),
         "profiles_dir": settings.profiles_dir,
     }
