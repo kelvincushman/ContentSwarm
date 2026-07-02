@@ -60,7 +60,7 @@ export default function Settings() {
           <input placeholder="name" value={newHost.name} onChange={(ev) => setNewHost({ ...newHost, name: ev.target.value })} style={{ width: 100 }} />
           <input placeholder="http://host:11434/v1" value={newHost.base_url} onChange={(ev) => setNewHost({ ...newHost, base_url: ev.target.value })} />
           <input placeholder="api key" value={newHost.api_key} onChange={(ev) => setNewHost({ ...newHost, api_key: ev.target.value })} style={{ width: 90 }} />
-          <button onClick={addHost} disabled={!newHost.name || !newHost.base_url}>Add host</button>
+          <button className="primary" onClick={addHost} disabled={!newHost.name || !newHost.base_url}>Add host</button>
         </div>
 
         <h3>Server (read-only)</h3>

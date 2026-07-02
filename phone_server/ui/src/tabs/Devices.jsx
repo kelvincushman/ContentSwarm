@@ -52,7 +52,7 @@ export default function Devices() {
         <h3>Phones</h3>
         <div className="row">
           <input placeholder="192.168.x.x:5555" value={addr} onChange={(e) => setAddr(e.target.value)} />
-          <button onClick={connectWifi}>Connect WiFi</button>
+          <button className="primary" onClick={connectWifi}>Connect WiFi</button>
         </div>
         {msg && <div className="muted small">{msg}</div>}
         <table className="tbl">

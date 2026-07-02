@@ -79,7 +79,7 @@ export default function Onboard() {
         <label>App slug</label>
         <input value={app} onChange={(e) => setApp(e.target.value)} placeholder="twitter" />
         <div className="row">
-          <button onClick={start} disabled={!device || !pkg}>Start session</button>
+          <button className="primary" onClick={start} disabled={!device || !pkg}>Start session</button>
           <button className="ghost" onClick={openApp} disabled={!session}>Open app</button>
           <button className="ghost" onClick={capture} disabled={!session}>Capture</button>
         </div>
@@ -130,11 +130,11 @@ export default function Onboard() {
         ))}
         <div className="row">
           <button className="ghost" onClick={addStep} disabled={!session}>+ step</button>
-          <button onClick={saveFlow} disabled={!session || !flowName || !steps.length}>Save flow</button>
+          <button className="primary" onClick={saveFlow} disabled={!session || !flowName || !steps.length}>Save flow</button>
         </div>
 
         <h3>4 · Save</h3>
-        <button onClick={saveProfile} disabled={!session}>💾 Save app profile</button>
+        <button className="primary" onClick={saveProfile} disabled={!session}>💾 Save app profile</button>
       </div>
     </div>
   );

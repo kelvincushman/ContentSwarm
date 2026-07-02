@@ -61,7 +61,7 @@ export default function Accounts() {
         <datalist id="apps">{apps.map((a) => <option key={a} value={a} />)}</datalist>
         <label>Handle</label>
         <input value={form.handle} onChange={(e) => setForm({ ...form, handle: e.target.value })} placeholder="@handle / page name" />
-        <button onClick={add} disabled={!form.device_id || !form.name}>Add account</button>
+        <button className="primary" onClick={add} disabled={!form.device_id || !form.name}>Add account</button>
         {msg && <div className="note">{msg}</div>}
       </div>
     </div>

@@ -47,11 +47,14 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">📱 Phone Server Console</div>
+        <div className="brand">
+          <span className="brand-mark">📱</span>
+          <span>Phone Server<span className="brand-sub"> Console</span></span>
+        </div>
         <div className="conn">
           <input value={base} onChange={(e) => setBaseState(e.target.value)} placeholder="http://host:8770" style={{ width: 200 }} />
           <input value={key} onChange={(e) => setKeyState(e.target.value)} placeholder="API key" type="password" style={{ width: 130 }} />
-          <button onClick={connect}>Connect</button>
+          <button className="primary" onClick={connect}>Connect</button>
           <span className={"pill " + (health?.authed ? "ok" : health?.ok ? "warn" : "bad")}
             title={health?.authed ? "connected & authenticated" : health?.ok ? "reachable but API key rejected" : "unreachable"}>
             {health?.authed ? `v${health.version}` : health?.ok ? "bad key" : health?.error ? "offline" : "…"}

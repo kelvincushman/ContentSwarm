@@ -46,7 +46,7 @@ export default function Hookup() {
       <div className="row">
         {FORMATS.map(([id, label]) => <button key={id} className={fmt === id ? "chip active" : "chip"} onClick={() => setFmt(id)}>{label}</button>)}
         <label className="chk"><input type="checkbox" checked={redact} onChange={(e) => setRedact(e.target.checked)} /> hide API key</label>
-        <button onClick={copy}>{copied ? "✓ copied" : "Copy"}</button>
+        <button className="primary" onClick={copy}>{copied ? "✓ copied" : "Copy"}</button>
       </div>
       <div className="muted small">{FORMATS.find((f) => f[0] === fmt)?.[2]}</div>
       {!redact && kit?.server?.auth_required && <div className="warn">⚠ Contains your API key — treat as a secret.</div>}
@@ -55,7 +55,7 @@ export default function Hookup() {
       <h3>Skills <span className="muted small">— drop-in agent skills (alternative to MCP)</span></h3>
       <p className="muted">Each skill's <b>description</b> tells the agent <i>when</i> to use it, so it self-invokes. Unzip into the agent's skills directory (Claude Code / Hermes / OpenClaw).</p>
       <div className="row">
-        <button onClick={downloadSkills}>⬇ Download skills .zip</button>
+        <button className="primary" onClick={downloadSkills}>⬇ Download skills .zip</button>
         <span className="muted small">{skills ? `${skills.count} skill(s)` : ""}</span>
       </div>
       {skills && (
