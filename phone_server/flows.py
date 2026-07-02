@@ -195,7 +195,7 @@ class FlowRunner:
                 _, xy = self._tap_point(step)
                 tap(xy[0], xy[1], self.device_id)
                 time.sleep(0.5)
-            do_type_text(self.device_id, text or "", step.clear)
+            do_type_text(self.device_id, text or "", step.clear, step.restore)
             return f"typed {len(text or '')} chars"
 
         if a == "swipe":

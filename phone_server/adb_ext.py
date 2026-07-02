@@ -172,6 +172,56 @@ def resolve_launch_activity(package: str, device_id: Optional[str] = None) -> Op
     return None
 
 
+ADB_KEYBOARD_IME = "com.android.adbkeyboard/.AdbIME"
+
+# Preferred human keyboards to fall back to, in order (Samsung, Gboard, SwiftKey).
+_PREFERRED_IMES = ["honeyboard", "inputmethod.latin", "swiftkey"]
+
+
+def get_current_ime(device_id: Optional[str] = None) -> str:
+    r = subprocess.run(
+        _prefix(device_id) + ["shell", "settings", "get", "secure", "default_input_method"],
+        capture_output=True,
+        text=True,
+        timeout=6,
+    )
+    return (r.stdout + r.stderr).strip()
+
+
+def list_imes(device_id: Optional[str] = None, enabled_only: bool = True) -> list[str]:
+    """List IME ids. enabled_only=True -> `ime list -s`, else all installed."""
+    args = ["shell", "ime", "list", "-s"] if enabled_only else ["shell", "ime", "list", "-a", "-s"]
+    r = subprocess.run(_prefix(device_id) + args, capture_output=True, text=True, timeout=8)
+    return [ln.strip() for ln in r.stdout.splitlines() if "/" in ln]
+
+
+def set_ime(ime: str, device_id: Optional[str] = None) -> bool:
+    r = subprocess.run(
+        _prefix(device_id) + ["shell", "ime", "set", ime],
+        capture_output=True,
+        text=True,
+        timeout=8,
+    )
+    out = (r.stdout + r.stderr).lower()
+    return "selected" in out or r.returncode == 0
+
+
+def reset_ime(device_id: Optional[str] = None, prefer: Optional[str] = None) -> Optional[str]:
+    """Switch away from AdbIME to a human keyboard; returns the IME set, or None."""
+    enabled = [i for i in list_imes(device_id, enabled_only=True) if "adbkeyboard" not in i]
+    order = ([prefer] if prefer else []) + _PREFERRED_IMES
+    for key in order:
+        if not key:
+            continue
+        for ime in enabled:
+            if key in ime and set_ime(ime, device_id):
+                return ime
+    for ime in enabled:  # fallback: first enabled non-adb IME
+        if set_ime(ime, device_id):
+            return ime
+    return None
+
+
 def list_third_party_packages(device_id: Optional[str] = None) -> list[str]:
     """List installed third-party package names (for onboarding discovery)."""
     p = _prefix(device_id)

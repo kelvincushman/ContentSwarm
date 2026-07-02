@@ -123,7 +123,7 @@ supports `{{param}}`. Set `"optional": true` to let a step fail without aborting
 | `open_app` | — | Launch the profile's package/activity |
 | `tap_element` | `element` \| `selector` | Resolve live, then tap |
 | `tap` / `double_tap` / `long_press` | `x, y, normalized` | Coordinate tap |
-| `type` | `text`, `clear?`, `element?` | Optionally tap `element` first, then type via ADB Keyboard |
+| `type` | `text`, `clear?`, `restore?`, `element?` | Optionally tap `element` first, then type via ADB Keyboard (Unicode/emoji-safe). `restore: false` leaves AdbIME set for bulk typing |
 | `swipe` | `start[x,y]`, `end[x,y]`, `normalized` | Coordinate swipe |
 | `swipe_dir` | `direction: up\|down\|left\|right` | Screen-relative swipe |
 | `back` / `home` | — | Navigation keys |

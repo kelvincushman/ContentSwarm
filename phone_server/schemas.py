@@ -34,6 +34,15 @@ class SwipeBody(BaseModel):
 class TypeBody(BaseModel):
     text: str
     clear: bool = True
+    restore: bool = Field(True, description="Restore the human keyboard after typing. Set false for bulk 'set once' typing.")
+
+
+class KeyboardSetBody(BaseModel):
+    ime: str = Field(..., description="Full IME id, e.g. com.android.adbkeyboard/.AdbIME")
+
+
+class KeyboardResetBody(BaseModel):
+    prefer: Optional[str] = Field(None, description="Substring of a preferred IME to switch back to")
 
 
 class LaunchBody(BaseModel):

@@ -96,8 +96,15 @@ def norm_from_abs(device_id: str, x: int, y: int) -> list[int]:
     return [int(x / w * 1000), int(y / h * 1000)]
 
 
-def do_type_text(device_id: str, text: str, clear: bool = True) -> None:
-    """Type via the ADB Keyboard IME, restoring the original keyboard after."""
+def do_type_text(device_id: str, text: str, clear: bool = True, restore: bool = True) -> None:
+    """Type via the ADB Keyboard IME (Unicode/emoji-safe, base64 broadcast).
+
+    restore=True  — switch to AdbIME, type, then switch the human keyboard back
+                    (safe default for a shared phone).
+    restore=False — leave AdbIME active ("set once, stay set"). Faster for bulk
+                    posting; call POST /devices/{id}/keyboard/reset when done to
+                    restore a normal keyboard.
+    """
     original = detect_and_set_adb_keyboard(device_id)
     time.sleep(1.0)
     if clear:
@@ -105,4 +112,5 @@ def do_type_text(device_id: str, text: str, clear: bool = True) -> None:
         time.sleep(0.5)
     type_text(text, device_id)
     time.sleep(0.5)
-    restore_keyboard(original, device_id)
+    if restore:
+        restore_keyboard(original, device_id)

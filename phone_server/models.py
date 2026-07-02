@@ -83,7 +83,8 @@ class FlowStep(BaseModel):
       tap           {x, y, normalized}
       long_press    {x, y, normalized}
       double_tap    {x, y, normalized}
-      type          {text, clear, element?}   — optionally tap `element` first
+      type          {text, clear, restore, element?}  — tap `element` first if given;
+                                                          restore=false leaves AdbIME set (bulk)
       swipe         {start[x,y], end[x,y], normalized}
       swipe_dir     {direction: up|down|left|right}
       back | home
@@ -108,6 +109,7 @@ class FlowStep(BaseModel):
     direction: Optional[str] = None
     text: Optional[str] = None
     clear: bool = True
+    restore: bool = True
     seconds: Optional[float] = None
     keycode: Optional[str] = None
     screen: Optional[str] = None

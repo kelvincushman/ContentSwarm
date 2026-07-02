@@ -99,11 +99,28 @@ python run_phone_server.py                  # binds 0.0.0.0:8770
 | `/devices/{id}/double_tap` | `{x, y, normalized?}` |
 | `/devices/{id}/long_press` | `{x, y, normalized?}` |
 | `/devices/{id}/swipe` | `{start_x, start_y, end_x, end_y, duration_ms?, normalized?}` |
-| `/devices/{id}/type` | `{text, clear?}` — via ADB Keyboard IME |
+| `/devices/{id}/type` | `{text, clear?, restore?}` — Unicode/emoji-safe via ADB Keyboard IME |
 | `/devices/{id}/back` | — |
 | `/devices/{id}/home` | — |
 | `/devices/{id}/launch` | `{app}` — name must be in `phone_agent/config/apps.py` |
 | `/devices/{id}/action` | `{action, params}` — full ActionHandler vocabulary, 0–1000 coords |
+
+### Keyboard / IME (the Unicode-typing solution)
+Plain `adb shell input text` drops Unicode, emoji, and spaces. Typing therefore
+goes through the **ADB Keyboard** IME (`com.android.adbkeyboard/.AdbIME`), which
+receives text as a **base64 broadcast** — the same approach used in production.
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| GET  | `/devices/{id}/keyboard` | — | Current IME, whether AdbIME is active/installed, enabled + installed IMEs |
+| POST | `/devices/{id}/keyboard/set` | `{ime}` | Force a specific IME |
+| POST | `/devices/{id}/keyboard/reset` | `{prefer?}` | Switch off AdbIME back to a human keyboard |
+
+**`restore` on `/type`:** default `true` switches to AdbIME, types, then restores
+the human keyboard (safe for a shared phone). Set `restore: false` for bulk
+posting ("set once, stay set") — faster because it skips the IME round-trip each
+call. After a bulk run, call `/keyboard/reset` once to return to a normal
+keyboard (once AdbIME is left set, `restore` alone can't recover the original).
 
 ### High-level agent
 | Method | Path | Body | Notes |

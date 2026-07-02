@@ -34,6 +34,8 @@ from phone_server.deps import (
 from phone_server.schemas import (
     ActionBody,
     ConnectBody,
+    KeyboardResetBody,
+    KeyboardSetBody,
     LaunchBody,
     SwipeBody,
     TapBody,
@@ -182,8 +184,43 @@ async def do_swipe(device_id: str, body: SwipeBody) -> dict[str, Any]:
 async def do_type(device_id: str, body: TypeBody) -> dict[str, Any]:
     await require_device(device_id)
     async with lock_for(device_id):
-        await run_in_threadpool(do_type_text, device_id, body.text, body.clear)
-    return {"ok": True, "typed": len(body.text)}
+        await run_in_threadpool(do_type_text, device_id, body.text, body.clear, body.restore)
+    return {"ok": True, "typed": len(body.text), "restored": body.restore}
+
+
+@router.get("/devices/{device_id}/keyboard")
+async def keyboard_status(device_id: str) -> dict[str, Any]:
+    await require_device(device_id)
+    current = await run_in_threadpool(adb_ext.get_current_ime, device_id)
+    enabled = await run_in_threadpool(adb_ext.list_imes, device_id, True)
+    installed = await run_in_threadpool(adb_ext.list_imes, device_id, False)
+    return {
+        "current": current,
+        "adb_keyboard_active": current == adb_ext.ADB_KEYBOARD_IME,
+        "adb_keyboard_installed": adb_ext.ADB_KEYBOARD_IME in installed,
+        "enabled": enabled,
+        "installed": installed,
+    }
+
+
+@router.post("/devices/{device_id}/keyboard/set")
+async def keyboard_set(device_id: str, body: KeyboardSetBody) -> dict[str, Any]:
+    await require_device(device_id)
+    ok = await run_in_threadpool(adb_ext.set_ime, body.ime, device_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"Could not set IME '{body.ime}'")
+    return {"ok": True, "ime": body.ime}
+
+
+@router.post("/devices/{device_id}/keyboard/reset")
+async def keyboard_reset(device_id: str, body: KeyboardResetBody | None = None) -> dict[str, Any]:
+    """Switch off AdbIME back to a human keyboard (call after bulk restore=false typing)."""
+    await require_device(device_id)
+    prefer = body.prefer if body else None
+    ime = await run_in_threadpool(adb_ext.reset_ime, device_id, prefer)
+    if not ime:
+        raise HTTPException(status_code=400, detail="No non-ADB keyboard available to switch to")
+    return {"ok": True, "ime": ime}
 
 
 @router.post("/devices/{device_id}/back")
