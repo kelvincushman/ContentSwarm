@@ -51,6 +51,15 @@ contentswarm phones     # all enrolled phones with connection status
 Phones need the [ADB Keyboard APK](https://github.com/senzhk/ADBKeyBoard)
 installed for text input (`adb install ADBKeyboard.apk`).
 
+### Flow storage
+
+Learned flows (the exact-press recordings made by `contentswarm learn`) are
+stored as JSON under the directory named by `CONTENTSWARM_FLOWS_DIR` in
+`/etc/contentswarm/env` (installer default: `/opt/contentswarm/flows`). The
+API reads this at request time, so moving the directory just needs the env
+var updated and `sudo systemctl restart contentswarm`. Back this directory up
+— it is the fleet's learned knowledge.
+
 ## 3. Vision model (GPU)
 
 The on-phone agent needs an AutoGLM-compatible vision model at

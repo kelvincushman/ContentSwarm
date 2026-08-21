@@ -319,6 +319,12 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         if not task or not flow_name:
             return jsonify({"error": "task and flow_name are required"}), 400
 
+        from phone_agent.flows import flow_path
+        try:
+            flow_path(flow_name, _flows_dir())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
         task_id = pm.async_learn(phone_name, task, flow_name, flows_dir=_flows_dir())
 
         _emit_event({
@@ -349,7 +355,10 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         flow_name = data.get("flow_name")
         if not flow_name:
             return jsonify({"error": "flow_name is required"}), 400
-        speed = float(data.get("speed", 1.0))
+        try:
+            speed = float(data.get("speed", 1.0))
+        except (TypeError, ValueError):
+            return jsonify({"error": "speed must be a number"}), 400
 
         from phone_agent.flows import flow_path
         try:

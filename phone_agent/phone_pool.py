@@ -84,6 +84,7 @@ class PhonePoolManager:
         # Parallel execution
         self._executor = ThreadPoolExecutor(max_workers=max_parallel)
         self._phone_locks: Dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
         self._tasks: Dict[str, TaskResult] = {}
         self._event_callback = event_callback
 
@@ -285,21 +286,22 @@ class PhonePoolManager:
                 pass
 
     def _get_phone_lock(self, phone_name: str) -> threading.Lock:
-        """Get or create a lock for a specific phone."""
-        if phone_name not in self._phone_locks:
-            self._phone_locks[phone_name] = threading.Lock()
-        return self._phone_locks[phone_name]
+        """Get or create a lock for a specific phone (thread-safe)."""
+        with self._locks_guard:
+            return self._phone_locks.setdefault(phone_name, threading.Lock())
 
     def _run_task_on_phone(self, phone_name: str, task: str, task_id: str) -> str:
         """Run a task on a specific phone with locking. Used by async methods."""
-        if phone_name not in self.phones:
-            raise ValueError(f"Phone '{phone_name}' not found")
-
-        lock = self._get_phone_lock(phone_name)
-        if not lock.acquire(timeout=0):
-            raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
-
+        lock = None
+        acquired = False
         try:
+            if phone_name not in self.phones:
+                raise ValueError(f"Phone '{phone_name}' not found")
+
+            lock = self._get_phone_lock(phone_name)
+            if not lock.acquire(timeout=0):
+                raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
+            acquired = True
             phone = self.phones[phone_name]
             task_result = self._tasks.get(task_id)
             if task_result:
@@ -361,7 +363,8 @@ class PhonePoolManager:
             raise
 
         finally:
-            lock.release()
+            if acquired and lock is not None:
+                lock.release()
 
     def async_run(self, phone_name: str, task: str) -> str:
         """
@@ -407,14 +410,16 @@ class PhonePoolManager:
         """Run a task with the vision model while recording a replayable flow."""
         from phone_agent.flows import FlowRecorder, save_flow
 
-        if phone_name not in self.phones:
-            raise ValueError(f"Phone '{phone_name}' not found")
-
-        lock = self._get_phone_lock(phone_name)
-        if not lock.acquire(timeout=0):
-            raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
-
+        lock = None
+        acquired = False
         try:
+            if phone_name not in self.phones:
+                raise ValueError(f"Phone '{phone_name}' not found")
+
+            lock = self._get_phone_lock(phone_name)
+            if not lock.acquire(timeout=0):
+                raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
+            acquired = True
             phone = self.phones[phone_name]
             task_result = self._tasks.get(task_id)
             if task_result:
@@ -485,7 +490,8 @@ class PhonePoolManager:
             })
             raise
         finally:
-            lock.release()
+            if acquired and lock is not None:
+                lock.release()
 
     def async_learn(
         self, phone_name: str, task: str, flow_name: str, flows_dir: str = "flows"
@@ -510,14 +516,16 @@ class PhonePoolManager:
         """Replay a recorded flow deterministically (no model calls)."""
         from phone_agent.flows import FlowReplayer, load_flow
 
-        if phone_name not in self.phones:
-            raise ValueError(f"Phone '{phone_name}' not found")
-
-        lock = self._get_phone_lock(phone_name)
-        if not lock.acquire(timeout=0):
-            raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
-
+        lock = None
+        acquired = False
         try:
+            if phone_name not in self.phones:
+                raise ValueError(f"Phone '{phone_name}' not found")
+
+            lock = self._get_phone_lock(phone_name)
+            if not lock.acquire(timeout=0):
+                raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
+            acquired = True
             phone = self.phones[phone_name]
             task_result = self._tasks.get(task_id)
             if task_result:
@@ -567,7 +575,8 @@ class PhonePoolManager:
             })
             raise
         finally:
-            lock.release()
+            if acquired and lock is not None:
+                lock.release()
 
     def async_replay(
         self, phone_name: str, flow_name: str, flows_dir: str = "flows", speed: float = 1.0

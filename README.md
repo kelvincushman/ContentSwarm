@@ -15,7 +15,7 @@ device, learn how to drive them, and execute — the strategic brain lives in
 [Orphus](https://github.com/kelvincushman/orphus) (or its upstream,
 [Pi](https://github.com/badlogic/pi-mono)).
 
-```
+```text
 Orphus / Pi agents (the brain)
    └─ bash → contentswarm CLI ──HTTP──▶ ContentSwarm server :5000/api/v1
                                             ├─ learn: vision model drives an app ONCE,
@@ -140,7 +140,7 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Standalone Quick Start (Python, no agent harness)
 
 ### Prerequisites
 

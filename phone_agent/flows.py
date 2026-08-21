@@ -254,6 +254,10 @@ def list_installed_apps(device_id: Optional[str] = None) -> List[Dict[str, str]]
     cmd += ["shell", "pm", "list", "packages", "-3"]  # third-party apps
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"adb package query failed ({result.returncode}): {result.stderr.strip()}"
+        )
     packages = [
         line.replace("package:", "").strip()
         for line in result.stdout.splitlines()
