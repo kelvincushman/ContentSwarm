@@ -6,6 +6,8 @@ inheritProjectContext: false
 inheritSkills: false
 tools: read, bash, ls, todo
 skills: contentswarm-phones, contentswarm-app-tiktok, contentswarm-app-instagram, contentswarm-app-youtube, contentswarm-app-twitter, contentswarm-app-facebook, contentswarm-skill-maker
+model: openai-codex/gpt-5.6-terra:medium
+fallbackModels: openai-codex/gpt-5.6-luna:medium, zai/glm-5.2, moonshot/kimi-k3
 defaultProgress: true
 ---
 

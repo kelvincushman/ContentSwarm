@@ -12,12 +12,12 @@ mkdir -p "$ORPHUS_DIR/skills" "$ORPHUS_DIR/agents" "$ORPHUS_DIR/fleets"
 for skill_dir in "$HERE"/skills/*/; do
     cp -r "$skill_dir" "$ORPHUS_DIR/skills/"
 done
-cp "$HERE/agents/phone-operator.md" "$ORPHUS_DIR/agents/"
+cp "$HERE"/agents/*.md "$ORPHUS_DIR/agents/"
 cp "$HERE/fleets/contentswarm.fleet.yaml" "$ORPHUS_DIR/fleets/"
 
 echo "Installed:"
 echo "  skills:  $(ls "$HERE/skills" | tr '\n' ' ')"
-echo "  agent:   phone-operator"
+echo "  agents:  $(ls "$HERE/agents" | sed 's/\.md$//' | tr '\n' ' ')"
 echo "  fleet:   contentswarm"
 echo
 echo "Next, on this machine:"

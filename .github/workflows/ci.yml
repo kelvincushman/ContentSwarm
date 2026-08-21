@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - claude/multi-phone-english-conversion-01N8e5AinWU6JA5WSnf7WrRz
+      - main
+
+jobs:
+  checks:
+    name: Syntax and smoke checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile all Python sources
+        run: python -m compileall -q phone_agent dashboard contentswarm_cli.py run_server.py main.py
+
+      - name: Validate JSON and YAML artifacts
+        run: |
+          python - <<'EOF'
+          import json
+          for f in ["package.json", "phones_config.json"]:
+              json.load(open(f))
+              print(f, "OK")
+          EOF
+          pip install --quiet pyyaml
+          python - <<'EOF'
+          import yaml
+          yaml.safe_load(open("orphus/fleets/contentswarm.fleet.yaml"))
+          print("fleet yaml OK")
+          EOF
+
+      - name: Check Orphus skill frontmatter
+        run: |
+          for f in orphus/skills/*/SKILL.md; do
+            head -4 "$f" | grep -q "^name:" || { echo "missing name: in $f"; exit 1; }
+            head -4 "$f" | grep -q "^description:" || { echo "missing description: in $f"; exit 1; }
+            echo "$f OK"
+          done
+
+      - name: CLI smoke test (offline error paths)
+        run: |
+          pip install --quiet requests
+          python contentswarm_cli.py --api-url http://127.0.0.1:59999/api/v1 status && exit 1 || echo "CLI exits nonzero when API unreachable: OK"
+
+  # CodeRabbit reviews run via its GitHub App (config: .coderabbit.yaml), not as
+  # a workflow step. The AI final gate (GPT Sol) is in ai-final-gate.yml.
