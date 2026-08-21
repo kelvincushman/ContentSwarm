@@ -23,6 +23,29 @@ ContentSwarm is a complete viral content automation system that manages up to **
 
 ---
 
+## 🧠 Driving ContentSwarm from Orphus
+
+ContentSwarm's core job is the **mobile phone interface**: multi-device control
+and app control. The [Orphus agent harness](https://github.com/kelvincushman/orphus)
+is the main driver — its agents operate the fleet through the `contentswarm`
+CLI against the REST API (`/api/v1`).
+
+```bash
+# On the server:
+./deploy/install_aiserver.sh          # systemd service: API + dashboard on :5000
+
+# On the Orphus machine:
+./orphus/install.sh                   # installs skills, phone-operator agent, fleet
+pip install -e .                      # provides the `contentswarm` CLI
+export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"
+contentswarm phones
+contentswarm run phone_01 "Open TikTok and scroll trending" --wait
+```
+
+👉 **[Orphus Integration](orphus/README.md)** | **[AI Server Setup](deploy/AISERVER_SETUP.md)**
+
+---
+
 ## 🎉 Key Features
 
 ### 📱 Multi-Phone Control (20 Phones)

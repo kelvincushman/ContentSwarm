@@ -9,8 +9,8 @@ with open("README.md", "r", encoding="utf-8") as f:
 setup(
     name="phone-agent",
     version="0.1.0",
-    author="Zhipu AI",
-    author_email="",
+    author="Kelvin Lee",
+    author_email="kelvin.cushman@gmail.com",
     description="AI-powered phone automation framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -32,7 +32,9 @@ setup(
     install_requires=[
         "Pillow>=12.0.0",
         "openai>=2.9.0",
+        "requests>=2.31.0",
     ],
+    py_modules=["main", "contentswarm_cli"],
     extras_require={
         "dev": [
             "pytest>=7.0.0",
@@ -44,6 +46,7 @@ setup(
     entry_points={
         "console_scripts": [
             "phone-agent=main:main",
+            "contentswarm=contentswarm_cli:main",
         ],
     },
 )

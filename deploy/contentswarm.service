@@ -1,0 +1,19 @@
+# ContentSwarm server - phone-fleet API + dashboard
+# Install: deploy/install_aiserver.sh (or copy to /etc/systemd/system/ by hand)
+[Unit]
+Description=ContentSwarm phone-fleet server (API + dashboard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Set by install_aiserver.sh:
+User=%i
+WorkingDirectory=/opt/contentswarm
+EnvironmentFile=/etc/contentswarm/env
+ExecStart=/opt/contentswarm/venv/bin/python /opt/contentswarm/run_server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

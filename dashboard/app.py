@@ -23,6 +23,7 @@ from flask_cors import CORS
 from phone_agent.phone_pool import PhonePoolManager
 from phone_agent.comfyui_integration import ComfyUIClient
 from phone_agent.social_automation import SocialMediaAutomation, Platform
+from phone_agent.api import create_api_blueprint
 
 # Import screen streaming (path relative to dashboard directory)
 import sys
@@ -492,6 +493,21 @@ def handle_disconnect():
     log_event("Client disconnected")
 
 
+# ── External Events Namespace ───────────────────────────────────
+
+@socketio.on('connect', namespace='/ws/events')
+def handle_events_connect():
+    """Handle external consumer connection to the events namespace."""
+    emit('connected', {'status': 'connected', 'namespace': '/ws/events'}, namespace='/ws/events')
+    log_event("External events client connected")
+
+
+@socketio.on('disconnect', namespace='/ws/events')
+def handle_events_disconnect():
+    """Handle external consumer disconnection from the events namespace."""
+    log_event("External events client disconnected")
+
+
 def init_dashboard(
     phone_manager: PhonePoolManager,
     comfyui_client: ComfyUIClient,
@@ -512,6 +528,11 @@ def init_dashboard(
     state['phone_manager'] = phone_manager
     state['comfyui_client'] = comfyui_client
     state['automation'] = automation
+    state['socketio'] = socketio
+
+    # Register ContentSwarm API blueprint for external orchestration (Orphus CLI etc.)
+    api_blueprint = create_api_blueprint(state)
+    app.register_blueprint(api_blueprint, url_prefix='/api/v1')
 
     # Initialize stream manager with socketio callback
     def on_frame(frame_data):

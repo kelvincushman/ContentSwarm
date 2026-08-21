@@ -1,0 +1,46 @@
+# ContentSwarm fleet: a strategy huddle decides what to do on which phones,
+# then dispatched phone-operators execute in parallel.
+#
+# Install: copy to .orphus/fleets/ (project) or ~/.orphus/agent/fleets/ (user),
+# alongside the phone-operator agent and contentswarm-* skills.
+name: contentswarm
+description: Plan and execute mobile-device work across the ContentSwarm phone fleet.
+version: 1
+
+teams:
+  strategy:
+    mode: deliberate
+    rounds: 1
+    members:
+      - agent: worker
+        name: device-strategist
+        tools: [read, bash, ls, roundtable]
+        skills: [contentswarm-phones]
+        brief: |
+          Device strategist. Check fleet state with `contentswarm phones` and
+          `contentswarm status`, then turn the user's request into a concrete
+          per-phone work plan: which phone does what, in what order, with
+          deterministic app launches preferred over vision tasks. Post the
+          plan to the room as numbered assignments (phone name -> task).
+      - agent: worker
+        name: risk-reviewer
+        tools: [read, bash, ls, roundtable]
+        skills: [contentswarm-phones]
+        brief: |
+          Risk reviewer. Challenge the strategist's plan: busy phones,
+          disconnected devices, tasks likely to hit login walls or platform
+          rate limits, and anything that should be split into smaller steps.
+          Agree on a final decision of record.
+
+  execute:
+    mode: dispatch
+    skills: [contentswarm-phones]
+    members:
+      - agent: phone-operator
+        count: 3
+        brief: |
+          Execute your assigned slice of the decided per-phone plan. Verify
+          each outcome with a screenshot before reporting. Report per-phone
+          results with final task status.
+
+pipeline: [strategy, execute]

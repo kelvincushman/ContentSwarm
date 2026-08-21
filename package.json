@@ -1,0 +1,10 @@
+{
+  "name": "contentswarm",
+  "version": "0.1.0",
+  "description": "Multi-phone Android automation - mobile device and app control driven by the Orphus agent harness",
+  "author": "Kelvin Lee <kelvin.cushman@gmail.com>",
+  "private": true,
+  "orphus": {
+    "skills": ["./orphus/skills"]
+  }
+}

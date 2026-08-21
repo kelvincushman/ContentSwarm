@@ -1,0 +1,96 @@
+name: AI Final Gate (GPT Sol)
+
+# Final review gate: after CodeRabbit's app review, GPT Sol reads the full PR
+# diff and must approve before merge. Make this check "required" in branch
+# protection to enforce it. Arms itself when the OPENAI_API_KEY repo secret is
+# set; until then it passes with a warning so PRs aren't bricked.
+
+on:
+  pull_request:
+
+jobs:
+  gpt-sol-gate:
+    name: GPT Sol final review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect PR diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
+          wc -c /tmp/pr.diff
+
+      - name: GPT Sol review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GATE_MODEL: gpt-5.6-sol
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::warning::OPENAI_API_KEY secret not set - GPT Sol gate is NOT armed. Add the secret to enable the final gate."
+            exit 0
+          fi
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request
+
+          diff = open("/tmp/pr.diff", encoding="utf-8", errors="replace").read()
+          if len(diff) > 150_000:
+              diff = diff[:150_000] + "\n\n[diff truncated at 150KB]"
+
+          prompt = (
+              "You are the FINAL review gate for the ContentSwarm repository "
+              "(multi-phone Android automation driven by the Orphus agent harness). "
+              "An earlier automated review (CodeRabbit) has already run; you are the "
+              "last check before merge. Review this PR diff for: correctness bugs, "
+              "security issues (leaked secrets, injection, unsafe subprocess use), "
+              "and broken contracts between the CLI, REST API, and Orphus skills.\n\n"
+              "Respond with your reasoning, then end with exactly one final line:\n"
+              "VERDICT: APPROVE  or  VERDICT: BLOCK\n\n"
+              f"PR title: {os.environ['PR_TITLE']}\n\nDiff:\n{diff}"
+          )
+
+          req = urllib.request.Request(
+              "https://api.openai.com/v1/chat/completions",
+              data=json.dumps({
+                  "model": os.environ["GATE_MODEL"],
+                  "messages": [{"role": "user", "content": prompt}],
+                  "max_tokens": 2000,
+              }).encode(),
+              headers={
+                  "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}",
+                  "Content-Type": "application/json",
+              },
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=180) as resp:
+                  body = json.load(resp)
+          except urllib.error.HTTPError as e:
+              print(f"::error::GPT Sol API call failed: {e.read().decode()[:400]}")
+              sys.exit(1)
+
+          review = body["choices"][0]["message"]["content"]
+          print(review)
+          with open("/tmp/review.md", "w") as f:
+              f.write(f"## 🤖 GPT Sol final gate\n\n{review}")
+
+          verdict = [l for l in review.splitlines() if l.strip().startswith("VERDICT:")]
+          if not verdict or "APPROVE" not in verdict[-1]:
+              print("::error::GPT Sol blocked this PR")
+              sys.exit(1)
+          print("GPT Sol approved")
+          EOF
+
+      - name: Post review comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f /tmp/review.md ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/review.md || true
+          fi

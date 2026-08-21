@@ -4,7 +4,7 @@
 <img src=resources/logo.svg width="20%"/>
 </div>
 
-> **This document is designed for AI assistants (such as Claude Code) to automate the deployment of ContentSwarm.**
+> **This document is designed for AI coding agents (such as Orphus) to automate the deployment of ContentSwarm.**
 >
 > If you are a human reader, you can skip this document and follow the README.md instructions instead.
 
