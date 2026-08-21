@@ -32,7 +32,9 @@ setup(
     install_requires=[
         "Pillow>=12.0.0",
         "openai>=2.9.0",
+        "requests>=2.31.0",
     ],
+    py_modules=["main", "contentswarm_cli"],
     extras_require={
         "dev": [
             "pytest>=7.0.0",
@@ -44,6 +46,7 @@ setup(
     entry_points={
         "console_scripts": [
             "phone-agent=main:main",
+            "contentswarm=contentswarm_cli:main",
         ],
     },
 )

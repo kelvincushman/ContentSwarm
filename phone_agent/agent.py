@@ -1,9 +1,10 @@
 """Main PhoneAgent class for orchestrating phone automation."""
 
 import json
+import time
 import traceback
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 
 from phone_agent.actions import ActionHandler
 from phone_agent.actions.handler import do, finish, parse_action
@@ -67,6 +68,7 @@ class PhoneAgent:
         agent_config: AgentConfig | None = None,
         confirmation_callback: Callable[[str], bool] | None = None,
         takeover_callback: Callable[[str], None] | None = None,
+        event_callback: Callable[[Dict[str, Any]], None] | None = None,
     ):
         self.model_config = model_config or ModelConfig()
         self.agent_config = agent_config or AgentConfig()
@@ -80,6 +82,15 @@ class PhoneAgent:
 
         self._context: list[dict[str, Any]] = []
         self._step_count = 0
+        self._event_callback = event_callback
+
+    def _emit_event(self, event: Dict[str, Any]) -> None:
+        """Emit an event to the callback if set."""
+        if self._event_callback:
+            try:
+                self._event_callback(event)
+            except Exception:
+                pass
 
     def run(self, task: str) -> str:
         """
@@ -142,6 +153,14 @@ class PhoneAgent:
         # Capture current screen state
         screenshot = get_screenshot(self.agent_config.device_id)
         current_app = get_current_app(self.agent_config.device_id)
+
+        self._emit_event({
+            "event": "step_started",
+            "step": self._step_count,
+            "app": current_app,
+            "device_id": self.agent_config.device_id,
+            "timestamp": time.time()
+        })
 
         # Build messages
         if is_first:
@@ -222,8 +241,26 @@ class PhoneAgent:
             )
         )
 
+        self._emit_event({
+            "event": "step_completed",
+            "step": self._step_count,
+            "action": action,
+            "success": result.success,
+            "device_id": self.agent_config.device_id,
+            "timestamp": time.time()
+        })
+
         # Check if finished
         finished = action.get("_metadata") == "finish" or result.should_finish
+
+        if finished:
+            self._emit_event({
+                "event": "task_finished",
+                "steps": self._step_count,
+                "message": result.message or action.get("message"),
+                "device_id": self.agent_config.device_id,
+                "timestamp": time.time()
+            })
 
         if finished and self.agent_config.verbose:
             msgs = get_messages(self.agent_config.lang)

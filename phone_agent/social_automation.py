@@ -10,9 +10,9 @@ Workflow:
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable
 
 from phone_agent.phone_pool import PhonePoolManager
 
@@ -65,7 +65,8 @@ class SocialMediaAutomation:
         self,
         phone_manager: PhonePoolManager,
         labs_12_api_key: Optional[str] = None,
-        veo3_api_key: Optional[str] = None
+        veo3_api_key: Optional[str] = None,
+        event_callback: Optional[Callable[[Dict[str, Any]], None]] = None
     ):
         """
         Initialize social media automation.
@@ -74,10 +75,12 @@ class SocialMediaAutomation:
             phone_manager: PhonePoolManager instance
             labs_12_api_key: API key for 12labs content analysis
             veo3_api_key: API key for Veo3 video generation
+            event_callback: Optional callback for pipeline stage events
         """
         self.phone_manager = phone_manager
         self.labs_12_api_key = labs_12_api_key
         self.veo3_api_key = veo3_api_key
+        self._event_callback = event_callback
 
         # Phone assignments by platform
         self.platform_phones: Dict[Platform, List[str]] = {}
@@ -87,6 +90,68 @@ class SocialMediaAutomation:
 
         # Generated content queue
         self.content_queue: List[GeneratedContent] = []
+
+        # Pipeline state
+        self._pipeline_status: Dict[str, Any] = {
+            "stage": "idle",
+            "progress": 0,
+            "total_discovered": 0,
+            "total_analyzed": 0,
+            "total_generated": 0,
+            "total_posted": 0,
+            "last_run": None
+        }
+
+    def _emit_event(self, event: Dict[str, Any]) -> None:
+        """Emit a pipeline event."""
+        if self._event_callback:
+            try:
+                self._event_callback(event)
+            except Exception:
+                pass
+
+    def set_event_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """Set callback for pipeline events."""
+        self._event_callback = callback
+
+    def get_pipeline_status(self) -> Dict[str, Any]:
+        """Get the current pipeline status."""
+        return {
+            **self._pipeline_status,
+            "trending_queue_size": len(self.trending_queue),
+            "content_queue_size": len(self.content_queue),
+            "platform_assignments": {
+                p.value: phones for p, phones in self.platform_phones.items()
+            }
+        }
+
+    def get_trending_queue(self) -> List[Dict[str, Any]]:
+        """Get trending content queue as serializable dicts."""
+        return [
+            {
+                "platform": t.platform.value,
+                "url": t.url,
+                "title": t.title,
+                "views": t.views,
+                "engagement": t.engagement,
+                "hashtags": t.hashtags,
+                "discovered_at": t.discovered_at
+            }
+            for t in self.trending_queue
+        ]
+
+    def get_content_queue(self) -> List[Dict[str, Any]]:
+        """Get generated content queue as serializable dicts."""
+        return [
+            {
+                "video_path": c.video_path,
+                "caption": c.caption,
+                "hashtags": c.hashtags,
+                "platforms": [p.value for p in c.platforms],
+                "metadata": c.metadata
+            }
+            for c in self.content_queue
+        ]
 
     def assign_phones(self, assignments: Dict[Platform, List[str]]) -> None:
         """
@@ -526,7 +591,7 @@ class SocialMediaAutomation:
         self,
         discovery_limit: int = 10,
         content_to_generate: int = 3
-    ) -> None:
+    ) -> Dict[str, int]:
         """
         Run complete viral content pipeline.
 
@@ -539,13 +604,21 @@ class SocialMediaAutomation:
         Args:
             discovery_limit: Number of trending items per platform
             content_to_generate: Number of new content pieces to create
+
+        Returns:
+            Dict with counts: discovered, analyzed, generated, posted
         """
         print("\n" + "="*70)
         print("🚀 Starting Viral Content Pipeline")
         print("="*70 + "\n")
 
+        self._pipeline_status["stage"] = "discovery"
+        self._pipeline_status["last_run"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        self._emit_event({"event": "pipeline_started", "timestamp": time.time()})
+
         # Step 1: Discover trending across platforms
         print("Step 1: Discovering trending content...")
+        self._emit_event({"event": "pipeline_stage", "stage": "discovery", "timestamp": time.time()})
         all_trending = []
 
         for platform, phones in self.platform_phones.items():
@@ -554,10 +627,16 @@ class SocialMediaAutomation:
                 trending = self.discover_trending(platform, phone, discovery_limit)
                 all_trending.extend(trending)
 
+        self.trending_queue.extend(all_trending)
+        self._pipeline_status["total_discovered"] += len(all_trending)
+        self._pipeline_status["progress"] = 25
         print(f"✅ Found {len(all_trending)} trending items\n")
+        self._emit_event({"event": "discovery_completed", "count": len(all_trending), "timestamp": time.time()})
 
         # Step 2: Analyze top content
         print("Step 2: Analyzing top content with 12labs...")
+        self._pipeline_status["stage"] = "analysis"
+        self._emit_event({"event": "pipeline_stage", "stage": "analysis", "timestamp": time.time()})
         analyzed = []
 
         # Sort by engagement and take top N
@@ -567,27 +646,53 @@ class SocialMediaAutomation:
             analysis = self.analyze_with_12labs(content)
             analyzed.append((content, analysis))
 
+        self._pipeline_status["total_analyzed"] += len(analyzed)
+        self._pipeline_status["progress"] = 50
         print(f"✅ Analyzed {len(analyzed)} pieces\n")
+        self._emit_event({"event": "analysis_completed", "count": len(analyzed), "timestamp": time.time()})
 
         # Step 3: Generate new content
         print("Step 3: Generating new content with Veo3...")
+        self._pipeline_status["stage"] = "generation"
+        self._emit_event({"event": "pipeline_stage", "stage": "generation", "timestamp": time.time()})
         generated = []
 
         for content, analysis in analyzed:
             new_content = self.generate_with_veo3(analysis, content)
             generated.append(new_content)
 
+        self.content_queue.extend(generated)
+        self._pipeline_status["total_generated"] += len(generated)
+        self._pipeline_status["progress"] = 75
         print(f"✅ Generated {len(generated)} new pieces\n")
+        self._emit_event({"event": "generation_completed", "count": len(generated), "timestamp": time.time()})
 
         # Step 4: Post to all platforms
         print("Step 4: Posting to platforms...")
+        self._pipeline_status["stage"] = "posting"
+        self._emit_event({"event": "pipeline_stage", "stage": "posting", "timestamp": time.time()})
+        posted_count = 0
 
         for content in generated:
             for platform in content.platforms:
                 if platform in self.platform_phones and self.platform_phones[platform]:
                     phone = self.platform_phones[platform][0]
                     self.post_content(content, platform, phone)
+                    posted_count += 1
+
+        self._pipeline_status["total_posted"] += posted_count
+        self._pipeline_status["stage"] = "idle"
+        self._pipeline_status["progress"] = 100
 
         print("\n" + "="*70)
         print("✅ Viral Content Pipeline Complete!")
         print("="*70 + "\n")
+
+        result = {
+            "discovered": len(all_trending),
+            "analyzed": len(analyzed),
+            "generated": len(generated),
+            "posted": posted_count
+        }
+        self._emit_event({"event": "pipeline_completed", "result": result, "timestamp": time.time()})
+        return result

@@ -3,6 +3,9 @@ openai>=2.9.0
 flask>=3.0.0
 adb-shell>=0.4.4
 
+# For the contentswarm CLI
+requests>=2.31.0
+
 # For Model Deployment
 
 ## After installing sglang or vLLM, please run pip install -U transformers again to upgrade to 5.0.0rc0.
