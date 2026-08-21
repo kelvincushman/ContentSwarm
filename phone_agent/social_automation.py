@@ -592,6 +592,24 @@ class SocialMediaAutomation:
         discovery_limit: int = 10,
         content_to_generate: int = 3
     ) -> Dict[str, int]:
+        """Run the complete viral content pipeline.
+
+        Wraps the pipeline so a failure never leaves the status stuck on a
+        running stage: on error the stage becomes 'error' and the exception
+        propagates to the caller.
+        """
+        try:
+            return self._run_viral_pipeline(discovery_limit, content_to_generate)
+        except Exception:
+            self._pipeline_status["stage"] = "error"
+            self._emit_event({"event": "pipeline_error", "timestamp": time.time()})
+            raise
+
+    def _run_viral_pipeline(
+        self,
+        discovery_limit: int = 10,
+        content_to_generate: int = 3
+    ) -> Dict[str, int]:
         """
         Run complete viral content pipeline.
 

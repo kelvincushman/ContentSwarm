@@ -89,8 +89,9 @@ def get_status():
     if automation:
         try:
             pipeline_stage = automation.get_pipeline_status().get('stage', 'idle')
-        except Exception:
-            pass
+        except Exception as e:
+            log_event(f"Failed to read pipeline status: {e}", "error")
+            pipeline_stage = 'unknown'
 
     status = {
         'phones': {
@@ -99,7 +100,7 @@ def get_status():
             'current': phone_manager.current_phone if phone_manager else None
         },
         'automation': {
-            'running': pipeline_stage != 'idle',
+            'running': pipeline_stage not in ('idle', 'error', 'unknown'),
             'stage': pipeline_stage
         },
         'analytics': state['analytics']
@@ -214,11 +215,10 @@ def run_automation_pipeline(config: Dict):
     try:
         socketio.emit('automation_started', config)
 
-        # This would run the full pipeline
-        # automation.run_viral_pipeline(**config)
+        result = automation.run_viral_pipeline(**config)
 
-        log_event("Automation pipeline completed")
-        socketio.emit('automation_completed', {})
+        log_event(f"Automation pipeline completed: {result}")
+        socketio.emit('automation_completed', result)
 
     except Exception as e:
         log_event(f"Automation failed: {str(e)}", "error")
@@ -472,13 +472,16 @@ def init_dashboard(
 
     # Production runs on eventlet (installed via dashboard/requirements.txt);
     # allow_unsafe_werkzeug only permits the Werkzeug DEV fallback when
-    # eventlet is absent, and we warn loudly when that happens.
+    # eventlet is absent - and that fallback is forced onto localhost so the
+    # unauthenticated dashboard routes are never LAN-reachable on a dev server.
     try:
         import eventlet  # noqa: F401
     except ImportError:
+        if host == '0.0.0.0':
+            host = '127.0.0.1'
         print("⚠️  eventlet not installed - falling back to the Werkzeug DEV "
-              "server. Do not expose this beyond localhost; install eventlet "
-              "for production (pip install -r dashboard/requirements.txt).")
+              f"server, bound to {host} only. Install eventlet for production "
+              "(pip install -r dashboard/requirements.txt) to serve the LAN.")
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
 
 
