@@ -1,11 +1,10 @@
-# Viral Content Automation Dashboard
+# ContentSwarm Dashboard
 
-Real-time web dashboard for managing 20 phones, ComfyUI content generation, and social media automation.
+Real-time web dashboard for managing the phone fleet and social media automation.
 
 ## Features
 
 - **📱 Phone Management**: Monitor and control all 20 phones from one interface
-- **🎨 Content Generation**: Manage ComfyUI generation queue with real-time progress
 - **🚀 Automation Pipeline**: Start/stop viral content automation workflows
 - **📊 Analytics**: Track performance across all platforms
 - **📝 Live Logs**: Real-time system logs and events
@@ -24,15 +23,10 @@ Real-time web dashboard for managing 20 phones, ComfyUI content generation, and 
 - Select and control individual phones
 - Run tasks directly from the UI
 
-### Generation Tab
-- Create content with ComfyUI
-- Monitor generation queue
-- Track progress in real-time
-- View completed/failed generations
 
 ### Automation Tab
 - Start/stop viral content pipeline
-- Configure discovery and generation settings
+- Configure discovery settings
 - Monitor pipeline progress (Discovery → Analysis → Generation → Posting)
 - View automation logs
 
@@ -95,18 +89,6 @@ model_config = ModelConfig(
 )
 ```
 
-### 4. Setup ComfyUI (Optional)
-
-If you want FREE content generation:
-
-```bash
-# Make sure ComfyUI is running
-cd ~/ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
-```
-
-See `../COMFYUI_SETUP.md` for complete installation guide.
-
 ## Usage
 
 ### Start the Dashboard
@@ -145,30 +127,23 @@ For example: `http://192.168.1.50:5000`
    - Enter a task: "Open TikTok"
    - Click "Run Task"
 
-3. **Generate Content**
-   - Go to Generation tab
-   - Enter a prompt: "viral tiktok dance, colorful, trending"
-   - Select platform: TikTok
-   - Click "Generate"
-   - Watch progress in the queue
-
-4. **Run Automation Pipeline**
+3. **Run Automation Pipeline**
    - Go to Automation tab
    - Configure settings (discovery limit, content to generate)
    - Click "Start Pipeline"
    - Monitor progress through 4 stages:
      - 🔍 Discovery
      - 📊 Analysis
-     - 🎨 Generation
+     - 🎨 Generation (via your external generation API)
      - 📱 Posting
 
-5. **Monitor Analytics**
+4. **Monitor Analytics**
    - Go to Analytics tab
    - View total generated content
    - Check success rate
    - See per-platform statistics
 
-6. **Check Logs**
+5. **Check Logs**
    - Go to Logs tab
    - Real-time system events
    - Error tracking
@@ -196,16 +171,6 @@ POST /api/phones/select
 POST /api/phones/run_task
 # Body: { phone_name: "phone_01", task: "Open TikTok" }
 # Returns: { success, result }
-```
-
-### Generation
-```bash
-POST /api/generation/start
-# Body: { prompt, platform, type }
-# Returns: { success, job_id }
-
-GET /api/generation/queue
-# Returns: [ { job_id, prompt, status, progress }, ... ]
 ```
 
 ### Automation
@@ -237,10 +202,6 @@ socket.emit('connect')  // Connect to dashboard
 ```javascript
 socket.on('phone_status_update', (data) => {
     // { phone_name, status }
-})
-
-socket.on('generation_progress', (data) => {
-    // { job_id, progress, status }
 })
 
 socket.on('automation_status', (data) => {
@@ -316,17 +277,6 @@ adb devices
 2. Verify `phones_config.json` exists and is valid
 
 3. Check phone status in Overview tab
-
-### Generation Not Working
-
-1. Ensure ComfyUI is running:
-```bash
-curl http://127.0.0.1:8188/system_stats
-```
-
-2. Check ComfyUI logs for errors
-
-3. Verify models are downloaded (see `../COMFYUI_SETUP.md`)
 
 ### Real-time Updates Not Working
 

@@ -3,7 +3,6 @@ Web-based Dashboard for Phone Pool and Viral Content Automation.
 
 Features:
 - Real-time phone status monitoring
-- ComfyUI generation progress
 - Content queue management
 - Platform analytics
 - Manual controls
@@ -21,7 +20,6 @@ from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 
 from phone_agent.phone_pool import PhonePoolManager
-from phone_agent.comfyui_integration import ComfyUIClient
 from phone_agent.social_automation import SocialMediaAutomation, Platform
 from phone_agent.api import create_api_blueprint
 
@@ -41,9 +39,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 state = {
     'phone_manager': None,
     'automation': None,
-    'comfyui_client': None,
     'stream_manager': None,
-    'generation_queue': [],
     'posting_queue': [],
     'analytics': {
         'total_generated': 0,
@@ -87,7 +83,15 @@ def index():
 def get_status():
     """Get overall system status."""
     phone_manager = state.get('phone_manager')
-    comfyui_client = state.get('comfyui_client')
+    automation = state.get('automation')
+
+    pipeline_stage = 'idle'
+    if automation:
+        try:
+            pipeline_stage = automation.get_pipeline_status().get('stage', 'idle')
+        except Exception as e:
+            log_event(f"Failed to read pipeline status: {e}", "error")
+            pipeline_stage = 'unknown'
 
     status = {
         'phones': {
@@ -95,13 +99,9 @@ def get_status():
             'connected': 0,
             'current': phone_manager.current_phone if phone_manager else None
         },
-        'comfyui': {
-            'connected': False,
-            'generating': False
-        },
         'automation': {
-            'running': False,
-            'queue_size': len(state['generation_queue'])
+            'running': pipeline_stage not in ('idle', 'error', 'unknown'),
+            'stage': pipeline_stage
         },
         'analytics': state['analytics']
     }
@@ -110,16 +110,6 @@ def get_status():
     if phone_manager:
         connections = phone_manager.check_connections()
         status['phones']['connected'] = sum(1 for v in connections.values() if v)
-
-    # Check ComfyUI
-    if comfyui_client:
-        try:
-            from phone_agent.comfyui_integration import test_comfyui_connection
-            status['comfyui']['connected'] = test_comfyui_connection(
-                comfyui_client.server_url
-            )
-        except:
-            pass
 
     return jsonify(status)
 
@@ -193,82 +183,6 @@ def run_task():
         return jsonify({'error': str(e)}), 400
 
 
-@app.route('/api/generation/queue')
-def get_generation_queue():
-    """Get content generation queue."""
-    return jsonify({'queue': state['generation_queue']})
-
-
-@app.route('/api/generation/start', methods=['POST'])
-def start_generation():
-    """Start content generation."""
-    data = request.json
-    prompt = data.get('prompt')
-    platform = data.get('platform', 'tiktok')
-
-    if not prompt:
-        return jsonify({'error': 'Prompt is required'}), 400
-
-    # Add to queue
-    job = {
-        'id': len(state['generation_queue']) + 1,
-        'prompt': prompt,
-        'platform': platform,
-        'status': 'queued',
-        'created_at': datetime.now().isoformat()
-    }
-
-    state['generation_queue'].append(job)
-
-    log_event(f"Added to generation queue: {prompt}")
-    socketio.emit('generation_queued', job)
-
-    # Start generation in background
-    threading.Thread(target=process_generation, args=(job,), daemon=True).start()
-
-    return jsonify({'success': True, 'job': job})
-
-
-def process_generation(job: Dict):
-    """Process a generation job."""
-    comfyui_client = state.get('comfyui_client')
-    if not comfyui_client:
-        job['status'] = 'failed'
-        job['error'] = 'ComfyUI not configured'
-        return
-
-    try:
-        job['status'] = 'generating'
-        socketio.emit('generation_started', job)
-
-        from phone_agent.comfyui_integration import GenerationRequest, ContentType
-
-        request = GenerationRequest(
-            prompt=job['prompt'],
-            width=1080,
-            height=1920,
-            content_type=ContentType.VIDEO,
-            steps=20
-        )
-
-        result = comfyui_client.generate(request)
-
-        job['status'] = 'completed'
-        job['output_path'] = result.file_path
-        job['completed_at'] = datetime.now().isoformat()
-
-        state['analytics']['total_generated'] += 1
-
-        log_event(f"Generation completed: {job['prompt']}")
-        socketio.emit('generation_completed', job)
-
-    except Exception as e:
-        job['status'] = 'failed'
-        job['error'] = str(e)
-        log_event(f"Generation failed: {str(e)}", "error")
-        socketio.emit('generation_failed', job)
-
-
 @app.route('/api/automation/start', methods=['POST'])
 def start_automation():
     """Start viral automation pipeline."""
@@ -301,11 +215,10 @@ def run_automation_pipeline(config: Dict):
     try:
         socketio.emit('automation_started', config)
 
-        # This would run the full pipeline
-        # automation.run_viral_pipeline(**config)
+        result = automation.run_viral_pipeline(**config)
 
-        log_event("Automation pipeline completed")
-        socketio.emit('automation_completed', {})
+        log_event(f"Automation pipeline completed: {result}")
+        socketio.emit('automation_completed', result)
 
     except Exception as e:
         log_event(f"Automation failed: {str(e)}", "error")
@@ -510,7 +423,6 @@ def handle_events_disconnect():
 
 def init_dashboard(
     phone_manager: PhonePoolManager,
-    comfyui_client: ComfyUIClient,
     automation: SocialMediaAutomation,
     host: str = '0.0.0.0',
     port: int = 5000
@@ -520,13 +432,11 @@ def init_dashboard(
 
     Args:
         phone_manager: PhonePoolManager instance
-        comfyui_client: ComfyUIClient instance
         automation: SocialMediaAutomation instance
         host: Host to bind to
         port: Port to bind to
     """
     state['phone_manager'] = phone_manager
-    state['comfyui_client'] = comfyui_client
     state['automation'] = automation
     state['socketio'] = socketio
 
@@ -555,13 +465,24 @@ def init_dashboard(
     print("🌐 ContentSwarm Dashboard Starting...")
     print("="*70)
     print(f"\n   📱 Managing {len(phone_manager.phones)} phones")
-    print(f"   🎨 ComfyUI: {comfyui_client.server_url}")
     print(f"   🌐 Dashboard: http://localhost:{port}")
     print(f"\n   📺 Screen Streaming: Available")
     print(f"\n   Open your browser and visit: http://localhost:{port}")
     print("\n" + "="*70 + "\n")
 
-    socketio.run(app, host=host, port=port, debug=False)
+    # Production runs on eventlet (installed via dashboard/requirements.txt);
+    # allow_unsafe_werkzeug only permits the Werkzeug DEV fallback when
+    # eventlet is absent - and that fallback is forced onto localhost so the
+    # unauthenticated dashboard routes are never LAN-reachable on a dev server.
+    try:
+        import eventlet  # noqa: F401
+    except ImportError:
+        if host == '0.0.0.0':
+            host = '127.0.0.1'
+        print("⚠️  eventlet not installed - falling back to the Werkzeug DEV "
+              f"server, bound to {host} only. Install eventlet for production "
+              "(pip install -r dashboard/requirements.txt) to serve the LAN.")
+    socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
 
 
 if __name__ == '__main__':

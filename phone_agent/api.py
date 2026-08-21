@@ -21,7 +21,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
     Args:
         state: Shared application state dict containing phone_manager,
-               automation, comfyui_client, etc.
+               automation, etc.
 
     Returns:
         Flask Blueprint with all API routes.

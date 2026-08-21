@@ -7,16 +7,15 @@ Complete setup guide for automating viral content creation and distribution acro
 A fully automated system that:
 1. **Discovers** trending content on TikTok, Instagram, YouTube, Twitter, Facebook
 2. **Analyzes** viral videos using 12labs AI
-3. **Generates** new content using ComfyUI (FREE!) on your RTX 5060 16GB
+3. **Generates** new content via your chosen generation API (e.g. Kie.ai, Veo3)
 4. **Posts** automatically to all platforms using 20 phones
 5. **Monitors** everything via a beautiful web dashboard
 
 ## 📋 Prerequisites
 
 ### Hardware
-- **RTX 5060 16GB GPU** (you have this!)
-- **20 Android phones** (connected via WiFi)
-- **PC/Server** to run the system
+- **Android phones** (1-20, connected via USB or WiFi)
+- **PC/Server** to run the system (GPU optional, for local vision-model serving)
 
 ### Software
 - Python 3.8+
@@ -48,36 +47,11 @@ pip install -r requirements.txt
 cd ..
 ```
 
-### 3. Setup ComfyUI (for FREE content generation)
+### 3. Content generation (optional)
 
-```bash
-# Install ComfyUI
-cd ~
-git clone https://github.com/comfyanonymous/ComfyUI
-cd ComfyUI
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install PyTorch with CUDA
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-# Install requirements
-pip install -r requirements.txt
-
-# Download SDXL model (for images)
-cd models/checkpoints/
-wget https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
-cd ../..
-
-# Start ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
-```
-
-**Verify ComfyUI**: Open http://127.0.0.1:8188 in your browser
-
-See `COMFYUI_SETUP.md` for complete installation guide including video models.
+Content generation is external — bring your own generation API (e.g. Kie.ai
+or Veo3) and wire it into the pipeline's generate stage. It is not required
+for phone control.
 
 ### 4. Setup Phone Control Model
 
@@ -174,16 +148,14 @@ Open http://localhost:5000 in your browser.
 **Dashboard Features:**
 - 📱 **Overview Tab**: Quick stats and phone grid
 - 🎮 **Phones Tab**: Select and control any of 20 phones
-- 🎨 **Generation Tab**: Create content with ComfyUI
 - 🚀 **Automation Tab**: Run full viral pipeline
 - 📊 **Analytics Tab**: Track performance metrics
 - 📝 **Logs Tab**: Real-time system events
 
 **Quick Workflow:**
 1. Go to Overview → verify all phones are connected
-2. Go to Generation → enter prompt → click Generate
-3. Go to Automation → click "Start Pipeline"
-4. Monitor progress in real-time!
+2. Go to Automation → click "Start Pipeline"
+3. Monitor progress in real-time!
 
 ### Option 2: Python Script (Advanced)
 
@@ -225,14 +197,13 @@ print(result)
 #### Run Full Automation Pipeline
 
 ```bash
-cd examples
-python viral_automation_comfyui.py
+python examples/viral_content_automation.py
 ```
 
-Choose option 1 for full pipeline:
+Full pipeline:
 1. Discovers trending content
 2. Analyzes with 12labs (or mock analysis)
-3. Generates content with ComfyUI (FREE!)
+3. Generates content via your external generation API
 4. Posts to all platforms
 
 ### Option 3: Interactive CLI
@@ -250,61 +221,15 @@ Menu options:
 
 ## 📊 Workflow Examples
 
-### Example 1: Generate and Post TikTok Video
+### Example 1: Post a Video to TikTok
 
 ```python
-from phone_agent.comfyui_integration import ComfyUIClient, GenerationRequest, ContentType
-
-# Initialize ComfyUI client
-client = ComfyUIClient("http://127.0.0.1:8188")
-
-# Generate viral TikTok video
-request = GenerationRequest(
-    prompt="viral tiktok dance, colorful, energetic, trending",
-    negative_prompt="low quality, blurry, ugly",
-    width=1080,
-    height=1920,  # Vertical format
-    content_type=ContentType.VIDEO,
-    num_frames=48,  # 6 seconds at 8fps
-    steps=25
-)
-
-result = client.generate(request)
-print(f"Generated: {result.file_path}")
-
-# Post to TikTok
+# Video must already be on the phone (gallery / camera roll)
 manager.select_phone("phone_01")
-manager.run_task(f"Open TikTok, upload video from {result.file_path}, add caption 'viral content' and post")
+manager.run_task("Open TikTok, upload the newest video from the gallery, add caption 'viral content' and post")
 ```
 
-### Example 2: Batch Generation
-
-```python
-# Generate 10 variations
-prompts = [
-    "viral tiktok dance, colorful",
-    "instagram reels aesthetic, beautiful",
-    "youtube shorts thumbnail, eye-catching",
-    "twitter viral meme, funny",
-    "facebook viral post, emotional"
-]
-
-requests = [
-    GenerationRequest(
-        prompt=prompt,
-        width=1080,
-        height=1920,
-        content_type=ContentType.IMAGE,
-        seed=i
-    )
-    for i, prompt in enumerate(prompts)
-]
-
-results = client.batch_generate(requests)
-print(f"Generated {len(results)} pieces!")
-```
-
-### Example 3: Multi-Platform Posting
+### Example 2: Multi-Platform Posting
 
 ```python
 from phone_agent.social_automation import SocialMediaAutomation, Platform
@@ -313,7 +238,6 @@ from phone_agent.social_automation import SocialMediaAutomation, Platform
 automation = SocialMediaAutomation(
     phone_manager=manager,
     labs_12_api_key="your-12labs-key",  # Optional
-    comfyui_client=client
 )
 
 # Assign phones to platforms
@@ -332,45 +256,12 @@ automation.run_free_pipeline(
 )
 ```
 
-## 💰 Cost Comparison
+## 💰 Cost Notes
 
-### With ComfyUI (FREE!)
-- **Hardware**: RTX 5060 16GB (already have)
-- **Electricity**: ~$0.10 per 100 generations
-- **Phone Control**:
-  - Novita AI: ~$0.50-1.00 per cycle
-  - Self-hosted: FREE
-- **Total**: ~$0-1 per cycle
-
-### With Paid APIs (Veo3)
-- **Phone Control**: $0.50-1.00 per cycle
-- **Video Generation**: $5-10 per video × 5 videos = $25-50
-- **Total**: ~$25-51 per cycle
-
-**Savings with ComfyUI: $25-50 per cycle!**
-
-If you run 1 cycle per day:
-- **Monthly savings: $750-1,500**
-- **Yearly savings: $9,000-18,000**
-
-## 🎨 Content Generation Performance
-
-### RTX 5060 16GB Benchmarks
-
-**Images (SDXL):**
-- 1080×1920: ~15 seconds
-- Quality: Excellent
-- VRAM: ~10GB
-
-**Videos (AnimateDiff + SD 1.5):**
-- 16 frames (2 seconds): ~60 seconds
-- 48 frames (6 seconds): ~180 seconds (3 minutes)
-- Quality: Good
-- VRAM: ~12GB
-
-**Comparison:**
-- ComfyUI: 3 minutes per video, FREE
-- Veo3 API: 5-15 minutes per video, $5-10 cost
+- **Phone Control**: Novita AI ~$0.50-1.00 per cycle, or FREE when
+  self-hosting the vision model (vLLM + AutoGLM-9B on your GPU)
+- **Content Generation**: external and priced by your chosen provider
+  (e.g. Kie.ai, Veo3) — flow replays themselves cost nothing
 
 ## 📱 Phone Management Tips
 
@@ -408,20 +299,6 @@ for phone in tiktok_phones:
 ```
 
 ## 🐛 Troubleshooting
-
-### ComfyUI Not Starting
-
-```bash
-# Check if port 8188 is in use
-lsof -i :8188
-
-# Kill process if needed
-kill -9 <PID>
-
-# Restart ComfyUI
-cd ~/ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
-```
 
 ### Phone Disconnects
 
@@ -464,27 +341,26 @@ python app.py
 
 - **Phone Pool Guide**: `PHONE_POOL_GUIDE.md` - Complete multi-phone control
 - **Viral Content Guide**: `VIRAL_CONTENT_GUIDE.md` - Social media automation strategy
-- **ComfyUI Setup**: `COMFYUI_SETUP.md` - Installation for RTX 5060 16GB
+- **Orphus Integration**: `orphus/README.md` - Driving the fleet from an agent harness
 - **Dashboard Guide**: `dashboard/README.md` - Web dashboard documentation
 
 ## 🎯 Next Steps
 
 ### Immediate (First Day)
-1. ✅ Setup ComfyUI and test generation
-2. ✅ Connect all 20 phones via ADB
-3. ✅ Configure `phones_config.json`
-4. ✅ Start dashboard and verify phones show up
-5. ✅ Test single phone control
+1. ✅ Connect your phones via ADB
+2. ✅ Configure `phones_config.json`
+3. ✅ Start the server and verify phones show up
+4. ✅ Test single phone control
 
 ### Week 1
 1. Install social media apps on all phones
 2. Create accounts for each platform
-3. Test content generation with ComfyUI
+3. Learn your first flows (`contentswarm learn`) and replay them
 4. Run test automation on 1-2 phones
 5. Verify posting workflow
 
 ### Week 2-4
-1. Create custom ComfyUI workflows for each platform
+1. Build a flow library for each platform's posting workflow
 2. Set up scheduled automation (daily cycles)
 3. Monitor analytics and optimize
 4. Scale up to all 20 phones
@@ -507,14 +383,13 @@ python app.py
 6. **Account Age**: Older accounts have more trust
 7. **Engagement**: Respond to comments (can be automated later)
 
-## 🚀 Ready to Go Viral!
+## 🚀 Ready to Go!
 
 You now have everything you need to:
 - ✅ Control 20 phones from one system
-- ✅ Generate unlimited content for FREE with ComfyUI
+- ✅ Learn app workflows once and replay them for free
 - ✅ Automate discovery, creation, and posting
 - ✅ Monitor everything via web dashboard
-- ✅ Save $750-1,500 per month vs paid APIs
 
 **Start the dashboard:**
 ```bash
@@ -532,4 +407,4 @@ python app.py
 - Check troubleshooting section above
 - Review relevant documentation
 - Check dashboard logs tab
-- Verify all services are running (ComfyUI, model API, phones connected)
+- Verify all services are running (model API, phones connected)

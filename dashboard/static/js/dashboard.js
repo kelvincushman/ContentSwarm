@@ -7,7 +7,6 @@ const socket = io();
 let currentPhone = null;
 let phones = [];
 let automationRunning = false;
-let generationQueue = [];
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -38,10 +37,6 @@ function setupSocketListeners() {
 
     socket.on('phone_status_update', (data) => {
         updatePhoneStatus(data);
-    });
-
-    socket.on('generation_progress', (data) => {
-        updateGenerationProgress(data);
     });
 
     socket.on('automation_status', (data) => {
@@ -103,8 +98,6 @@ function showTab(tabName) {
     // Load tab-specific data
     if (tabName === 'phones') {
         renderPhoneTable();
-    } else if (tabName === 'generation') {
-        loadGenerationQueue();
     } else if (tabName === 'analytics') {
         loadAnalytics();
     }
@@ -312,142 +305,6 @@ async function runTask() {
         if (button) {
             button.disabled = false;
             button.textContent = '▶ Run Task';
-        }
-    }
-}
-
-// Generate content with ComfyUI
-async function generateContent() {
-    const prompt = document.getElementById('generation-prompt')?.value.trim();
-    const platform = document.getElementById('generation-platform')?.value;
-
-    if (!prompt) {
-        showToast('Please enter a prompt', 'error');
-        return;
-    }
-
-    try {
-        const button = document.querySelector('#generation-tab .btn-success');
-        if (button) {
-            button.disabled = true;
-            button.textContent = 'Generating...';
-        }
-
-        const response = await fetch('/api/generation/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt: prompt,
-                platform: platform,
-                type: 'image'  // or 'video' based on selection
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            showToast('Generation started', 'success');
-            // Add to queue display
-            addToGenerationQueue(data.job_id, prompt);
-        } else {
-            showToast(`Generation failed: ${data.error}`, 'error');
-        }
-
-    } catch (error) {
-        console.error('Failed to start generation:', error);
-        showToast('Failed to start generation', 'error');
-    } finally {
-        const button = document.querySelector('#generation-tab .btn-success');
-        if (button) {
-            button.disabled = false;
-            button.textContent = '🎨 Generate';
-        }
-    }
-}
-
-// Load generation queue
-async function loadGenerationQueue() {
-    try {
-        const response = await fetch('/api/generation/queue');
-        const queue = await response.json();
-
-        const queueList = document.getElementById('generation-queue');
-        if (!queueList) return;
-
-        queueList.innerHTML = '';
-
-        if (queue.length === 0) {
-            queueList.innerHTML = '<div class="empty-state">No items in queue</div>';
-            return;
-        }
-
-        queue.forEach(item => {
-            const queueItem = document.createElement('div');
-            queueItem.className = `queue-item ${item.status}`;
-            queueItem.innerHTML = `
-                <div class="queue-item-header">
-                    <strong>${item.prompt}</strong>
-                    <span class="badge badge-${item.status === 'completed' ? 'success' : 'warning'}">
-                        ${item.status}
-                    </span>
-                </div>
-                <div class="queue-item-meta">
-                    <small>${item.type} • ${item.platform}</small>
-                    ${item.progress ? `<small>${item.progress}%</small>` : ''}
-                </div>
-            `;
-            queueList.appendChild(queueItem);
-        });
-
-    } catch (error) {
-        console.error('Failed to load queue:', error);
-    }
-}
-
-// Add to generation queue display
-function addToGenerationQueue(jobId, prompt) {
-    const queueList = document.getElementById('generation-queue');
-    if (!queueList) return;
-
-    const queueItem = document.createElement('div');
-    queueItem.className = 'queue-item generating';
-    queueItem.dataset.jobId = jobId;
-    queueItem.innerHTML = `
-        <div class="queue-item-header">
-            <strong>${prompt}</strong>
-            <span class="badge badge-warning">Generating</span>
-        </div>
-        <div class="queue-item-meta">
-            <small>Progress: <span class="progress-text">0%</span></small>
-        </div>
-    `;
-
-    queueList.insertBefore(queueItem, queueList.firstChild);
-}
-
-// Update generation progress
-function updateGenerationProgress(data) {
-    const queueItem = document.querySelector(`[data-job-id="${data.job_id}"]`);
-    if (!queueItem) return;
-
-    const progressText = queueItem.querySelector('.progress-text');
-    if (progressText) {
-        progressText.textContent = `${data.progress}%`;
-    }
-
-    if (data.status === 'completed') {
-        queueItem.className = 'queue-item completed';
-        const badge = queueItem.querySelector('.badge');
-        if (badge) {
-            badge.className = 'badge badge-success';
-            badge.textContent = 'Completed';
-        }
-    } else if (data.status === 'failed') {
-        queueItem.className = 'queue-item failed';
-        const badge = queueItem.querySelector('.badge');
-        if (badge) {
-            badge.className = 'badge badge-danger';
-            badge.textContent = 'Failed';
         }
     }
 }

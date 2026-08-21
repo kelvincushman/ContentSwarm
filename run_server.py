@@ -2,7 +2,7 @@
 """
 ContentSwarm server entry point.
 
-Wires up the phone pool, automation, and ComfyUI client, then starts the
+Wires up the phone pool and automation, then starts the
 dashboard (web UI + /api/v1 REST API) so an external agent harness such as
 Orphus can drive the phone fleet.
 
@@ -11,7 +11,6 @@ Environment variables:
     CONTENTSWARM_PORT          Port (default: 5000)
     CONTENTSWARM_PHONES_CONFIG Path to phones config JSON (default: phones_config.json)
     CONTENTSWARM_API_TOKEN     If set, /api/v1 requires this bearer token
-    COMFYUI_URL                ComfyUI server URL (default: http://127.0.0.1:8188)
     PHONE_AGENT_BASE_URL       Vision model API URL (default: http://localhost:8000/v1)
     PHONE_AGENT_MODEL          Vision model name (default: autoglm-phone-9b)
     PHONE_AGENT_API_KEY        Vision model API key (default: EMPTY)
@@ -27,7 +26,6 @@ import sys
 from pathlib import Path
 
 from phone_agent.agent import AgentConfig
-from phone_agent.comfyui_integration import ComfyUIClient
 from phone_agent.model import ModelConfig
 from phone_agent.phone_pool import PhonePoolManager
 from phone_agent.social_automation import SocialMediaAutomation
@@ -61,9 +59,6 @@ def main() -> None:
         print(f"⚠️  No phones loaded ({phones_config} missing or empty) - "
               "API starts anyway; add phones and restart, or use auto-discovery.")
 
-    comfyui_client = ComfyUIClient(
-        server_url=os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188")
-    )
     automation = SocialMediaAutomation(phone_manager)
 
     if os.environ.get("CONTENTSWARM_API_TOKEN"):
@@ -73,7 +68,6 @@ def main() -> None:
 
     init_dashboard(
         phone_manager=phone_manager,
-        comfyui_client=comfyui_client,
         automation=automation,
         host=host,
         port=port,
