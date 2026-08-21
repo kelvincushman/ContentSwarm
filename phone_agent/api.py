@@ -1,15 +1,18 @@
-"""ContentSwarm API layer for external orchestration by OpenClaw.
+"""ContentSwarm API layer for external orchestration.
 
-Exposes phone management, pipeline control, and analytics as REST + WebSocket
-endpoints that OpenClaw can invoke through its Skills system.
+Exposes phone management, device/app control, pipeline control, and analytics
+as REST + WebSocket endpoints that an external agent harness (e.g. Orphus via
+the `contentswarm` CLI, or OpenClaw via its Skills system) can invoke.
 """
 
+import base64
+import os
 import threading
 import time
 import uuid
 from typing import Any, Dict, Optional
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 
 def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
@@ -27,6 +30,19 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
     # In-flight async tasks tracked by task_id
     _tasks: Dict[str, Dict[str, Any]] = {}
+
+    # ── Auth ────────────────────────────────────────────────────────
+
+    @api.before_request
+    def _check_token():
+        """Require a bearer token when CONTENTSWARM_API_TOKEN is set on the server."""
+        token = os.environ.get("CONTENTSWARM_API_TOKEN")
+        if not token:
+            return None
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header == f"Bearer {token}":
+            return None
+        return jsonify({"error": "Unauthorized"}), 401
 
     def _get_phone_manager():
         return state.get("phone_manager")
@@ -162,6 +178,100 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         })
 
         return jsonify({"task_ids": task_ids}), 202
+
+    # ── Device / App Control (deterministic, no LLM) ────────────────
+
+    @api.route("/apps", methods=["GET"])
+    def list_apps():
+        """List apps the agent can launch by name."""
+        from phone_agent.config.apps import list_supported_apps
+
+        return jsonify({"apps": sorted(list_supported_apps())})
+
+    @api.route("/phones/<phone_name>/app", methods=["POST"])
+    def launch_phone_app(phone_name: str):
+        """
+        Launch an app on a phone directly via ADB (no model call).
+
+        Request body: {"app": "TikTok"}
+        """
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+
+        if phone_name not in pm.phones:
+            return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
+
+        data = request.json or {}
+        app_name = data.get("app")
+        if not app_name:
+            return jsonify({"error": "app is required"}), 400
+
+        from phone_agent.adb import launch_app
+
+        device_id = pm.phones[phone_name].device_id
+        success = launch_app(app_name, device_id)
+
+        if not success:
+            return jsonify({"error": f"App not found or failed to launch: {app_name}"}), 400
+
+        _emit_event({
+            "event": "app_launched",
+            "phone": phone_name,
+            "app": app_name,
+            "timestamp": time.time()
+        })
+
+        return jsonify({"success": True, "phone": phone_name, "app": app_name})
+
+    @api.route("/phones/<phone_name>/screenshot", methods=["GET"])
+    def phone_screenshot(phone_name: str):
+        """Capture and return the phone's current screen as a PNG image."""
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+
+        if phone_name not in pm.phones:
+            return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
+
+        from phone_agent.adb import get_screenshot
+
+        device_id = pm.phones[phone_name].device_id
+        try:
+            shot = get_screenshot(device_id)
+        except Exception as e:
+            return jsonify({"error": f"Screenshot failed: {e}"}), 500
+
+        png_bytes = base64.b64decode(shot.base64_data)
+        return Response(
+            png_bytes,
+            mimetype="image/png",
+            headers={
+                "X-Screen-Width": str(shot.width),
+                "X-Screen-Height": str(shot.height),
+                "X-Sensitive": str(shot.is_sensitive).lower(),
+            },
+        )
+
+    @api.route("/phones/<phone_name>/current_app", methods=["GET"])
+    def phone_current_app(phone_name: str):
+        """Get the app currently in the foreground on a phone."""
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+
+        if phone_name not in pm.phones:
+            return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
+
+        from phone_agent.adb import get_current_app
+
+        device_id = pm.phones[phone_name].device_id
+        try:
+            current = get_current_app(device_id)
+        except Exception as e:
+            return jsonify({"error": f"Failed to read current app: {e}"}), 500
+
+        return jsonify({"phone": phone_name, "current_app": current})
 
     # ── Task Status ─────────────────────────────────────────────────
 
