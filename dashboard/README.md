@@ -127,30 +127,23 @@ For example: `http://192.168.1.50:5000`
    - Enter a task: "Open TikTok"
    - Click "Run Task"
 
-3. **Generate Content**
-   - Go to Generation tab
-   - Enter a prompt: "viral tiktok dance, colorful, trending"
-   - Select platform: TikTok
-   - Click "Generate"
-   - Watch progress in the queue
-
-4. **Run Automation Pipeline**
+3. **Run Automation Pipeline**
    - Go to Automation tab
    - Configure settings (discovery limit, content to generate)
    - Click "Start Pipeline"
    - Monitor progress through 4 stages:
      - 🔍 Discovery
      - 📊 Analysis
-     - 🎨 Generation
+     - 🎨 Generation (via your external generation API)
      - 📱 Posting
 
-5. **Monitor Analytics**
+4. **Monitor Analytics**
    - Go to Analytics tab
    - View total generated content
    - Check success rate
    - See per-platform statistics
 
-6. **Check Logs**
+5. **Check Logs**
    - Go to Logs tab
    - Real-time system events
    - Error tracking
@@ -178,16 +171,6 @@ POST /api/phones/select
 POST /api/phones/run_task
 # Body: { phone_name: "phone_01", task: "Open TikTok" }
 # Returns: { success, result }
-```
-
-### Generation
-```bash
-POST /api/generation/start
-# Body: { prompt, platform, type }
-# Returns: { success, job_id }
-
-GET /api/generation/queue
-# Returns: [ { job_id, prompt, status, progress }, ... ]
 ```
 
 ### Automation
@@ -219,10 +202,6 @@ socket.emit('connect')  // Connect to dashboard
 ```javascript
 socket.on('phone_status_update', (data) => {
     // { phone_name, status }
-})
-
-socket.on('generation_progress', (data) => {
-    // { job_id, progress, status }
 })
 
 socket.on('automation_status', (data) => {
