@@ -1,0 +1,35 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/getting-started/configure-coderabbit
+# CodeRabbit reviews every PR automatically once the GitHub App is installed:
+# https://github.com/marketplace/coderabbit
+language: en-US
+reviews:
+  profile: chill
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!**/*.png"
+    - "!**/*.gif"
+    - "!generated_content/**"
+  path_instructions:
+    - path: "phone_agent/**"
+      instructions: |
+        Core phone automation. Check thread-safety around PhonePoolManager's
+        parallel execution (per-phone locks), ADB subprocess handling, and that
+        API endpoints validate input and never leak CONTENTSWARM_API_TOKEN.
+    - path: "orphus/**"
+      instructions: |
+        Orphus agent-harness artifacts. SKILL.md files must keep YAML
+        frontmatter (name, description). Verify CLI recipes match the actual
+        contentswarm CLI flags and API routes.
+    - path: "deploy/**"
+      instructions: |
+        Deployment scripts run with sudo on the user's home server. Flag
+        anything destructive, any secret written world-readable, and any
+        unquoted shell expansion.
+chat:
+  auto_reply: true

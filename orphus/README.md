@@ -20,8 +20,25 @@ Orphus agents (phone-operator, fleets)
 | `skills/contentswarm-app-{tiktok,instagram,youtube,twitter,facebook}/` | Per-app skills with verified flows — load only when that app is involved |
 | `skills/contentswarm-skill-maker/` | Skill generator: explores an unfamiliar app on a real phone and writes a new `contentswarm-app-<name>` skill |
 | `agents/phone-operator.md` | Orphus agent definition for phone work |
+| `agents/worker.md` | Override of the builtin worker: main coding work on the model lineup below |
+| `agents/final-gate.md` | Final review gate (GPT Sol) — read-only, rules APPROVE/BLOCK before work lands |
 | `fleets/contentswarm.fleet.yaml` | Fleet blueprint: strategy huddle → parallel execution |
 | `install.sh` | Copies the above into `~/.orphus/agent/` |
+
+## Model routing
+
+| Role | Model | Fallbacks |
+|---|---|---|
+| Main coding work (`worker`) | `openai-codex/gpt-5.6-terra:max` | `gpt-5.6-luna:max` → `zai/glm-5.2` → `moonshot/kimi-k3` |
+| Phone operation (`phone-operator`) | `openai-codex/gpt-5.6-terra:medium` | `gpt-5.6-luna:medium` → `zai/glm-5.2` → `moonshot/kimi-k3` |
+| Final gate (`final-gate`) | `openai-codex/gpt-5.6-sol:max` | `gpt-5.6-terra:max` → `anthropic/claude-opus-5` |
+
+Review pipeline for repo changes: **worker writes → CodeRabbit reviews the PR
+(`.coderabbit.yaml`) → GPT Sol is the final gate** (locally via the
+`final-gate` agent; on GitHub via `.github/workflows/ai-final-gate.yml`).
+Adjust model ids to whatever `orphus models` lists for your logins — providers
+need credentials in `~/.orphus/agent/auth.json` (`/login` for OpenAI Codex,
+API keys for ZAI and Moonshot).
 
 Skills are on-demand by design: only each skill's one-line description sits in
 the agent's context; the body loads only when the agent actually works with
