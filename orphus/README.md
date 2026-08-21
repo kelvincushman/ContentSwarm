@@ -16,6 +16,7 @@ Orphus agents (phone-operator, fleets)
 | Path | Purpose |
 |---|---|
 | `skills/contentswarm-phones/` | Agent Skill: device + app control via the CLI |
+| `skills/contentswarm-flow-learning/` | Learn once with the LLM, replay exact presses deterministically |
 | `skills/contentswarm-pipeline/` | Agent Skill: optional content-pipeline control |
 | `skills/contentswarm-app-{tiktok,instagram,youtube,twitter,facebook}/` | Per-app skills with verified flows — load only when that app is involved |
 | `skills/contentswarm-skill-maker/` | Skill generator: explores an unfamiliar app on a real phone and writes a new `contentswarm-app-<name>` skill |
@@ -66,6 +67,23 @@ skills. Add the checkout path to your Orphus `settings.json`:
 
 (Skills load this way; the agent and fleet still need copying into
 `.orphus/agents/` and `.orphus/fleets/` — `install.sh` does both.)
+
+## Using Pi instead of Orphus
+
+Orphus is a fork of the [Pi agent harness](https://github.com/badlogic/pi-mono),
+and this integration works with plain Pi too — Pi and Orphus share the same
+skills, agents, and config formats, and Orphus reads legacy `.pi` directories.
+
+```bash
+# Pi's agent directory replaces ~/.orphus/agent:
+ORPHUS_CODING_AGENT_DIR="$HOME/.pi/agent" ./orphus/install.sh
+```
+
+Project-level also works: put the same files under `.pi/skills/`,
+`.pi/agents/`, and `.pi/fleets/` in the project Pi runs from (Orphus-only
+features like fleets require the roundtable/fleet packages; skills and agent
+definitions work everywhere). Model ids in the agent frontmatter follow the
+same `provider/model` format in both harnesses.
 
 ## Configure the Orphus machine
 

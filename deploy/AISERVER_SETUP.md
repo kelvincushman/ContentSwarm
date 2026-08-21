@@ -51,6 +51,15 @@ contentswarm phones     # all enrolled phones with connection status
 Phones need the [ADB Keyboard APK](https://github.com/senzhk/ADBKeyBoard)
 installed for text input (`adb install ADBKeyboard.apk`).
 
+### Flow storage
+
+Learned flows (the exact-press recordings made by `contentswarm learn`) are
+stored as JSON under the directory named by `CONTENTSWARM_FLOWS_DIR` in
+`/etc/contentswarm/env` (installer default: `/opt/contentswarm/flows`). The
+API reads this at request time, so moving the directory just needs the env
+var updated and `sudo systemctl restart contentswarm`. Back this directory up
+— it is the fleet's learned knowledge.
+
 ## 3. Vision model (GPU)
 
 The on-phone agent needs an AutoGLM-compatible vision model at
@@ -108,9 +117,14 @@ See `orphus/README.md` for using the `phone-operator` agent and the
 
 ```bash
 contentswarm phones                          # devices online?
+contentswarm installed phone_01              # discover apps on the device
 contentswarm launch phone_01 Settings        # deterministic app launch
 contentswarm screenshot phone_01 -o s.png    # capture proof
 contentswarm run phone_01 "Open the calculator and type 2+2" --wait   # vision agent
+
+# The core loop - learn once with the LLM, replay the exact presses:
+contentswarm learn phone_01 "Open the calculator and type 2+2" --name calc-demo --wait
+contentswarm replay phone_01 calc-demo --wait
 ```
 
 ## Troubleshooting

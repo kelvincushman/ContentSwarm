@@ -52,6 +52,9 @@ PHONE_AGENT_MODEL=autoglm-phone-9b
 PHONE_AGENT_API_KEY=EMPTY
 PHONE_AGENT_LANG=en
 
+# Learned flows (exact-press replays) are stored here:
+CONTENTSWARM_FLOWS_DIR=$INSTALL_DIR/flows
+
 # Optional local generation:
 COMFYUI_URL=http://127.0.0.1:8188
 EOF

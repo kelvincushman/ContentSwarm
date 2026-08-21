@@ -170,6 +170,35 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("phone")
     p.add_argument("-o", "--output", help="Output file (default: <phone>_<ts>.png)")
 
+    p = sub.add_parser("installed", help="Discover apps installed on a phone")
+    p.add_argument("phone")
+
+    p = sub.add_parser(
+        "learn",
+        help="Learn a flow: the vision model drives the task once while "
+             "every action is recorded with its exact press points",
+    )
+    p.add_argument("phone")
+    p.add_argument("task")
+    p.add_argument("--name", required=True, help="Name to save the flow under")
+    p.add_argument("--wait", action="store_true", help="Poll until learning finishes")
+    p.add_argument("--wait-timeout", type=int, default=900)
+
+    p = sub.add_parser(
+        "replay",
+        help="Replay a learned flow deterministically (exact presses, no LLM)",
+    )
+    p.add_argument("phone")
+    p.add_argument("flow")
+    p.add_argument("--speed", type=float, default=1.0, help="Delay multiplier (2.0 = twice as fast)")
+    p.add_argument("--wait", action="store_true", help="Poll until replay finishes")
+    p.add_argument("--wait-timeout", type=int, default=600)
+
+    sub.add_parser("flows", help="List learned flows")
+
+    p = sub.add_parser("flow", help="Show the recorded steps of one flow")
+    p.add_argument("name")
+
     return parser
 
 
@@ -219,6 +248,37 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "current":
         output(client.get(f"/phones/{args.phone}/current_app"))
+
+    elif args.command == "installed":
+        output(client.get(f"/phones/{args.phone}/installed"))
+
+    elif args.command == "learn":
+        result = client.post(
+            f"/phones/{args.phone}/learn",
+            {"task": args.task, "flow_name": args.name},
+        )
+        if args.wait:
+            result = wait_for_task(client, result["task_id"], args.wait_timeout)
+        output(result)
+        if result.get("status") in ("failed", "timeout"):
+            sys.exit(1)
+
+    elif args.command == "replay":
+        result = client.post(
+            f"/phones/{args.phone}/replay",
+            {"flow_name": args.flow, "speed": args.speed},
+        )
+        if args.wait:
+            result = wait_for_task(client, result["task_id"], args.wait_timeout)
+        output(result)
+        if result.get("status") in ("failed", "timeout"):
+            sys.exit(1)
+
+    elif args.command == "flows":
+        output(client.get("/flows"))
+
+    elif args.command == "flow":
+        output(client.get(f"/flows/{args.name}"))
 
     elif args.command == "screenshot":
         resp = client.get(f"/phones/{args.phone}/screenshot", raw=True)
