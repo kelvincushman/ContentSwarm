@@ -493,21 +493,19 @@ def handle_disconnect():
     log_event("Client disconnected")
 
 
-# ── OpenClaw Events Namespace ───────────────────────────────────
+# ── External Events Namespace ───────────────────────────────────
 
 @socketio.on('connect', namespace='/ws/events')
 def handle_events_connect():
-    """Handle OpenClaw bridge connection to events namespace."""
+    """Handle external consumer connection to the events namespace."""
     emit('connected', {'status': 'connected', 'namespace': '/ws/events'}, namespace='/ws/events')
-    log_event("OpenClaw events client connected")
-    state['openclaw_connected'] = True
+    log_event("External events client connected")
 
 
 @socketio.on('disconnect', namespace='/ws/events')
 def handle_events_disconnect():
-    """Handle OpenClaw bridge disconnection from events namespace."""
-    log_event("OpenClaw events client disconnected")
-    state['openclaw_connected'] = False
+    """Handle external consumer disconnection from the events namespace."""
+    log_event("External events client disconnected")
 
 
 def init_dashboard(
@@ -531,9 +529,8 @@ def init_dashboard(
     state['comfyui_client'] = comfyui_client
     state['automation'] = automation
     state['socketio'] = socketio
-    state['openclaw_connected'] = False
 
-    # Register ContentSwarm API blueprint for OpenClaw integration
+    # Register ContentSwarm API blueprint for external orchestration (Orphus CLI etc.)
     api_blueprint = create_api_blueprint(state)
     app.register_blueprint(api_blueprint, url_prefix='/api/v1')
 

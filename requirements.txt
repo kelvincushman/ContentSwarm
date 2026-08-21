@@ -1,8 +1,7 @@
 Pillow>=12.0.0
 openai>=2.9.0
 
-# For OpenClaw bridge
-websockets>=12.0
+# For the contentswarm CLI
 requests>=2.31.0
 
 # For Model Deployment

@@ -1,8 +1,8 @@
 """ContentSwarm API layer for external orchestration.
 
 Exposes phone management, device/app control, pipeline control, and analytics
-as REST + WebSocket endpoints that an external agent harness (e.g. Orphus via
-the `contentswarm` CLI, or OpenClaw via its Skills system) can invoke.
+as REST + WebSocket endpoints that an external agent harness (Orphus via the
+`contentswarm` CLI) can invoke.
 """
 
 import base64
@@ -483,7 +483,6 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
                 "current": pm.current_phone if pm else None
             },
             "pipeline": automation.get_pipeline_status() if automation else None,
-            "openclaw": state.get("openclaw_connected", False),
             "timestamp": time.time()
         }
 

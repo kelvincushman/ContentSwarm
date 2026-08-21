@@ -1,9 +1,0 @@
-{
-  "gateway_url": "ws://127.0.0.1:18789",
-  "contentswarm_api_url": "http://127.0.0.1:5000/api/v1",
-  "contentswarm_ws_url": "http://127.0.0.1:5000",
-  "token": "",
-  "skills_dir": "openclaw_skills",
-  "reconnect_base_seconds": 2,
-  "reconnect_max_seconds": 60
-}
