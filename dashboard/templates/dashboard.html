@@ -26,10 +26,6 @@
                         <span class="stat-label">Posted</span>
                         <span class="stat-value" id="total-posted">0</span>
                     </div>
-                    <div class="status-indicator" id="comfyui-status">
-                        <span class="status-dot"></span>
-                        <span>ComfyUI</span>
-                    </div>
                 </div>
             </div>
         </header>
@@ -44,9 +40,6 @@
                     </button>
                     <button class="nav-item" data-tab="phones">
                         📱 Phones
-                    </button>
-                    <button class="nav-item" data-tab="generation">
-                        🎨 Generation
                     </button>
                     <button class="nav-item" data-tab="automation">
                         🤖 Automation
@@ -73,13 +66,6 @@
                         <div class="card">
                             <h3>📱 Phone Status</h3>
                             <div class="phone-grid" id="phone-grid-preview"></div>
-                        </div>
-
-                        <div class="card">
-                            <h3>🎨 Generation Queue</h3>
-                            <div id="queue-preview">
-                                <p class="empty-state">No items in queue</p>
-                            </div>
                         </div>
 
                         <div class="card">
@@ -143,45 +129,6 @@
                     </div>
                 </div>
 
-                <!-- Generation Tab -->
-                <div class="tab-content" id="generation-tab">
-                    <div class="tab-header">
-                        <h2>Content Generation</h2>
-                    </div>
-
-                    <div class="cards">
-                        <div class="card">
-                            <h3>🎨 New Generation</h3>
-                            <div class="generation-form">
-                                <textarea id="gen-prompt" class="input" rows="3" placeholder="Enter prompt for viral content..."></textarea>
-                                <select id="gen-platform" class="input">
-                                    <option value="tiktok">TikTok</option>
-                                    <option value="instagram">Instagram Reels</option>
-                                    <option value="youtube">YouTube Shorts</option>
-                                    <option value="twitter">Twitter</option>
-                                    <option value="facebook">Facebook</option>
-                                </select>
-                                <button class="btn btn-primary btn-lg" onclick="startGeneration()">
-                                    🎬 Generate Content
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <h3>📋 Generation Queue</h3>
-                            <div id="generation-queue" class="queue-list">
-                                <!-- Populated by JavaScript -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="generated-content">
-                        <h3>📁 Generated Content</h3>
-                        <div id="generated-grid" class="content-grid">
-                            <!-- Populated by JavaScript -->
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Automation Tab -->
                 <div class="tab-content" id="automation-tab">

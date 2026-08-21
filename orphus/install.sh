@@ -10,7 +10,9 @@ echo "Installing ContentSwarm integration into $ORPHUS_DIR"
 mkdir -p "$ORPHUS_DIR/skills" "$ORPHUS_DIR/agents" "$ORPHUS_DIR/fleets"
 
 for skill_dir in "$HERE"/skills/*/; do
-    cp -r "$skill_dir" "$ORPHUS_DIR/skills/"
+    # ${skill_dir%/} strips the trailing slash - required on macOS/BSD cp,
+    # where "cp -r dir/ target" copies contents instead of the directory.
+    cp -r "${skill_dir%/}" "$ORPHUS_DIR/skills/"
 done
 cp "$HERE"/agents/*.md "$ORPHUS_DIR/agents/"
 cp "$HERE/fleets/contentswarm.fleet.yaml" "$ORPHUS_DIR/fleets/"

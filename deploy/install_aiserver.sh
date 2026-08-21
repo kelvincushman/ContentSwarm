@@ -54,9 +54,6 @@ PHONE_AGENT_LANG=en
 
 # Learned flows (exact-press replays) are stored here:
 CONTENTSWARM_FLOWS_DIR=$INSTALL_DIR/flows
-
-# Optional local generation:
-COMFYUI_URL=http://127.0.0.1:8188
 EOF
     sudo chmod 600 "$ENV_DIR/env"
     echo "Wrote $ENV_DIR/env (API token generated - view with: sudo cat $ENV_DIR/env)"

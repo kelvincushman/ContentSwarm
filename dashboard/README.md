@@ -1,11 +1,10 @@
-# Viral Content Automation Dashboard
+# ContentSwarm Dashboard
 
-Real-time web dashboard for managing 20 phones, ComfyUI content generation, and social media automation.
+Real-time web dashboard for managing the phone fleet and social media automation.
 
 ## Features
 
 - **📱 Phone Management**: Monitor and control all 20 phones from one interface
-- **🎨 Content Generation**: Manage ComfyUI generation queue with real-time progress
 - **🚀 Automation Pipeline**: Start/stop viral content automation workflows
 - **📊 Analytics**: Track performance across all platforms
 - **📝 Live Logs**: Real-time system logs and events
@@ -24,11 +23,6 @@ Real-time web dashboard for managing 20 phones, ComfyUI content generation, and 
 - Select and control individual phones
 - Run tasks directly from the UI
 
-### Generation Tab
-- Create content with ComfyUI
-- Monitor generation queue
-- Track progress in real-time
-- View completed/failed generations
 
 ### Automation Tab
 - Start/stop viral content pipeline
@@ -94,18 +88,6 @@ model_config = ModelConfig(
     model_name="autoglm-phone-9b-multilingual"
 )
 ```
-
-### 4. Setup ComfyUI (Optional)
-
-If you want FREE content generation:
-
-```bash
-# Make sure ComfyUI is running
-cd ~/ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
-```
-
-See `../COMFYUI_SETUP.md` for complete installation guide.
 
 ## Usage
 

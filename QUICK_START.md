@@ -7,16 +7,15 @@ Complete setup guide for automating viral content creation and distribution acro
 A fully automated system that:
 1. **Discovers** trending content on TikTok, Instagram, YouTube, Twitter, Facebook
 2. **Analyzes** viral videos using 12labs AI
-3. **Generates** new content using ComfyUI (FREE!) on your RTX 5060 16GB
+3. **Generates** new content via your chosen generation API (e.g. Kie.ai, Veo3)
 4. **Posts** automatically to all platforms using 20 phones
 5. **Monitors** everything via a beautiful web dashboard
 
 ## 📋 Prerequisites
 
 ### Hardware
-- **RTX 5060 16GB GPU** (you have this!)
-- **20 Android phones** (connected via WiFi)
-- **PC/Server** to run the system
+- **Android phones** (1-20, connected via USB or WiFi)
+- **PC/Server** to run the system (GPU optional, for local vision-model serving)
 
 ### Software
 - Python 3.8+
@@ -48,36 +47,11 @@ pip install -r requirements.txt
 cd ..
 ```
 
-### 3. Setup ComfyUI (for FREE content generation)
+### 3. Content generation (optional)
 
-```bash
-# Install ComfyUI
-cd ~
-git clone https://github.com/comfyanonymous/ComfyUI
-cd ComfyUI
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install PyTorch with CUDA
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-# Install requirements
-pip install -r requirements.txt
-
-# Download SDXL model (for images)
-cd models/checkpoints/
-wget https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
-cd ../..
-
-# Start ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
-```
-
-**Verify ComfyUI**: Open http://127.0.0.1:8188 in your browser
-
-See `COMFYUI_SETUP.md` for complete installation guide including video models.
+Content generation is external — bring your own generation API (e.g. Kie.ai
+or Veo3) and wire it into the pipeline's generate stage. It is not required
+for phone control.
 
 ### 4. Setup Phone Control Model
 
@@ -174,7 +148,6 @@ Open http://localhost:5000 in your browser.
 **Dashboard Features:**
 - 📱 **Overview Tab**: Quick stats and phone grid
 - 🎮 **Phones Tab**: Select and control any of 20 phones
-- 🎨 **Generation Tab**: Create content with ComfyUI
 - 🚀 **Automation Tab**: Run full viral pipeline
 - 📊 **Analytics Tab**: Track performance metrics
 - 📝 **Logs Tab**: Real-time system events
@@ -225,14 +198,13 @@ print(result)
 #### Run Full Automation Pipeline
 
 ```bash
-cd examples
-python viral_automation_comfyui.py
+python examples/viral_content_automation.py
 ```
 
-Choose option 1 for full pipeline:
+Full pipeline:
 1. Discovers trending content
 2. Analyzes with 12labs (or mock analysis)
-3. Generates content with ComfyUI (FREE!)
+3. Generates content via your external generation API
 4. Posts to all platforms
 
 ### Option 3: Interactive CLI
@@ -250,61 +222,15 @@ Menu options:
 
 ## 📊 Workflow Examples
 
-### Example 1: Generate and Post TikTok Video
+### Example 1: Post a Video to TikTok
 
 ```python
-from phone_agent.comfyui_integration import ComfyUIClient, GenerationRequest, ContentType
-
-# Initialize ComfyUI client
-client = ComfyUIClient("http://127.0.0.1:8188")
-
-# Generate viral TikTok video
-request = GenerationRequest(
-    prompt="viral tiktok dance, colorful, energetic, trending",
-    negative_prompt="low quality, blurry, ugly",
-    width=1080,
-    height=1920,  # Vertical format
-    content_type=ContentType.VIDEO,
-    num_frames=48,  # 6 seconds at 8fps
-    steps=25
-)
-
-result = client.generate(request)
-print(f"Generated: {result.file_path}")
-
-# Post to TikTok
+# Video must already be on the phone (gallery / camera roll)
 manager.select_phone("phone_01")
-manager.run_task(f"Open TikTok, upload video from {result.file_path}, add caption 'viral content' and post")
+manager.run_task("Open TikTok, upload the newest video from the gallery, add caption 'viral content' and post")
 ```
 
-### Example 2: Batch Generation
-
-```python
-# Generate 10 variations
-prompts = [
-    "viral tiktok dance, colorful",
-    "instagram reels aesthetic, beautiful",
-    "youtube shorts thumbnail, eye-catching",
-    "twitter viral meme, funny",
-    "facebook viral post, emotional"
-]
-
-requests = [
-    GenerationRequest(
-        prompt=prompt,
-        width=1080,
-        height=1920,
-        content_type=ContentType.IMAGE,
-        seed=i
-    )
-    for i, prompt in enumerate(prompts)
-]
-
-results = client.batch_generate(requests)
-print(f"Generated {len(results)} pieces!")
-```
-
-### Example 3: Multi-Platform Posting
+### Example 2: Multi-Platform Posting
 
 ```python
 from phone_agent.social_automation import SocialMediaAutomation, Platform
@@ -313,7 +239,6 @@ from phone_agent.social_automation import SocialMediaAutomation, Platform
 automation = SocialMediaAutomation(
     phone_manager=manager,
     labs_12_api_key="your-12labs-key",  # Optional
-    comfyui_client=client
 )
 
 # Assign phones to platforms

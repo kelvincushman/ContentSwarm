@@ -8,7 +8,6 @@ can drive the phone fleet.
 Orphus ── contentswarm CLI ──HTTP:5000──▶ AI server
                                             ├─ contentswarm.service (API + dashboard)
                                             ├─ vLLM/SGLang AutoGLM-9B (GPU, :8000)
-                                            ├─ ComfyUI (optional, :8188)
                                             └─ adb ──TCP:5555──▶ phones on the LAN
 ```
 
@@ -91,9 +90,6 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl enable --now vllm
 ```
-
-ComfyUI (optional, for free local content generation) runs the same way on
-port 8188; set `COMFYUI_URL` in `/etc/contentswarm/env`.
 
 ## 4. Point Orphus at the server
 

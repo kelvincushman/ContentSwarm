@@ -39,8 +39,8 @@ Orphus / Pi agents (the brain)
 
 Everything else supports that loop: per-app Orphus skills with verified
 flows, a skill generator for unknown apps, parallel execution across the
-fleet, live screen streaming, and an optional content pipeline (ComfyUI
-generation + multi-platform posting).
+fleet, live screen streaming, and an optional content pipeline
+(discover → analyze → generate → post).
 
 ## 🧠 Quick start with Orphus (or Pi)
 
@@ -91,18 +91,19 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
 
 👉 **[Complete Guide](PHONE_POOL_GUIDE.md)** | **[Quick Start](QUICK_START.md)**
 
-### 🎨 FREE Content Generation with ComfyUI
-- **Local Generation**: Generate unlimited images and videos on your RTX GPU
-- **Cost Savings**: Save $750-1,500/month vs. paid APIs like Veo3
-- **High Quality**: SDXL for images, AnimateDiff for videos
-- **Platform-Specific**: Custom workflows for TikTok, Instagram, YouTube Shorts
+### 🧭 Flow Learning (learn once, replay forever)
+- **Discover**: `contentswarm installed <phone>` lists the apps on a device
+- **Learn**: the vision model drives an app once while every action is
+  recorded with its exact press points
+- **Replay**: the deterministic driver repeats the exact presses on any
+  phone — no LLM, near-zero cost
 
-👉 **[ComfyUI Setup Guide](COMFYUI_SETUP.md)** | **[RTX 5060 16GB Optimization](COMFYUI_SETUP.md#rtx-5060-16gb-optimization)**
+👉 **[Flow Learning Skill](orphus/skills/contentswarm-flow-learning/SKILL.md)**
 
-### 🤖 Social Media Automation Pipeline
+### 🤖 Social Media Automation Pipeline (optional)
 - **Discover**: Find trending content across TikTok, Instagram, YouTube, Twitter, Facebook
 - **Analyze**: Use 12labs AI to analyze viral videos
-- **Generate**: Create content with ComfyUI (FREE!) or Veo3
+- **Generate**: Bring your own generation API (e.g. Kie.ai, Veo3)
 - **Post**: Automatically distribute to all platforms using phone pool
 
 👉 **[Viral Content Strategy Guide](VIRAL_CONTENT_GUIDE.md)**
@@ -110,8 +111,7 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
 ### 🖥️ Real-Time Web Dashboard
 - **Live Monitoring**: Monitor all 20 phones in real-time
 - **Phone Control**: Select and control any phone from the web interface
-- **Content Generation**: Manage ComfyUI generation queue
-- **Automation**: Start/stop viral content pipeline
+- **Automation**: Start/stop the content pipeline
 - **Analytics**: Track performance across all platforms
 
 👉 **[Dashboard Documentation](dashboard/README.md)**
@@ -127,54 +127,33 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
 
 ---
 
-## 💰 Cost Comparison
-
-**Traditional Approach (Veo3 API):**
-- Video Generation: $5-10 per video
-- Monthly Cost: $750-1,500 (for 5 videos/day)
-
-**ContentSwarm with ComfyUI:**
-- Video Generation: FREE (local GPU)
-- Monthly Cost: ~$10 (electricity)
-- **Savings: $740-1,490/month**
-
----
-
 ## 🚀 Standalone Quick Start (Python, no agent harness)
 
 ### Prerequisites
 
-- **20 Android phones** (Android 7.0+) with USB debugging enabled
-- **RTX GPU** (RTX 5060 16GB or better recommended for content generation)
+- **Android phones** (Android 7.0+) with USB debugging enabled — 1 to 20
 - **Python 3.10+**
 - **ADB installed** ([Download](https://developer.android.com/tools/releases/platform-tools))
+- Optional: a GPU for local vision-model serving (vLLM + AutoGLM-9B)
 
 ### Installation
 
 ```bash
 # 1. Clone repository
-git clone <your-repo-url>
+git clone https://github.com/kelvincushman/ContentSwarm
 cd ContentSwarm
 
 # 2. Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt -r dashboard/requirements.txt
 pip install -e .
-cd dashboard && pip install -r requirements.txt
 
-# 3. Setup ComfyUI (for FREE content generation)
-# See COMFYUI_SETUP.md for complete guide
+# 3. Configure your phones
+# Edit phones_config.json with your phones' ADB addresses
 
-# 4. Configure your 20 phones
-# Edit phones_config.json with your phone IPs
+# 4. Start the server (API + dashboard)
+python run_server.py
 
-# 5. Start the dashboard
-cd dashboard
-python app.py
-
-# 6. Open http://localhost:5000
-# - View all phones in real-time
-# - Generate content with ComfyUI
-# - Run automation pipeline
+# 5. Open http://localhost:5000
 ```
 
 **Complete Setup Guide**: [QUICK_START.md](QUICK_START.md)
@@ -194,11 +173,11 @@ ContentSwarm is built on a phone agent framework that:
 
 ### How It Works
 
-1. **Connect Phones**: 20 phones connected via wireless ADB
-2. **Control System**: Python agent controls phones sequentially
-3. **Vision Model**: AI understands phone screens and plans actions
-4. **Content Generation**: ComfyUI generates videos locally on your GPU
-5. **Distribution**: Automated posting across all platforms
+1. **Connect Phones**: phones connected via USB or wireless ADB
+2. **Control System**: parallel task execution with per-phone locking
+3. **Vision Model**: AI understands phone screens and plans actions (learning only)
+4. **Flow Replay**: learned workflows re-run as exact presses, no model calls
+5. **Distribution**: automated posting across all platforms (optional pipeline)
 
 ---
 
