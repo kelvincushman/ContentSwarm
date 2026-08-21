@@ -83,6 +83,14 @@ def index():
 def get_status():
     """Get overall system status."""
     phone_manager = state.get('phone_manager')
+    automation = state.get('automation')
+
+    pipeline_stage = 'idle'
+    if automation:
+        try:
+            pipeline_stage = automation.get_pipeline_status().get('stage', 'idle')
+        except Exception:
+            pass
 
     status = {
         'phones': {
@@ -91,7 +99,8 @@ def get_status():
             'current': phone_manager.current_phone if phone_manager else None
         },
         'automation': {
-            'running': False
+            'running': pipeline_stage != 'idle',
+            'stage': pipeline_stage
         },
         'analytics': state['analytics']
     }
@@ -461,8 +470,15 @@ def init_dashboard(
     print(f"\n   Open your browser and visit: http://localhost:{port}")
     print("\n" + "="*70 + "\n")
 
-    # allow_unsafe_werkzeug: fine for a LAN control plane; flask-socketio
-    # uses eventlet automatically when installed (see requirements.txt).
+    # Production runs on eventlet (installed via dashboard/requirements.txt);
+    # allow_unsafe_werkzeug only permits the Werkzeug DEV fallback when
+    # eventlet is absent, and we warn loudly when that happens.
+    try:
+        import eventlet  # noqa: F401
+    except ImportError:
+        print("⚠️  eventlet not installed - falling back to the Werkzeug DEV "
+              "server. Do not expose this beyond localhost; install eventlet "
+              "for production (pip install -r dashboard/requirements.txt).")
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
 
 

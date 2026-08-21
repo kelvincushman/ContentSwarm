@@ -26,7 +26,7 @@ Real-time web dashboard for managing the phone fleet and social media automation
 
 ### Automation Tab
 - Start/stop viral content pipeline
-- Configure discovery and generation settings
+- Configure discovery settings
 - Monitor pipeline progress (Discovery → Analysis → Generation → Posting)
 - View automation logs
 

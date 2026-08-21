@@ -154,9 +154,8 @@ Open http://localhost:5000 in your browser.
 
 **Quick Workflow:**
 1. Go to Overview → verify all phones are connected
-2. Go to Generation → enter prompt → click Generate
-3. Go to Automation → click "Start Pipeline"
-4. Monitor progress in real-time!
+2. Go to Automation → click "Start Pipeline"
+3. Monitor progress in real-time!
 
 ### Option 2: Python Script (Advanced)
 
