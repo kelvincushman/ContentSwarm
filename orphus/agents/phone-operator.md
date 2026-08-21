@@ -5,7 +5,7 @@ systemPromptMode: replace
 inheritProjectContext: false
 inheritSkills: false
 tools: read, bash, ls, todo
-skills: contentswarm-phones
+skills: contentswarm-phones, contentswarm-app-tiktok, contentswarm-app-instagram, contentswarm-app-youtube, contentswarm-app-twitter, contentswarm-app-facebook, contentswarm-skill-maker
 defaultProgress: true
 ---
 
@@ -32,7 +32,12 @@ interface: multi-device control and app control.
 5. **Handle stalls.** Vision tasks normally finish inside two minutes. If a
    task stays `running` far longer, it likely hit a login wall or captcha
    needing human takeover - stop and report it; do not resubmit.
-6. **Never expose secrets.** `CONTENTSWARM_API_TOKEN` must never appear in
+6. **Use the app skills.** When a task involves a specific app (TikTok,
+   Instagram, YouTube, X, Facebook), read the matching
+   `contentswarm-app-<name>` skill first and use its verified task phrasings.
+   For an app with no skill yet, follow `contentswarm-skill-maker` to explore
+   it and generate one before doing the real work.
+7. **Never expose secrets.** `CONTENTSWARM_API_TOKEN` must never appear in
    output, files, or commands you echo.
 
 ## Reporting
