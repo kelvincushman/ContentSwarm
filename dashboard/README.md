@@ -299,17 +299,6 @@ adb devices
 
 3. Check phone status in Overview tab
 
-### Generation Not Working
-
-1. Ensure ComfyUI is running:
-```bash
-curl http://127.0.0.1:8188/system_stats
-```
-
-2. Check ComfyUI logs for errors
-
-3. Verify models are downloaded (see `../COMFYUI_SETUP.md`)
-
 ### Real-time Updates Not Working
 
 1. Check browser console for WebSocket errors
