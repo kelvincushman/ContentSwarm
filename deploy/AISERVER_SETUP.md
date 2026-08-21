@@ -108,9 +108,14 @@ See `orphus/README.md` for using the `phone-operator` agent and the
 
 ```bash
 contentswarm phones                          # devices online?
+contentswarm installed phone_01              # discover apps on the device
 contentswarm launch phone_01 Settings        # deterministic app launch
 contentswarm screenshot phone_01 -o s.png    # capture proof
 contentswarm run phone_01 "Open the calculator and type 2+2" --wait   # vision agent
+
+# The core loop - learn once with the LLM, replay the exact presses:
+contentswarm learn phone_01 "Open the calculator and type 2+2" --name calc-demo --wait
+contentswarm replay phone_01 calc-demo --wait
 ```
 
 ## Troubleshooting

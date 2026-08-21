@@ -273,6 +273,112 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
         return jsonify({"phone": phone_name, "current_app": current})
 
+    @api.route("/phones/<phone_name>/installed", methods=["GET"])
+    def phone_installed_apps(phone_name: str):
+        """Discover third-party apps installed on a phone via ADB."""
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+
+        if phone_name not in pm.phones:
+            return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
+
+        from phone_agent.flows import list_installed_apps
+
+        device_id = pm.phones[phone_name].device_id
+        try:
+            apps = list_installed_apps(device_id)
+        except Exception as e:
+            return jsonify({"error": f"App discovery failed: {e}"}), 500
+
+        return jsonify({"phone": phone_name, "installed": apps, "count": len(apps)})
+
+    # ── Flow Learning & Replay ──────────────────────────────────────
+
+    def _flows_dir() -> str:
+        return os.environ.get("CONTENTSWARM_FLOWS_DIR", "flows")
+
+    @api.route("/phones/<phone_name>/learn", methods=["POST"])
+    def learn_flow(phone_name: str):
+        """
+        Learn a flow: the vision model drives the task once while every
+        replayable action is recorded with its exact press points.
+
+        Request body: {"task": "Open TikTok and post ...", "flow_name": "tiktok-post"}
+        """
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+
+        if phone_name not in pm.phones:
+            return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
+
+        data = request.json or {}
+        task = data.get("task")
+        flow_name = data.get("flow_name")
+        if not task or not flow_name:
+            return jsonify({"error": "task and flow_name are required"}), 400
+
+        task_id = pm.async_learn(phone_name, task, flow_name, flows_dir=_flows_dir())
+
+        _emit_event({
+            "event": "learn_submitted",
+            "task_id": task_id,
+            "phone": phone_name,
+            "flow": flow_name,
+            "timestamp": time.time()
+        })
+        return jsonify({"task_id": task_id, "status": "pending", "flow": flow_name}), 202
+
+    @api.route("/phones/<phone_name>/replay", methods=["POST"])
+    def replay_flow(phone_name: str):
+        """
+        Replay a learned flow deterministically - exact presses at the
+        recorded points via ADB, no model calls.
+
+        Request body: {"flow_name": "tiktok-post", "speed": 1.0}
+        """
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+
+        if phone_name not in pm.phones:
+            return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
+
+        data = request.json or {}
+        flow_name = data.get("flow_name")
+        if not flow_name:
+            return jsonify({"error": "flow_name is required"}), 400
+        speed = float(data.get("speed", 1.0))
+
+        from phone_agent.flows import flow_path
+        try:
+            if not flow_path(flow_name, _flows_dir()).exists():
+                return jsonify({"error": f"Flow '{flow_name}' not found"}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        task_id = pm.async_replay(phone_name, flow_name, flows_dir=_flows_dir(), speed=speed)
+        return jsonify({"task_id": task_id, "status": "pending", "flow": flow_name}), 202
+
+    @api.route("/flows", methods=["GET"])
+    def get_flows():
+        """List all learned flows."""
+        from phone_agent.flows import list_flows
+        return jsonify({"flows": list_flows(_flows_dir())})
+
+    @api.route("/flows/<flow_name>", methods=["GET"])
+    def get_flow_detail(flow_name: str):
+        """Get the full recorded steps of one flow."""
+        from phone_agent.flows import load_flow
+        try:
+            flow = load_flow(flow_name, _flows_dir())
+        except FileNotFoundError:
+            return jsonify({"error": f"Flow '{flow_name}' not found"}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify(flow.to_dict())
+
     # ── Task Status ─────────────────────────────────────────────────
 
     @api.route("/tasks/<task_id>", methods=["GET"])

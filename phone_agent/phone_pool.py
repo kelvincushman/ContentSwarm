@@ -401,6 +401,191 @@ class PhonePoolManager:
             task_ids[phone_name] = self.async_run(phone_name, task)
         return task_ids
 
+    def _learn_on_phone(
+        self, phone_name: str, task: str, flow_name: str, flows_dir: str, task_id: str
+    ) -> str:
+        """Run a task with the vision model while recording a replayable flow."""
+        from phone_agent.flows import FlowRecorder, save_flow
+
+        if phone_name not in self.phones:
+            raise ValueError(f"Phone '{phone_name}' not found")
+
+        lock = self._get_phone_lock(phone_name)
+        if not lock.acquire(timeout=0):
+            raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
+
+        try:
+            phone = self.phones[phone_name]
+            task_result = self._tasks.get(task_id)
+            if task_result:
+                task_result.status = "running"
+                task_result.started_at = time.time()
+
+            self._emit_event({
+                "event": "learn_started",
+                "task_id": task_id,
+                "phone": phone_name,
+                "task": task,
+                "flow": flow_name,
+                "timestamp": time.time()
+            })
+
+            recorder = FlowRecorder(name=flow_name, task=task)
+
+            agent_config = AgentConfig(
+                max_steps=self.base_agent_config.max_steps,
+                device_id=phone.device_id,
+                lang=self.base_agent_config.lang,
+                verbose=self.base_agent_config.verbose
+            )
+            agent = PhoneAgent(
+                model_config=self.model_config,
+                agent_config=agent_config,
+                event_callback=recorder.on_event,
+            )
+
+            agent_result = agent.run(task)
+            path = save_flow(recorder.flow, flows_dir)
+
+            summary = json.dumps({
+                "flow": flow_name,
+                "path": str(path),
+                "recorded_steps": len(recorder.flow.steps),
+                "manual_steps": recorder.flow.manual_steps,
+                "agent_result": agent_result,
+            })
+
+            if task_result:
+                task_result.status = "completed"
+                task_result.result = summary
+                task_result.completed_at = time.time()
+
+            self._emit_event({
+                "event": "learn_completed",
+                "task_id": task_id,
+                "phone": phone_name,
+                "flow": flow_name,
+                "recorded_steps": len(recorder.flow.steps),
+                "timestamp": time.time()
+            })
+            return summary
+
+        except Exception as e:
+            if task_id in self._tasks:
+                self._tasks[task_id].status = "failed"
+                self._tasks[task_id].error = str(e)
+                self._tasks[task_id].completed_at = time.time()
+            self._emit_event({
+                "event": "learn_failed",
+                "task_id": task_id,
+                "phone": phone_name,
+                "flow": flow_name,
+                "error": str(e),
+                "timestamp": time.time()
+            })
+            raise
+        finally:
+            lock.release()
+
+    def async_learn(
+        self, phone_name: str, task: str, flow_name: str, flows_dir: str = "flows"
+    ) -> str:
+        """Learn a flow: the model drives the task once while actions are
+        recorded for deterministic replay. Returns a task_id."""
+        task_id = str(uuid.uuid4())[:8]
+        self._tasks[task_id] = TaskResult(
+            task_id=task_id,
+            phone_name=phone_name,
+            task=f"learn:{flow_name}: {task}",
+            status="pending"
+        )
+        self._executor.submit(
+            self._learn_on_phone, phone_name, task, flow_name, flows_dir, task_id
+        )
+        return task_id
+
+    def _replay_on_phone(
+        self, phone_name: str, flow_name: str, flows_dir: str, speed: float, task_id: str
+    ) -> str:
+        """Replay a recorded flow deterministically (no model calls)."""
+        from phone_agent.flows import FlowReplayer, load_flow
+
+        if phone_name not in self.phones:
+            raise ValueError(f"Phone '{phone_name}' not found")
+
+        lock = self._get_phone_lock(phone_name)
+        if not lock.acquire(timeout=0):
+            raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
+
+        try:
+            phone = self.phones[phone_name]
+            task_result = self._tasks.get(task_id)
+            if task_result:
+                task_result.status = "running"
+                task_result.started_at = time.time()
+
+            self._emit_event({
+                "event": "replay_started",
+                "task_id": task_id,
+                "phone": phone_name,
+                "flow": flow_name,
+                "timestamp": time.time()
+            })
+
+            flow = load_flow(flow_name, flows_dir)
+            replayer = FlowReplayer(device_id=phone.device_id)
+            outcome = replayer.replay(flow, speed=speed)
+            summary = json.dumps(outcome)
+
+            if task_result:
+                task_result.status = "completed" if outcome.get("failed", 0) == 0 else "failed"
+                task_result.result = summary
+                task_result.completed_at = time.time()
+
+            self._emit_event({
+                "event": "replay_completed",
+                "task_id": task_id,
+                "phone": phone_name,
+                "flow": flow_name,
+                "outcome": outcome,
+                "timestamp": time.time()
+            })
+            return summary
+
+        except Exception as e:
+            if task_id in self._tasks:
+                self._tasks[task_id].status = "failed"
+                self._tasks[task_id].error = str(e)
+                self._tasks[task_id].completed_at = time.time()
+            self._emit_event({
+                "event": "replay_failed",
+                "task_id": task_id,
+                "phone": phone_name,
+                "flow": flow_name,
+                "error": str(e),
+                "timestamp": time.time()
+            })
+            raise
+        finally:
+            lock.release()
+
+    def async_replay(
+        self, phone_name: str, flow_name: str, flows_dir: str = "flows", speed: float = 1.0
+    ) -> str:
+        """Replay a learned flow on a phone (deterministic, no LLM).
+        Returns a task_id."""
+        task_id = str(uuid.uuid4())[:8]
+        self._tasks[task_id] = TaskResult(
+            task_id=task_id,
+            phone_name=phone_name,
+            task=f"replay:{flow_name}",
+            status="pending"
+        )
+        self._executor.submit(
+            self._replay_on_phone, phone_name, flow_name, flows_dir, speed, task_id
+        )
+        return task_id
+
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
         Get the status of an async task.

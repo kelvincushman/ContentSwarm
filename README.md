@@ -1,55 +1,90 @@
 # ContentSwarm
 
-**Viral Content Automation System for Multi-Phone Management**
+**The mobile phone interface for AI agents — multi-device control and app
+control across a fleet of Android phones.**
+
+Developed by **Kelvin Lee**.
 
 ---
 
 ## 🚀 What is ContentSwarm?
 
-ContentSwarm is a complete viral content automation system that manages up to **20 Android phones simultaneously** to create and distribute viral content across multiple social media platforms.
+ContentSwarm turns up to **20 Android phones** into an API any agent harness
+can drive. Its only job is the phone interface: discover the apps on a
+device, learn how to drive them, and execute — the strategic brain lives in
+[Orphus](https://github.com/kelvincushman/orphus) (or its upstream,
+[Pi](https://github.com/badlogic/pi-mono)).
 
-**The Ultimate Content Pipeline:**
-- 📱 **Control 20 Phones** from one dashboard
-- 🎨 **FREE Content Generation** with ComfyUI (save $750-1,500/month)
-- 🤖 **Automated Distribution** across TikTok, Instagram, YouTube, Twitter, Facebook
-- 📺 **Live Screen Streaming** to monitor all phones in real-time
-- 💰 **Cost Savings**: Generate unlimited content locally instead of paying per video
+```
+Orphus / Pi agents (the brain)
+   └─ bash → contentswarm CLI ──HTTP──▶ ContentSwarm server :5000/api/v1
+                                            ├─ learn: vision model drives an app ONCE,
+                                            │         recording every exact press point
+                                            ├─ replay: deterministic driver repeats the
+                                            │          exact presses — no LLM, near-free
+                                            └─ ADB ──TCP──▶ up to 20 phones
+```
 
-**Perfect for:**
-- Content creators managing multiple accounts
-- Social media agencies scaling operations
-- Marketers testing content across platforms
-- Anyone wanting to automate viral content creation
+**The core pattern — learn once, replay forever:**
 
----
+1. **Discover** — `contentswarm installed phone_01` lists the apps actually
+   on a device
+2. **Learn** — `contentswarm learn phone_01 "Open TikTok and reach the upload
+   screen" --name tiktok-upload` — the vision-language model figures the app
+   out while every action is recorded with its exact press points
+   (resolution-independent coordinates)
+3. **Replay** — `contentswarm replay phone_02 tiktok-upload` — the
+   deterministic driver repeats the exact presses on any phone: fast,
+   repeatable, zero model cost
 
-## 🧠 Driving ContentSwarm from Orphus
+Everything else supports that loop: per-app Orphus skills with verified
+flows, a skill generator for unknown apps, parallel execution across the
+fleet, live screen streaming, and an optional content pipeline (ComfyUI
+generation + multi-platform posting).
 
-ContentSwarm's core job is the **mobile phone interface**: multi-device control
-and app control. The [Orphus agent harness](https://github.com/kelvincushman/orphus)
-is the main driver — its agents operate the fleet through the `contentswarm`
-CLI against the REST API (`/api/v1`).
+## 🧠 Quick start with Orphus (or Pi)
 
 ```bash
 # On the server:
 ./deploy/install_aiserver.sh          # systemd service: API + dashboard on :5000
 
-# On the Orphus machine:
-./orphus/install.sh                   # installs skills, phone-operator agent, fleet
+# On the agent machine:
+./orphus/install.sh                   # skills, agents, fleet → ~/.orphus/agent
 pip install -e .                      # provides the `contentswarm` CLI
 export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"
-contentswarm phones
-contentswarm run phone_01 "Open TikTok and scroll trending" --wait
+export CONTENTSWARM_API_TOKEN="<token from /etc/contentswarm/env>"
+
+contentswarm phones                                   # fleet status
+contentswarm learn phone_01 "Open Settings and enable dark mode" --name dark-mode --wait
+contentswarm replay phone_02 dark-mode --wait         # exact presses, no LLM
 ```
 
-👉 **[Orphus Integration](orphus/README.md)** | **[AI Server Setup](deploy/AISERVER_SETUP.md)**
+👉 **[Orphus/Pi Integration](orphus/README.md)** | **[AI Server Setup](deploy/AISERVER_SETUP.md)** | **[Agent rules & review gates](CLAUDE.md)**
+
+## 🔀 Which driver runs what
+
+| Situation | Driver | Cost |
+|---|---|---|
+| Unknown app or first time on a workflow | `learn` — vision model + recorder | one LLM run |
+| Known workflow, any phone, any time | `replay` — exact recorded presses | none |
+| Simple app open / screenshot / state check | `launch` / `screenshot` / `current` — direct ADB | none |
+| One-off task that never repeats | `run` — vision model, no recording | one LLM run |
+
+## 🛡️ Contributing & review gates
+
+Every change lands via PR into `main` with docs updated in the same PR;
+**CodeRabbit** reviews automatically and **GPT Sol is the final gate**
+(`.github/workflows/ai-final-gate.yml`). The full mandatory process for AI
+coding agents is in [CLAUDE.md](CLAUDE.md). Main coding work runs on
+gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
+[model routing table](orphus/README.md#model-routing).
 
 ---
 
 ## 🎉 Key Features
 
 ### 📱 Multi-Phone Control (20 Phones)
-- **Phone Pool Management**: Control 20 phones from one central agent with sequential switching
+- **Phone Pool Management**: Control 20 phones in parallel from one central API (per-phone locking)
 - **Wireless ADB**: Connect phones via WiFi for cable-free operation
 - **Batch Operations**: Run tasks across multiple phones in parallel
 - **Configuration-Based**: JSON-based phone configuration for easy management
