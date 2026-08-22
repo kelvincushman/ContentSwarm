@@ -127,8 +127,11 @@ def prefetch_ui(device_id: str | None = None) -> None:
         pending = _prefetched.get(device_id)
         if pending is not None and pending[0].is_alive():
             return  # an in-flight prefetch must not be overwritten and lost
+        # a completed-but-unconsumed entry IS replaced on purpose: the consumer
+        # wants the newest pre-action screen, and a leftover from an earlier
+        # step (e.g. after a non-Tap step, which never consumes) is stale
         _prefetched[device_id] = (thread, box)
-    thread.start()
+        thread.start()  # under the lock: an entry is never observably unstarted
 
 
 def prefetched_ui(device_id: str | None = None):
