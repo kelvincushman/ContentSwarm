@@ -59,6 +59,7 @@ contentswarm ui phone_01                              # semantic UI dump - no vi
 contentswarm learn phone_01 "Open Settings and enable dark mode" --name dark-mode --wait
 contentswarm replay phone_02 dark-mode --wait         # element-targeted presses, no LLM
 contentswarm runs dark-mode                           # what each replay actually did
+contentswarm health dark-mode                         # verified-rate trend (--days N)
 ```
 
 👉 **[Orphus/Pi Integration](orphus/README.md)** | **[AI Server Setup](deploy/AISERVER_SETUP.md)** | **[Agent rules & review gates](CLAUDE.md)**
@@ -104,7 +105,8 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
   the fallback. No LLM, near-zero cost
 - **Verify**: every replay attempts to write a run report (best-effort if
   storage fails) — per step, did it succeed and did it hit the intended
-  element (`contentswarm runs <flow>`)
+  element (`contentswarm runs <flow>`). Run reports are indexed into SQLite;
+  `contentswarm health <flow>` returns the verified-rate trend across replays
 
 👉 **[Flow Learning Skill](orphus/skills/contentswarm-flow-learning/SKILL.md)**
 

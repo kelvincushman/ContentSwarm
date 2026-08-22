@@ -432,6 +432,38 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             return jsonify({"error": str(e)}), 400
         return jsonify({"flow": flow_name, "runs": reports, "count": len(reports)})
 
+    @api.route("/flows/health", methods=["GET"])
+    def flows_health():
+        """Verified-rate health per flow, aggregated from the run-report index."""
+        try:
+            days = int(request.args.get("days", 30))
+        except (TypeError, ValueError):
+            return jsonify({"error": "days must be a number"}), 400
+
+        from phone_agent.runs_index import health
+        return jsonify({"days": days, "flows": health(days=days, flows_dir=_flows_dir())})
+
+    @api.route("/flows/<flow_name>/health", methods=["GET"])
+    def flow_health(flow_name: str):
+        """Verified-rate health for one flow, aggregated from the run-report index."""
+        try:
+            days = int(request.args.get("days", 30))
+        except (TypeError, ValueError):
+            return jsonify({"error": "days must be a number"}), 400
+
+        from phone_agent.runs_index import health
+        rows = health(flow_name=flow_name, days=days, flows_dir=_flows_dir())
+        stats = rows[0] if rows else {
+            "flow": flow_name,
+            "runs": 0,
+            "executed": 0,
+            "failed": 0,
+            "verified": 0,
+            "verified_rate": 0.0,
+            "last_run": None,
+        }
+        return jsonify({"days": days, **stats})
+
     # ── Task Status ─────────────────────────────────────────────────
 
     @api.route("/tasks/<task_id>", methods=["GET"])

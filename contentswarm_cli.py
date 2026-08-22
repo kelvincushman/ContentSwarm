@@ -22,6 +22,7 @@ Examples:
     contentswarm current phone_01
     contentswarm apps
     contentswarm runs tiktok-post
+    contentswarm health tiktok-post --days 7
 """
 
 import argparse
@@ -215,6 +216,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("flow")
 
+    p = sub.add_parser(
+        "health",
+        help="Replay health per flow - verified-rate trend from the run-report index",
+    )
+    p.add_argument("flow", nargs="?", help="Limit to one flow (default: all flows)")
+    p.add_argument("--days", type=int, default=30, help="Trailing window in days (default 30)")
+
     return parser
 
 
@@ -270,6 +278,12 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "runs":
         output(client.get(f"/flows/{args.flow}/runs"))
+
+    elif args.command == "health":
+        if args.flow:
+            output(client.get(f"/flows/{args.flow}/health?days={args.days}"))
+        else:
+            output(client.get(f"/flows/health?days={args.days}"))
 
     elif args.command == "installed":
         output(client.get(f"/phones/{args.phone}/installed"))
