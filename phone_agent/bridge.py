@@ -123,13 +123,18 @@ def prefetch_ui(device_id: str | None = None) -> None:
                 pass
 
     thread = threading.Thread(target=_run, daemon=True)
+    with _registry_lock:
+        pending = _prefetched.get(device_id)
+        if pending is not None and pending[0].is_alive():
+            return  # an in-flight prefetch must not be overwritten and lost
+        _prefetched[device_id] = (thread, box)
     thread.start()
-    _prefetched[device_id] = (thread, box)
 
 
 def prefetched_ui(device_id: str | None = None):
     """Join and consume the last prefetch_ui() result: elements, or None."""
-    entry = _prefetched.pop(device_id, None)
+    with _registry_lock:
+        entry = _prefetched.pop(device_id, None)
     if entry is None:
         return None
     thread, box = entry
