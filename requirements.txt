@@ -2,7 +2,7 @@ Pillow>=12.0.0
 openai>=2.9.0
 flask>=3.0.0
 adb-shell>=0.4.4
-adb-agent-bridge @ git+https://github.com/kelvincushman/adb-agent-bridge
+adb-agent-bridge @ git+https://github.com/kelvincushman/adb-agent-bridge@6b930f314f7c529c725cff3b8b1d9b02402943c2
 
 # For the contentswarm CLI
 requests>=2.31.0
