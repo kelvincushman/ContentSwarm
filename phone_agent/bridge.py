@@ -17,6 +17,7 @@ except ImportError:  # optional until the fleet rollout completes
 
 _bridges: Dict[Optional[str], Any] = {}
 _locks: Dict[Optional[str], threading.Lock] = {}
+_prefetched: Dict[Optional[str], Any] = {}
 _registry_lock = threading.Lock()
 
 
@@ -100,6 +101,40 @@ def tap_target(
         return True
     except Exception:
         return False
+
+
+def prefetch_ui(device_id: str | None = None) -> None:
+    """Start the next UI dump in a background thread.
+
+    The thread holds the per-device lock for the dump's full duration, so a
+    prefetch can never interleave with taps, typing, or another dump. No-op
+    when the library is missing; errors surface as a None prefetch result.
+    """
+    bridge = get_bridge(device_id)
+    if bridge is None:
+        return
+    box: Dict[str, Any] = {}
+
+    def _run():
+        with device_lock(device_id):
+            try:
+                box["elements"] = bridge.ui()
+            except Exception:
+                pass
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    _prefetched[device_id] = (thread, box)
+
+
+def prefetched_ui(device_id: str | None = None):
+    """Join and consume the last prefetch_ui() result: elements, or None."""
+    entry = _prefetched.pop(device_id, None)
+    if entry is None:
+        return None
+    thread, box = entry
+    thread.join()
+    return box.get("elements")
 
 
 def type_text_fast(device_id: str | None, text: str, clear: bool = True) -> bool:

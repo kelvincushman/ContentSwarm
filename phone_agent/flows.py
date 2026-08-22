@@ -151,7 +151,6 @@ class FlowRecorder:
         )
         self._last_time: Optional[float] = None
         self._current_app = ""
-        self._bridge = None
         self._device_id: Optional[str] = None
 
     def on_event(self, event: Dict[str, Any]) -> None:
@@ -162,16 +161,10 @@ class FlowRecorder:
                 self.flow.app = self._current_app
             # Dump the pre-action UI tree in the background: it completes while
             # the model is thinking, so enrichment adds no learning latency.
-            # The background dump runs outside the device lock deliberately -
-            # any concurrent dump captures the same screen and the bridge
-            # retries transient failures, so best-effort is safe here.
+            # bridge.prefetch_ui holds the per-device lock for the dump's
+            # duration, so it cannot interleave with other device operations.
             self._device_id = event.get("device_id")
-            self._bridge = bridge.get_bridge(self._device_id)
-            if self._bridge is not None:
-                try:
-                    self._bridge.prefetch_ui()
-                except Exception:
-                    self._bridge = None
+            bridge.prefetch_ui(self._device_id)
             return
         if kind != "step_completed":
             return
@@ -206,12 +199,10 @@ class FlowRecorder:
         coordinates, so flows survive layout shifts, A/B moves, and different
         screen sizes.
         """
-        if not element or self._bridge is None:
+        if not element:
             return None
-        try:
-            with bridge.device_lock(self._device_id):
-                els = self._bridge.ui()  # returns the prefetched pre-action dump
-        except Exception:
+        els = bridge.prefetched_ui(self._device_id)  # the pre-action dump
+        if not els:
             return None
         width = max((e.bounds[2] for e in els), default=0)
         height = max((e.bounds[3] for e in els), default=0)
