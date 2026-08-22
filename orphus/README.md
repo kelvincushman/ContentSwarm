@@ -101,6 +101,9 @@ contentswarm status                         # smoke test
 
 - Any Orphus session with the skills installed can drive phones directly:
   the model reads `contentswarm-phones` and calls the CLI via bash.
+- Semantic-first control: `contentswarm-bridge` teaches reading the UI
+  element tree (`contentswarm ui`) and element-targeted replays with run
+  reports (`contentswarm runs`) instead of pixel-guessing from screenshots.
 - Dispatch the dedicated agent: `subagent({ agent: "phone-operator", task: "…" })`.
 - Run the fleet for multi-phone campaigns: `/fleet contentswarm <request>` —
   a deliberation team agrees a per-phone plan, then three phone-operators

@@ -55,8 +55,10 @@ export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"
 export CONTENTSWARM_API_TOKEN="<token from /etc/contentswarm/env>"
 
 contentswarm phones                                   # fleet status
+contentswarm ui phone_01                              # semantic UI dump - no vision model
 contentswarm learn phone_01 "Open Settings and enable dark mode" --name dark-mode --wait
-contentswarm replay phone_02 dark-mode --wait         # exact presses, no LLM
+contentswarm replay phone_02 dark-mode --wait         # element-targeted presses, no LLM
+contentswarm runs dark-mode                           # what each replay actually did
 ```
 
 👉 **[Orphus/Pi Integration](orphus/README.md)** | **[AI Server Setup](deploy/AISERVER_SETUP.md)** | **[Agent rules & review gates](CLAUDE.md)**
@@ -66,7 +68,8 @@ contentswarm replay phone_02 dark-mode --wait         # exact presses, no LLM
 | Situation | Driver | Cost |
 |---|---|---|
 | Unknown app or first time on a workflow | `learn` — vision model + recorder | one LLM run |
-| Known workflow, any phone, any time | `replay` — exact recorded presses | none |
+| Known workflow, any phone, any time | `replay` — element-targeted presses via the semantic bridge, recorded coordinates as fallback | none |
+| Reading the screen for a decision | `ui` — element tree over ADB ([adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge)) | none |
 | Simple app open / screenshot / state check | `launch` / `screenshot` / `current` — direct ADB | none |
 | One-off task that never repeats | `run` — vision model, no recording | one LLM run |
 
@@ -94,11 +97,25 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
 ### 🧭 Flow Learning (learn once, replay forever)
 - **Discover**: `contentswarm installed <phone>` lists the apps on a device
 - **Learn**: the vision model drives an app once while every action is
-  recorded with its exact press points
-- **Replay**: the deterministic driver repeats the exact presses on any
-  phone — no LLM, near-zero cost
+  recorded with its exact press points **and** the semantic identity
+  (text/id/desc) of the element under each tap
+- **Replay**: taps target the recorded element wherever it now sits — flows
+  survive layout shifts and different screens; recorded coordinates remain
+  the fallback. No LLM, near-zero cost
+- **Verify**: every replay writes a run report — per step, did it succeed and
+  did it hit the intended element (`contentswarm runs <flow>`)
 
 👉 **[Flow Learning Skill](orphus/skills/contentswarm-flow-learning/SKILL.md)**
+
+### 🎯 Semantic UI Bridge (fast, accurate, no vision model)
+- **Element addressing** via [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge):
+  `uiautomator dump` exposes every element's text, id, desc, and bounds over
+  plain ADB — taps land on element centers instead of model-guessed pixels
+- **Instant text**: captions commit in ~100ms (the old IME dance took ~4s per field)
+- **Graceful fallback**: any phone where the bridge is unavailable silently
+  uses the original vision/ADB path
+
+👉 **[Bridge Skill](orphus/skills/contentswarm-bridge/SKILL.md)**
 
 ### 🤖 Social Media Automation Pipeline (optional)
 - **Discover**: Find trending content across TikTok, Instagram, YouTube, Twitter, Facebook

@@ -42,11 +42,14 @@ contentswarm phone phone_01
 contentswarm apps                       # apps launchable by name
 contentswarm launch phone_01 TikTok     # launch app directly via ADB
 contentswarm current phone_01           # foreground app
+contentswarm ui phone_01                # UI element tree - text/id/desc/center per element
 contentswarm screenshot phone_01 -o screen.png   # see the screen - read the PNG after
 ```
 
-Use `launch` + `screenshot` for simple, predictable steps. Read the saved
-screenshot with your `read` tool to verify what is actually on screen.
+Prefer `ui` over `screenshot` to check what is on screen: it returns every
+element's text and position as JSON (grep/jq it), needs no vision model, and
+is exact. Use `screenshot` when the tree is thin (games, canvas UIs) or you
+need rendered content - see the `contentswarm-bridge` skill.
 
 ### Natural-language tasks (vision agent, async)
 

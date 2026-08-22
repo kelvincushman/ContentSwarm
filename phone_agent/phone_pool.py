@@ -541,7 +541,7 @@ class PhonePoolManager:
             })
 
             flow = load_flow(flow_name, flows_dir)
-            replayer = FlowReplayer(device_id=phone.device_id)
+            replayer = FlowReplayer(device_id=phone.device_id, flows_dir=flows_dir)
             outcome = replayer.replay(flow, speed=speed)
             summary = json.dumps(outcome)
 
