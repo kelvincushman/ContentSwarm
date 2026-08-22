@@ -13,6 +13,7 @@ import json
 import re
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -151,6 +152,7 @@ class FlowRecorder:
         self._last_time: Optional[float] = None
         self._current_app = ""
         self._bridge = None
+        self._device_id: Optional[str] = None
 
     def on_event(self, event: Dict[str, Any]) -> None:
         kind = event.get("event")
@@ -160,7 +162,11 @@ class FlowRecorder:
                 self.flow.app = self._current_app
             # Dump the pre-action UI tree in the background: it completes while
             # the model is thinking, so enrichment adds no learning latency.
-            self._bridge = bridge.get_bridge(event.get("device_id"))
+            # The background dump runs outside the device lock deliberately -
+            # any concurrent dump captures the same screen and the bridge
+            # retries transient failures, so best-effort is safe here.
+            self._device_id = event.get("device_id")
+            self._bridge = bridge.get_bridge(self._device_id)
             if self._bridge is not None:
                 try:
                     self._bridge.prefetch_ui()
@@ -203,7 +209,8 @@ class FlowRecorder:
         if not element or self._bridge is None:
             return None
         try:
-            els = self._bridge.ui()  # returns the prefetched pre-action dump
+            with bridge.device_lock(self._device_id):
+                els = self._bridge.ui()  # returns the prefetched pre-action dump
         except Exception:
             return None
         width = max((e.bounds[2] for e in els), default=0)
@@ -264,7 +271,17 @@ class FlowReplayer:
             Summary dict with executed/failed step counts.
         """
         if not flow.steps:
-            return {"flow": flow.name, "executed": 0, "failed": 0, "message": "Flow has no steps"}
+            return self._finalize({
+                "flow": flow.name,
+                "device_id": self.device_id,
+                "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "executed": 0,
+                "failed": 0,
+                "verified": 0,
+                "final_app": "",
+                "steps": [],
+                "message": "Flow has no steps",
+            })
 
         screenshot = get_screenshot(self.device_id)
         width, height = screenshot.width, screenshot.height
@@ -308,7 +325,7 @@ class FlowReplayer:
         except Exception:
             pass
 
-        summary = {
+        return self._finalize({
             "flow": flow.name,
             "device_id": self.device_id,
             "started_at": started_at,
@@ -318,11 +335,14 @@ class FlowReplayer:
             "final_app": final_app,
             "steps": step_reports,
             "message": "Replay complete" if failed == 0 else f"Replay finished with {failed} failed step(s)",
-        }
+        })
+
+    def _finalize(self, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Best-effort report persistence - storage failure never fails a replay."""
         try:
             summary["report_path"] = str(save_run_report(summary, flows_dir=self.flows_dir))
         except OSError:
-            pass  # a full disk must not fail the replay itself
+            pass
         return summary
 
 
@@ -334,7 +354,11 @@ def save_run_report(summary: Dict[str, Any], flows_dir: str = DEFAULT_FLOWS_DIR)
     """Persist one replay's expected-vs-actual ledger."""
     directory = runs_dir(flows_dir)
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{_safe_name(summary['flow'])}-{int(time.time())}.json"
+    # timestamp orders reports; the uuid suffix keeps same-second replays
+    # (same flow on several phones) from overwriting each other
+    path = directory / (
+        f"{_safe_name(summary['flow'])}-{int(time.time())}-{uuid.uuid4().hex[:8]}.json"
+    )
     with open(path, "w") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
     return path

@@ -102,8 +102,9 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
 - **Replay**: taps target the recorded element wherever it now sits — flows
   survive layout shifts and different screens; recorded coordinates remain
   the fallback. No LLM, near-zero cost
-- **Verify**: every replay writes a run report — per step, did it succeed and
-  did it hit the intended element (`contentswarm runs <flow>`)
+- **Verify**: every replay attempts to write a run report (best-effort if
+  storage fails) — per step, did it succeed and did it hit the intended
+  element (`contentswarm runs <flow>`)
 
 👉 **[Flow Learning Skill](orphus/skills/contentswarm-flow-learning/SKILL.md)**
 
@@ -112,8 +113,9 @@ gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
   `uiautomator dump` exposes every element's text, id, desc, and bounds over
   plain ADB — taps land on element centers instead of model-guessed pixels
 - **Instant text**: captions commit in ~100ms (the old IME dance took ~4s per field)
-- **Graceful fallback**: any phone where the bridge is unavailable silently
-  uses the original vision/ADB path
+- **Graceful fallback**: replay taps and typing silently use the original
+  vision/ADB path on any phone where the bridge is unavailable; UI inspection
+  (`ui`) reports an error instead, since it has no vision equivalent
 
 👉 **[Bridge Skill](orphus/skills/contentswarm-bridge/SKILL.md)**
 

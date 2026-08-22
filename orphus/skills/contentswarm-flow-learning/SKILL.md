@@ -61,8 +61,9 @@ current position and only fall back to the recorded point.
 
 ## Verify: what it did vs what it was supposed to do
 
-Every replay writes a run report - the step-by-step ledger of what actually
-happened:
+Every replay attempts to write a run report - the step-by-step ledger of what
+actually happened (persistence is best-effort: a storage failure never fails
+the replay, so a missing report means check the disk, not the phone):
 
 ```bash
 contentswarm runs tiktok-open-upload

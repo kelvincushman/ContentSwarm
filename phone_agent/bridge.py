@@ -7,6 +7,7 @@ in ~100ms with no IME dance. Every helper degrades cleanly — callers treat a
 False/None result as "use the legacy vision/ADB path".
 """
 
+import threading
 from typing import Any, Dict, List, Optional
 
 try:
@@ -15,6 +16,8 @@ except ImportError:  # optional until the fleet rollout completes
     Bridge = None
 
 _bridges: Dict[Optional[str], Any] = {}
+_locks: Dict[Optional[str], threading.Lock] = {}
+_registry_lock = threading.Lock()
 
 
 def installed() -> bool:
@@ -22,13 +25,23 @@ def installed() -> bool:
     return Bridge is not None
 
 
+def device_lock(device_id: str | None) -> threading.Lock:
+    """One lock per device: serializes bridge operations (API /ui vs handler
+    taps/typing) so concurrent callers never interleave device commands."""
+    with _registry_lock:
+        if device_id not in _locks:
+            _locks[device_id] = threading.Lock()
+        return _locks[device_id]
+
+
 def get_bridge(device_id: str | None = None):
     """Session-cached Bridge for a device, or None if the library is missing."""
     if Bridge is None:
         return None
-    if device_id not in _bridges:
-        _bridges[device_id] = Bridge(device_id)
-    return _bridges[device_id]
+    with _registry_lock:
+        if device_id not in _bridges:
+            _bridges[device_id] = Bridge(device_id)
+        return _bridges[device_id]
 
 
 def is_available(device_id: str | None = None) -> bool:
@@ -37,7 +50,8 @@ def is_available(device_id: str | None = None) -> bool:
     if bridge is None:
         return False
     try:
-        bridge.ui()
+        with device_lock(device_id):
+            bridge.ui()
         return True
     except Exception:
         return False
@@ -50,6 +64,8 @@ def ui_elements(device_id: str | None = None) -> List[Dict[str, Any]]:
         raise RuntimeError(
             "adb-agent-bridge is not installed (pip install -r requirements.txt)"
         )
+    with device_lock(device_id):
+        elements = bridge.ui()
     return [
         {
             "text": e.text,
@@ -61,7 +77,7 @@ def ui_elements(device_id: str | None = None) -> List[Dict[str, Any]]:
             "clickable": e.clickable,
             "scrollable": e.scrollable,
         }
-        for e in bridge.ui()
+        for e in elements
     ]
 
 
@@ -76,10 +92,11 @@ def tap_target(
     if bridge is None:
         return False
     try:
-        element = bridge.find(text=text, id=id, desc=desc)
-        if element is None:
-            return False
-        bridge.tap(element)
+        with device_lock(device_id):
+            element = bridge.find(text=text, id=id, desc=desc)
+            if element is None:
+                return False
+            bridge.tap(element)
         return True
     except Exception:
         return False
@@ -91,7 +108,8 @@ def type_text_fast(device_id: str | None, text: str, clear: bool = True) -> bool
     if bridge is None:
         return False
     try:
-        bridge.text(text, clear=clear)
+        with device_lock(device_id):
+            bridge.text(text, clear=clear)
         return True
     except Exception:
         return False

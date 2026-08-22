@@ -1,6 +1,6 @@
 ---
 name: contentswarm-bridge
-description: Semantic-first phone control - read a phone's UI element tree and address elements by text/id/desc instead of guessing pixels from screenshots. Use before falling back to vision tasks; it is faster, cheaper, and taps cannot miss.
+description: Semantic-first phone control - read a phone's UI element tree and address elements by text/id/desc instead of guessing pixels from screenshots. Use before falling back to vision tasks; it is faster, cheaper, and removes pixel-guess mis-taps.
 ---
 
 # Semantic UI Bridge: address elements, not pixels
@@ -24,7 +24,7 @@ Returns `{"elements": [{"text", "id", "desc", "class", "bounds", "center",
 
 ```bash
 contentswarm ui phone_01 | jq '.elements[] | select(.clickable)'
-contentswarm ui phone_01 | jq '.elements[] | select(.text | test("Post"))'
+contentswarm ui phone_01 | jq '.elements[] | select((.text // "") | test("Post"))'
 ```
 
 ## Decision order (cheapest first)
@@ -43,8 +43,11 @@ contentswarm ui phone_01 | jq '.elements[] | select(.text | test("Post"))'
 - **Run reports** (`contentswarm runs <flow>`) show, per replayed step,
   whether it hit the intended element (`"method": "element"` = verified) or
   fell back to coordinates (`"method": "coords"` = unverified - eyeball it).
-- On any phone where the bridge is unavailable, everything silently uses the
-  original vision/ADB path - nothing breaks.
+- **Actions** (replay taps, typing) silently fall back to the original
+  vision/ADB path on any phone where the bridge is unavailable - nothing
+  breaks. **`ui` is the exception**: inspection has no vision fallback, so it
+  returns an error when the bridge library or the device's UI tree is
+  unavailable - treat that error as "switch to screenshot + vision".
 
 ## Guidance
 

@@ -86,8 +86,9 @@ curl -s -X POST -H "Authorization: Bearer $CONTENTSWARM_API_TOKEN" -H "Content-T
 
 ## Guidance
 
-- Prefer `launch`/`screenshot`/`current` for simple steps; reserve `run` for
-  multi-step UI work that needs the vision agent.
+- Prefer `launch`/`ui`/`current` for simple steps (`screenshot` when you need
+  rendered pixels); reserve `run` for multi-step UI work that needs the
+  vision agent.
 - After a task completes, take a screenshot to verify the outcome before
   reporting success.
 - Tasks that hit login walls or captchas pause for human takeover - if a task
