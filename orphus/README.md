@@ -18,7 +18,7 @@ Orphus agents (phone-operator, fleets)
 | `skills/contentswarm-phones/` | Agent Skill: device + app control via the CLI |
 | `skills/contentswarm-flow-learning/` | Learn once with the LLM, replay exact presses deterministically |
 | `skills/contentswarm-pipeline/` | Agent Skill: optional content-pipeline control |
-| `skills/contentswarm-app-{tiktok,instagram,youtube,twitter,facebook}/` | Per-app skills with verified flows — load only when that app is involved |
+| `skills/contentswarm-app-{tiktok,instagram,youtube,twitter,facebook,linkedin}/` | Per-app skills with verified flows — load only when that app is involved |
 | `skills/contentswarm-skill-maker/` | Skill generator: explores an unfamiliar app on a real phone and writes a new `contentswarm-app-<name>` skill |
 | `agents/phone-operator.md` | Orphus agent definition for phone work |
 | `agents/worker.md` | Override of the builtin worker: main coding work on the model lineup below |
