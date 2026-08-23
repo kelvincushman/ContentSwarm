@@ -474,8 +474,17 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
         from phone_agent.runs_index import health
         rows = health(flow_name=flow_name, days=days, flows_dir=_flows_dir())
-        stats = rows[0] if rows else {"flow": flow_name, **_ZERO_HEALTH}
-        return jsonify({"days": days, **stats})
+        if rows:  # indexed history wins, even if the flow file was deleted
+            return jsonify({"days": days, **rows[0]})
+
+        from phone_agent.flows import flow_path
+        try:
+            known = flow_path(flow_name, _flows_dir()).exists()
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        if not known:  # a typo must not look like a healthy unreplayed flow
+            return jsonify({"error": f"Flow '{flow_name}' not found"}), 404
+        return jsonify({"days": days, "flow": flow_name, **_ZERO_HEALTH})
 
     # ── Task Status ─────────────────────────────────────────────────
 
