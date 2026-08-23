@@ -37,7 +37,8 @@ Orphus / Pi agents (the brain — strategy, deliberation)
 3. **Replay** — `contentswarm replay <any-phone> <flow>`: the deterministic
    driver taps the recorded element wherever it now sits, falling back to the
    recorded coordinates. Fast, repeatable, zero model cost.
-4. **Verify** — every replay writes a run report (`contentswarm runs <flow>`):
+4. **Verify** — every replay writes a run report, best-effort — a storage
+   failure never fails the replay (`contentswarm runs <flow>`):
    per step, did it succeed and did it hit the intended element. Reports are
    indexed into SQLite; `contentswarm health <flow>` shows the verified-rate
    trend — when it drops after an app update, re-learn before it misclicks.
