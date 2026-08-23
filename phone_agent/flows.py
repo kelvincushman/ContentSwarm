@@ -13,10 +13,12 @@ import json
 import re
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from phone_agent import bridge
 from phone_agent.actions.handler import ActionHandler
 from phone_agent.adb import get_current_app, get_screenshot
 
@@ -139,6 +141,8 @@ class FlowRecorder:
     Call_API) are counted as manual steps.
     """
 
+    TARGETED_ACTIONS = {"Tap", "Double Tap", "Long Press"}
+
     def __init__(self, name: str, task: str):
         self.flow = Flow(
             name=name,
@@ -147,6 +151,7 @@ class FlowRecorder:
         )
         self._last_time: Optional[float] = None
         self._current_app = ""
+        self._device_id: Optional[str] = None
 
     def on_event(self, event: Dict[str, Any]) -> None:
         kind = event.get("event")
@@ -154,6 +159,12 @@ class FlowRecorder:
             self._current_app = event.get("app", "") or self._current_app
             if not self.flow.app and self._current_app:
                 self.flow.app = self._current_app
+            # Dump the pre-action UI tree in the background: it completes while
+            # the model is thinking, so enrichment adds no learning latency.
+            # bridge.prefetch_ui holds the per-device lock for the dump's
+            # duration, so it cannot interleave with other device operations.
+            self._device_id = event.get("device_id")
+            bridge.prefetch_ui(self._device_id)
             return
         if kind != "step_completed":
             return
@@ -175,7 +186,47 @@ class FlowRecorder:
         self._last_time = now
 
         clean = {k: v for k, v in action.items() if k != "message"}
+        if name in self.TARGETED_ACTIONS:
+            target = self._element_target(clean.get("element"))
+            if target:
+                clean.update(target)
         self.flow.steps.append(FlowStep(action=clean, delay_before=delay, app=self._current_app))
+
+    def _element_target(self, element: Optional[List[int]]) -> Optional[Dict[str, str]]:
+        """Semantic identity (text/id/desc) of the element under a recorded tap.
+
+        Replays try this target first and only fall back to the recorded
+        coordinates, so flows survive layout shifts, A/B moves, and different
+        screen sizes.
+        """
+        if not element:
+            return None
+        els = bridge.prefetched_ui(self._device_id)  # the pre-action dump
+        if not els:
+            return None
+        width = max((e.bounds[2] for e in els), default=0)
+        height = max((e.bounds[3] for e in els), default=0)
+        if not width or not height:
+            return None
+        x = int(element[0] / 1000 * width)
+        y = int(element[1] / 1000 * height)
+        hits = [
+            e for e in els
+            if e.bounds[0] <= x < e.bounds[2] and e.bounds[1] <= y < e.bounds[3]
+            and (e.text or e.id or e.desc)
+        ]
+        if not hits:
+            return None
+        # smallest element under the point is the most specific target
+        best = min(hits, key=lambda e: (e.bounds[2] - e.bounds[0]) * (e.bounds[3] - e.bounds[1]))
+        target = {}
+        if best.text:
+            target["target_text"] = best.text
+        if best.id:
+            target["target_id"] = best.id
+        if best.desc:
+            target["target_desc"] = best.desc
+        return target or None
 
 
 class FlowReplayer:
@@ -185,8 +236,9 @@ class FlowReplayer:
     to this device's resolution at replay time.
     """
 
-    def __init__(self, device_id: Optional[str] = None):
+    def __init__(self, device_id: Optional[str] = None, flows_dir: str = DEFAULT_FLOWS_DIR):
         self.device_id = device_id
+        self.flows_dir = flows_dir
         self.action_handler = ActionHandler(
             device_id=device_id,
             confirmation_callback=lambda _msg: True,
@@ -210,14 +262,27 @@ class FlowReplayer:
             Summary dict with executed/failed step counts.
         """
         if not flow.steps:
-            return {"flow": flow.name, "executed": 0, "failed": 0, "message": "Flow has no steps"}
+            return self._finalize({
+                "flow": flow.name,
+                "device_id": self.device_id,
+                "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "executed": 0,
+                "failed": 0,
+                "verified": 0,
+                "final_app": "",
+                "steps": [],
+                "message": "Flow has no steps",
+            })
 
         screenshot = get_screenshot(self.device_id)
         width, height = screenshot.width, screenshot.height
 
         executed = 0
         failed = 0
+        verified = 0
+        step_reports = []
         speed = max(speed, 0.1)
+        started_at = time.strftime("%Y-%m-%d %H:%M:%S")
 
         for i, step in enumerate(flow.steps):
             time.sleep(step.delay_before / speed)
@@ -226,6 +291,22 @@ class FlowReplayer:
             executed += 1
             if not success:
                 failed += 1
+            # "element" means the recorded semantic target was found on screen
+            # and tapped - the step verifiably did what the flow intended.
+            if result.method == "element":
+                verified += 1
+            step_reports.append({
+                "step": i,
+                "action": step.action.get("action"),
+                "target": {
+                    k: step.action[k]
+                    for k in ("target_text", "target_id", "target_desc")
+                    if step.action.get(k)
+                } or None,
+                "success": success,
+                "method": result.method,
+                "message": result.message,
+            })
             if step_callback:
                 step_callback(i, step.action, success)
 
@@ -235,13 +316,63 @@ class FlowReplayer:
         except Exception:
             pass
 
-        return {
+        return self._finalize({
             "flow": flow.name,
+            "device_id": self.device_id,
+            "started_at": started_at,
             "executed": executed,
             "failed": failed,
+            "verified": verified,
             "final_app": final_app,
+            "steps": step_reports,
             "message": "Replay complete" if failed == 0 else f"Replay finished with {failed} failed step(s)",
-        }
+        })
+
+    def _finalize(self, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Best-effort report persistence - storage failure never fails a replay."""
+        try:
+            summary["report_path"] = str(save_run_report(summary, flows_dir=self.flows_dir))
+        except OSError:
+            pass
+        return summary
+
+
+def runs_dir(flows_dir: str = DEFAULT_FLOWS_DIR) -> Path:
+    return Path(flows_dir) / "runs"
+
+
+def save_run_report(summary: Dict[str, Any], flows_dir: str = DEFAULT_FLOWS_DIR) -> Path:
+    """Persist one replay's expected-vs-actual ledger."""
+    directory = runs_dir(flows_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    # timestamp orders reports; the uuid suffix keeps same-second replays
+    # (same flow on several phones) from overwriting each other
+    path = directory / (
+        f"{_safe_name(summary['flow'])}-{int(time.time())}-{uuid.uuid4().hex[:8]}.json"
+    )
+    with open(path, "w") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False)
+    return path
+
+
+def list_run_reports(
+    flow_name: Optional[str] = None,
+    flows_dir: str = DEFAULT_FLOWS_DIR,
+    limit: int = 20,
+) -> List[Dict[str, Any]]:
+    """Saved replay reports, newest first - what each run actually did."""
+    directory = runs_dir(flows_dir)
+    if not directory.exists():
+        return []
+    pattern = f"{_safe_name(flow_name)}-*.json" if flow_name else "*.json"
+    reports = []
+    for path in sorted(directory.glob(pattern), reverse=True)[:limit]:
+        try:
+            with open(path) as f:
+                reports.append(json.load(f))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return reports
 
 
 def list_installed_apps(device_id: Optional[str] = None) -> List[Dict[str, str]]:

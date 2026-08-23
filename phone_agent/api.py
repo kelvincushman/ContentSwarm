@@ -253,6 +253,34 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             },
         )
 
+    @api.route("/phones/<phone_name>/ui", methods=["GET"])
+    def phone_ui(phone_name: str):
+        """Dump the phone's current UI element tree (semantic addressing).
+
+        Every element with its text, resource-id, content-desc, bounds, and
+        center - the agent can pick a target without a vision model.
+        """
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+
+        if phone_name not in pm.phones:
+            return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
+
+        from phone_agent.bridge import ui_elements
+
+        device_id = pm.phones[phone_name].device_id
+        try:
+            elements = ui_elements(device_id)
+        except Exception as e:
+            return jsonify({"error": f"UI dump failed: {e}"}), 500
+
+        return jsonify({
+            "phone": phone_name,
+            "elements": elements,
+            "count": len(elements),
+        })
+
     @api.route("/phones/<phone_name>/current_app", methods=["GET"])
     def phone_current_app(phone_name: str):
         """Get the app currently in the foreground on a phone."""
@@ -387,6 +415,22 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         return jsonify(flow.to_dict())
+
+    @api.route("/flows/<flow_name>/runs", methods=["GET"])
+    def get_flow_runs(flow_name: str):
+        """Replay run reports for a flow, newest first.
+
+        Each report is the expected-vs-actual ledger of one replay: per step,
+        whether it succeeded and how it landed ("element" = the recorded
+        semantic target was found and tapped, i.e. verified; "coords" =
+        coordinate fallback, unverified).
+        """
+        from phone_agent.flows import list_run_reports
+        try:
+            reports = list_run_reports(flow_name, _flows_dir())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify({"flow": flow_name, "runs": reports, "count": len(reports)})
 
     # ── Task Status ─────────────────────────────────────────────────
 
@@ -591,12 +635,15 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         pm = _get_phone_manager()
         automation = _get_automation()
 
+        from phone_agent.bridge import installed as bridge_installed
+
         status = {
             "phones": {
                 "total": len(pm.phones) if pm else 0,
                 "connected": 0,
                 "current": pm.current_phone if pm else None
             },
+            "bridge": {"installed": bridge_installed()},
             "pipeline": automation.get_pipeline_status() if automation else None,
             "timestamp": time.time()
         }

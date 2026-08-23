@@ -7,8 +7,11 @@ description: Teach ContentSwarm phones once with the vision model, then replay t
 
 The vision model is the *teacher*: it drives a task once and every replayable
 action is recorded with its exact press points (resolution-independent
-0-1000 coordinates). Replays then run through the deterministic ADB driver -
-same presses, same order, no model calls, near-zero cost.
+0-1000 coordinates) plus the semantic identity (text/id/desc) of the element
+under each tap. Replays target the recorded element wherever it now sits -
+flows survive layout shifts and different screens - and fall back to the
+recorded coordinates when the element is not found. No model calls,
+near-zero cost.
 
 Uses the same environment as `contentswarm-phones`
 (`CONTENTSWARM_API_URL`, `CONTENTSWARM_API_TOKEN`).
@@ -53,7 +56,25 @@ contentswarm replay phone_02 tiktok-open-upload --wait --speed 1.5
 ```
 
 Flows record relative coordinates, so a flow learned on one phone replays on
-any phone. After a replay, verify the outcome:
+any phone. Taps first look for the recorded element (text/id/desc) at its
+current position and only fall back to the recorded point.
+
+## Verify: what it did vs what it was supposed to do
+
+Every replay attempts to write a run report - the step-by-step ledger of what
+actually happened (persistence is best-effort: a storage failure never fails
+the replay, so a missing report means check the disk, not the phone):
+
+```bash
+contentswarm runs tiktok-open-upload
+```
+
+Per step: `success`, and `method` - `"element"` means the recorded semantic
+target was found on screen and tapped (verified); `"coords"` means the
+coordinate fallback fired (unverified - the layout may have changed). The
+summary's `verified` count against `executed` is the health signal: a flow
+whose verified count drops after an app update needs re-learning before it
+misclicks. For rendered content, a screenshot is still the ground truth:
 
 ```bash
 contentswarm screenshot phone_01 -o /tmp/after-replay.png   # then read the PNG

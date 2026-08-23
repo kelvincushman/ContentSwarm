@@ -18,8 +18,10 @@ Examples:
     contentswarm task 1a2b3c4d
     contentswarm launch phone_01 TikTok
     contentswarm screenshot phone_01 -o screen.png
+    contentswarm ui phone_01
     contentswarm current phone_01
     contentswarm apps
+    contentswarm runs tiktok-post
 """
 
 import argparse
@@ -166,6 +168,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("current", help="Foreground app on a phone")
     p.add_argument("phone")
 
+    p = sub.add_parser(
+        "ui",
+        help="Dump the UI element tree of a phone's screen - every element's "
+             "text, id, desc, bounds, and center (semantic, no vision model)",
+    )
+    p.add_argument("phone")
+
     p = sub.add_parser("screenshot", help="Capture a phone's screen as PNG")
     p.add_argument("phone")
     p.add_argument("-o", "--output", help="Output file (default: <phone>_<ts>.png)")
@@ -198,6 +207,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("flow", help="Show the recorded steps of one flow")
     p.add_argument("name")
+
+    p = sub.add_parser(
+        "runs",
+        help="Replay run reports for a flow - what each replay actually did "
+             "versus what the flow intended, step by step",
+    )
+    p.add_argument("flow")
 
     return parser
 
@@ -248,6 +264,12 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "current":
         output(client.get(f"/phones/{args.phone}/current_app"))
+
+    elif args.command == "ui":
+        output(client.get(f"/phones/{args.phone}/ui"))
+
+    elif args.command == "runs":
+        output(client.get(f"/flows/{args.flow}/runs"))
 
     elif args.command == "installed":
         output(client.get(f"/phones/{args.phone}/installed"))

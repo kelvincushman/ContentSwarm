@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from phone_agent import bridge
 from phone_agent.adb import (
     back,
     clear_text,
@@ -23,12 +24,18 @@ from phone_agent.adb import (
 
 @dataclass
 class ActionResult:
-    """Result of an action execution."""
+    """Result of an action execution.
+
+    method records HOW the action landed, for run reports:
+    "element" = semantic bridge tap on the intended element (verified),
+    "coords" = raw coordinate tap, "bridge" / "ime" = fast vs legacy typing.
+    """
 
     success: bool
     should_finish: bool
     message: str | None = None
     requires_confirmation: bool = False
+    method: str | None = None
 
 
 class ActionHandler:
@@ -137,12 +144,19 @@ class ActionHandler:
         return ActionResult(False, False, f"App not found: {app_name}")
 
     def _handle_tap(self, action: dict, width: int, height: int) -> ActionResult:
-        """Handle tap action."""
-        element = action.get("element")
-        if not element:
-            return ActionResult(False, False, "No element coordinates")
+        """Handle tap action.
 
-        x, y = self._convert_relative_to_absolute(element, width, height)
+        Actions may carry a semantic target (target_text/target_id/target_desc,
+        recorded by FlowRecorder) alongside the relative coordinates. The
+        element-center tap is tried first — it survives layout shifts — with
+        the recorded coordinates as the fallback.
+        """
+        element = action.get("element")
+        has_target = any(
+            action.get(k) for k in ("target_text", "target_id", "target_desc")
+        )
+        if not element and not has_target:
+            return ActionResult(False, False, "No element coordinates")
 
         # Check for sensitive operation
         if "message" in action:
@@ -153,12 +167,33 @@ class ActionHandler:
                     message="User cancelled sensitive operation",
                 )
 
+        if has_target and bridge.tap_target(
+            self.device_id,
+            text=action.get("target_text"),
+            id=action.get("target_id"),
+            desc=action.get("target_desc"),
+        ):
+            return ActionResult(True, False, method="element")
+
+        if not element:
+            return ActionResult(False, False, "Target element not found on screen")
+
+        x, y = self._convert_relative_to_absolute(element, width, height)
         tap(x, y, self.device_id)
-        return ActionResult(True, False)
+        return ActionResult(True, False, method="coords")
 
     def _handle_type(self, action: dict, width: int, height: int) -> ActionResult:
-        """Handle text input action."""
+        """Handle text input action.
+
+        Bridge path: clear + type in ~100ms, IME switched once per session and
+        left on ADBKeyboard (its slim status bar never hides media pickers the
+        way a full keyboard does). Legacy path: the 4x1s sleep dance, kept as
+        the fallback for devices where the bridge is unavailable.
+        """
         text = action.get("text", "")
+
+        if bridge.type_text_fast(self.device_id, text, clear=True):
+            return ActionResult(True, False, method="bridge")
 
         # Switch to ADB keyboard
         original_ime = detect_and_set_adb_keyboard(self.device_id)
@@ -175,7 +210,7 @@ class ActionHandler:
         restore_keyboard(original_ime, self.device_id)
         time.sleep(1.0)
 
-        return ActionResult(True, False)
+        return ActionResult(True, False, method="ime")
 
     def _handle_swipe(self, action: dict, width: int, height: int) -> ActionResult:
         """Handle swipe action."""

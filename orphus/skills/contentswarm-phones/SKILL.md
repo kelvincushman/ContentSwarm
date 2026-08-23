@@ -42,11 +42,14 @@ contentswarm phone phone_01
 contentswarm apps                       # apps launchable by name
 contentswarm launch phone_01 TikTok     # launch app directly via ADB
 contentswarm current phone_01           # foreground app
+contentswarm ui phone_01                # UI element tree - text/id/desc/center per element
 contentswarm screenshot phone_01 -o screen.png   # see the screen - read the PNG after
 ```
 
-Use `launch` + `screenshot` for simple, predictable steps. Read the saved
-screenshot with your `read` tool to verify what is actually on screen.
+Prefer `ui` over `screenshot` to check what is on screen: it returns every
+element's text and position as JSON (grep/jq it), needs no vision model, and
+is exact. Use `screenshot` when the tree is thin (games, canvas UIs) or you
+need rendered content - see the `contentswarm-bridge` skill.
 
 ### Natural-language tasks (vision agent, async)
 
@@ -83,8 +86,9 @@ curl -s -X POST -H "Authorization: Bearer $CONTENTSWARM_API_TOKEN" -H "Content-T
 
 ## Guidance
 
-- Prefer `launch`/`screenshot`/`current` for simple steps; reserve `run` for
-  multi-step UI work that needs the vision agent.
+- Prefer `launch`/`ui`/`current` for simple steps (`screenshot` when you need
+  rendered pixels); reserve `run` for multi-step UI work that needs the
+  vision agent.
 - After a task completes, take a screenshot to verify the outcome before
   reporting success.
 - Tasks that hit login walls or captchas pause for human takeover - if a task
