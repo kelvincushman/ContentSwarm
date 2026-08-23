@@ -19,13 +19,18 @@ stop a phone immediately on any verification interstitial.
 contentswarm launch phone_01 LinkedIn
 sleep 5
 contentswarm ui phone_01 > /tmp/li-ui.json
-grep -c 'tab_feed' /tmp/li-ui.json     # >0 = logged-in home screen
-grep -oiE 'sign in|join now|verif[a-z]*|security check|captcha' /tmp/li-ui.json \
-  && echo "STOP: login/verification wall - needs a human on this phone"
+if grep -qiE "sign in|join now|verif[a-z]*|security check|captcha|confirm it.?s you" /tmp/li-ui.json; then
+  echo "STOP: login/verification wall - needs a human on this phone"; exit 1
+fi
+if ! grep -q 'tab_feed' /tmp/li-ui.json; then
+  echo "STOP: not on the logged-in home screen - inspect /tmp/li-ui.json"; exit 1
+fi
+echo "LinkedIn ready"
 ```
 
-Check the **whole** dump, never a truncated head — verification interstitials
-can sit below the first elements.
+Fail closed: proceed only when the check prints "LinkedIn ready". Check the
+**whole** dump, never a truncated head — interstitials can sit below the
+first elements.
 
 ## Semantic element map (verified on device, app v2026.08)
 
@@ -90,15 +95,29 @@ also tap "Photo" on the editor bar and select it before the verify step.
 
 Same discipline — select, verify, act once, confirm:
 
+Like — **check the current state first: the reaction button is a toggle**,
+and tapping an already-liked post removes the reaction:
+
 ```bash
 contentswarm run phone_01 "In LinkedIn, scroll to the post by AUTHOR and stop with it fully on screen" --wait
-contentswarm screenshot phone_01 -o /tmp/li-target.png   # confirm it is the intended post
+contentswarm ui phone_01 | grep -o 'Reaction button state[^"]*'   # "no reaction" = safe to like
+# ONLY if the state shows 'no reaction' (already reacted? skip - done):
 contentswarm run phone_01 "In LinkedIn, tap the reaction button on the current post to like it" --wait
-contentswarm screenshot phone_01 -o /tmp/li-engaged.png  # confirm the reaction registered
+contentswarm ui phone_01 | grep -o 'Reaction button state[^"]*'   # confirm the state changed
 ```
 
-Comments likewise: rehearse the comment text on screen, screenshot, then send.
-Refine this section with the phrasings that actually worked on first live use.
+Comment — compose, verify, send exactly once, confirm:
+
+```bash
+contentswarm run phone_01 "In LinkedIn, tap Comment on the current post and type 'COMMENT TEXT' into the comment field. Do not send it." --wait
+contentswarm screenshot phone_01 -o /tmp/li-comment.png    # verify the text before sending
+contentswarm run phone_01 "In LinkedIn, tap the comment's send button once" --wait
+contentswarm screenshot phone_01 -o /tmp/li-commented.png  # confirm the comment appears
+```
+
+If the result is ambiguous, check the screenshot before ANY retry — a blind
+retry is how duplicate comments happen. Refine this section with the
+phrasings that actually worked on first live use.
 
 ## Pitfalls
 
