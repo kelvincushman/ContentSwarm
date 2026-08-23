@@ -11,7 +11,9 @@ Orphus / Pi agents (the brain — strategy, deliberation)
                                           ├─ /api/v1  REST API (bearer token)
                                           ├─ Web dashboard + screen streaming
                                           ├─ PhonePoolManager (parallel, per-phone locks)
-                                          ├─ Flow engine: learn (LLM) / replay (exact presses)
+                                          ├─ Flow engine: learn (LLM) / replay (element-targeted presses)
+                                          ├─ Semantic bridge: UI element tree, element taps, instant text
+                                          ├─ Run reports + SQLite health index (verified-rate per flow)
                                           ├─ PhoneAgent (vision model, learning only)
                                           └─ ADB ──USB / TCP──▶ phones
 ```
@@ -21,8 +23,9 @@ Orphus / Pi agents (the brain — strategy, deliberation)
 | Brain | [Orphus](https://github.com/kelvincushman/orphus) or Pi | Decides WHAT to do; drives everything via the CLI |
 | Interface | `contentswarm` CLI + `/api/v1` | The contract between brain and phones |
 | Orchestration | `PhonePoolManager` | Parallel task execution, per-phone locking, task tracking |
-| Learning | `PhoneAgent` + `FlowRecorder` | Vision model drives an app once; every action recorded |
-| Execution | `FlowReplayer` + `ActionHandler` | Deterministic replay — exact presses, no LLM |
+| Learning | `PhoneAgent` + `FlowRecorder` | Vision model drives an app once; every action recorded with the element under each tap |
+| Execution | `FlowReplayer` + `ActionHandler` | Deterministic replay — element-targeted presses (coordinate fallback), no LLM; each replay writes a run report |
+| Sensing | `phone_agent/bridge.py` + [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge) | UI element tree over plain ADB (`contentswarm ui`), semantic taps, ~100ms text |
 | Devices | ADB (USB or TCP) | Screenshots, taps, swipes, typing, app launch |
 
 ## The core pattern: learn once, replay forever
@@ -32,10 +35,15 @@ Orphus / Pi agents (the brain — strategy, deliberation)
    vision-language model figures out the app while each successful action is
    recorded with resolution-independent press points (0-1000 space)
 3. **Replay** — `contentswarm replay <any-phone> <flow>`: the deterministic
-   driver repeats the exact presses. Fast, repeatable, zero model cost.
+   driver taps the recorded element wherever it now sits, falling back to the
+   recorded coordinates. Fast, repeatable, zero model cost.
+4. **Verify** — every replay writes a run report (`contentswarm runs <flow>`):
+   per step, did it succeed and did it hit the intended element. Reports are
+   indexed into SQLite; `contentswarm health <flow>` shows the verified-rate
+   trend — when it drops after an app update, re-learn before it misclicks.
 
-Flows are JSON files under `CONTENTSWARM_FLOWS_DIR` (default `flows/`).
-When an app update breaks a flow, re-learn it once.
+Flows are JSON files under `CONTENTSWARM_FLOWS_DIR` (default `flows/`); run
+reports and the health index live under `<flows_dir>/runs/`.
 
 ## Key modules
 
@@ -44,7 +52,9 @@ When an app update breaks a flow, re-learn it once.
 | `contentswarm_cli.py` | Agent-native CLI (JSON out, exit codes) |
 | `phone_agent/api.py` | REST API blueprint (`/api/v1`), bearer-token auth |
 | `phone_agent/phone_pool.py` | Pool manager: `async_run`, `async_learn`, `async_replay`, batch |
-| `phone_agent/flows.py` | Flow record/replay engine + app discovery |
+| `phone_agent/flows.py` | Flow record/replay engine, run reports, app discovery |
+| `phone_agent/bridge.py` | Semantic UI bridge: element taps, instant text, UI dumps (auto-fallback) |
+| `phone_agent/runs_index.py` | SQLite health index over run reports (`/flows/health`) |
 | `phone_agent/agent.py` | Vision-agent loop (screenshot → model → action) |
 | `phone_agent/actions/handler.py` | Action execution (tap/swipe/type/launch/…) |
 | `phone_agent/adb/` | Device I/O: screenshots, input, connection |
