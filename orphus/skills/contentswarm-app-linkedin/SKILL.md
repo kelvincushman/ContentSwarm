@@ -18,8 +18,14 @@ stop a phone immediately on any verification interstitial.
 ```bash
 contentswarm launch phone_01 LinkedIn
 sleep 5
-contentswarm ui phone_01 | head -40   # logged in? feed elements? login wall = stop, needs a human
+contentswarm ui phone_01 > /tmp/li-ui.json
+grep -c 'tab_feed' /tmp/li-ui.json     # >0 = logged-in home screen
+grep -oiE 'sign in|join now|verif[a-z]*|security check|captcha' /tmp/li-ui.json \
+  && echo "STOP: login/verification wall - needs a human on this phone"
 ```
+
+Check the **whole** dump, never a truncated head — verification interstitials
+can sit below the first elements.
 
 ## Semantic element map (verified on device, app v2026.08)
 
@@ -57,27 +63,42 @@ contentswarm run phone_01 "In LinkedIn, tap the search bar, search for 'agentic 
 (The search input is the focused EditText after tapping `search_bar`; the
 results screen is desc-labeled, not id-labeled.)
 
-## Post
+## Post — verify before publishing, always
 
-Direct semantic sequence (fast path — verified to the final screen):
+Never combine composing and publishing in one step. The composer defaults to
+"Anyone", so a wrong target or text publishes publicly. Four steps:
 
 ```bash
-contentswarm run phone_01 "In LinkedIn, tap the Post button in the top bar, type 'POST TEXT HERE' into the share field, then tap the Post button at the top right" --wait
-contentswarm screenshot phone_01 -o /tmp/li-post.png   # confirm it published
+# 1. Compose only - do NOT tap Post yet
+contentswarm run phone_01 "In LinkedIn, tap the Post button in the top bar and type 'POST TEXT HERE' into the share field. Do not tap the Post button at the top right." --wait
+
+# 2. Verify text and audience on screen before anything is published
+contentswarm screenshot phone_01 -o /tmp/li-compose.png   # read it: right text? 'Anyone' intended?
+
+# 3. Publish - exactly one action
+contentswarm run phone_01 "In LinkedIn, tap the Post button at the top right of the composer" --wait
+
+# 4. Confirm the result
+contentswarm screenshot phone_01 -o /tmp/li-post.png
 ```
 
-With an image (file must be in the gallery): after opening the composer, tap
-"Photo" on the editor bar, select from the gallery, then Post.
+If step 2 shows wrong content: close the composer (`share_compose_close_button`)
+and choose Discard. With an image (file must be in the gallery): in step 1,
+also tap "Photo" on the editor bar and select it before the verify step.
 
 ## Engage (buttons observed on device; phrasings not yet exercised)
 
+Same discipline — select, verify, act once, confirm:
+
 ```bash
+contentswarm run phone_01 "In LinkedIn, scroll to the post by AUTHOR and stop with it fully on screen" --wait
+contentswarm screenshot phone_01 -o /tmp/li-target.png   # confirm it is the intended post
 contentswarm run phone_01 "In LinkedIn, tap the reaction button on the current post to like it" --wait
-contentswarm run phone_01 "In LinkedIn, comment 'COMMENT TEXT' on the current post" --wait
+contentswarm screenshot phone_01 -o /tmp/li-engaged.png  # confirm the reaction registered
 ```
 
-Verify the first use of each with a screenshot and refine this section with
-what actually worked.
+Comments likewise: rehearse the comment text on screen, screenshot, then send.
+Refine this section with the phrasings that actually worked on first live use.
 
 ## Pitfalls
 
