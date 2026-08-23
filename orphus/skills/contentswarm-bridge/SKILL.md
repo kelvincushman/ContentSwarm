@@ -43,6 +43,7 @@ contentswarm ui phone_01 | jq '.elements[] | select((.text // "") | test("Post")
 - **Run reports** (`contentswarm runs <flow>`) show, per replayed step,
   whether it hit the intended element (`"method": "element"` = verified) or
   fell back to coordinates (`"method": "coords"` = unverified - eyeball it).
+  Aggregated health across all replays is available via `contentswarm health <flow>`.
 - **Actions** (replay taps, typing) silently fall back to the original
   vision/ADB path on any phone where the bridge is unavailable - nothing
   breaks. **`ui` is the exception**: inspection has no vision fallback, so it

@@ -104,6 +104,7 @@ contentswarm status                         # smoke test
 - Semantic-first control: `contentswarm-bridge` teaches reading the UI
   element tree (`contentswarm ui`) and element-targeted replays with run
   reports (`contentswarm runs`) instead of pixel-guessing from screenshots.
+  Use `contentswarm health <flow>` to monitor the per-flow verified-rate trend.
 - Dispatch the dedicated agent: `subagent({ agent: "phone-operator", task: "…" })`.
 - Run the fleet for multi-phone campaigns: `/fleet contentswarm <request>` —
   a deliberation team agrees a per-phone plan, then three phone-operators

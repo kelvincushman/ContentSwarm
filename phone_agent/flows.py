@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from phone_agent import bridge
+from phone_agent import bridge, runs_index
 from phone_agent.actions.handler import ActionHandler
 from phone_agent.adb import get_current_app, get_screenshot
 
@@ -352,6 +352,7 @@ def save_run_report(summary: Dict[str, Any], flows_dir: str = DEFAULT_FLOWS_DIR)
     )
     with open(path, "w") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
+    runs_index.record(summary, str(path), flows_dir)
     return path
 
 

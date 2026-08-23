@@ -80,6 +80,16 @@ misclicks. For rendered content, a screenshot is still the ground truth:
 contentswarm screenshot phone_01 -o /tmp/after-replay.png   # then read the PNG
 ```
 
+## Health: trend across replays
+
+Run reports are indexed into SQLite; `contentswarm health <flow>` rolls up
+the verified-rate trend across all replays (default 30 days; use `--days N` to adjust).
+If verified_rate drops after an app update, re-learn the flow.
+
+```bash
+contentswarm health tiktok-open-upload --days 7    # verified_rate trend for past week
+```
+
 ## When to use which driver
 
 | Situation | Use |

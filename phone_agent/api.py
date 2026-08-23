@@ -432,6 +432,60 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             return jsonify({"error": str(e)}), 400
         return jsonify({"flow": flow_name, "runs": reports, "count": len(reports)})
 
+    def _parse_days():
+        """Positive int from ?days= (default 30), or None when invalid."""
+        try:
+            days = int(request.args.get("days", 30))
+        except (TypeError, ValueError):
+            return None
+        return days if days > 0 else None
+
+    _ZERO_HEALTH = {"runs": 0, "executed": 0, "failed": 0, "verified": 0,
+                    "verified_rate": 0.0, "last_run": None}
+
+    @api.route("/flows/health", methods=["GET"])
+    def flows_health():
+        """Verified-rate health per flow, aggregated from the run-report index.
+
+        Flows with no indexed runs in the window appear zero-filled, so a
+        never-replayed flow is visible rather than silently absent.
+        """
+        days = _parse_days()
+        if days is None:
+            return jsonify({"error": "days must be a positive number"}), 400
+
+        from phone_agent.flows import list_flows
+        from phone_agent.runs_index import health
+
+        rows = health(days=days, flows_dir=_flows_dir())
+        seen = {r["flow"] for r in rows}
+        rows += [
+            {"flow": f["name"], **_ZERO_HEALTH}
+            for f in list_flows(_flows_dir()) if f["name"] not in seen
+        ]
+        return jsonify({"days": days, "flows": rows})
+
+    @api.route("/flows/<flow_name>/health", methods=["GET"])
+    def flow_health(flow_name: str):
+        """Verified-rate health for one flow, aggregated from the run-report index."""
+        days = _parse_days()
+        if days is None:
+            return jsonify({"error": "days must be a positive number"}), 400
+
+        from phone_agent.runs_index import health
+        rows = health(flow_name=flow_name, days=days, flows_dir=_flows_dir())
+        if rows:  # indexed history wins, even if the flow file was deleted
+            return jsonify({"days": days, **rows[0]})
+
+        from phone_agent.flows import flow_path
+        try:
+            known = flow_path(flow_name, _flows_dir()).exists()
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        if not known:  # a typo must not look like a healthy unreplayed flow
+            return jsonify({"error": f"Flow '{flow_name}' not found"}), 404
+        return jsonify({"days": days, "flow": flow_name, **_ZERO_HEALTH})
+
     # ── Task Status ─────────────────────────────────────────────────
 
     @api.route("/tasks/<task_id>", methods=["GET"])
