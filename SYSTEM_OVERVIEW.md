@@ -53,8 +53,9 @@ one to twenty Android phones
 `phone_agent/bridge.py` wraps
 [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge). It caches
 one bridge per device and serializes bridge calls with one lock per device.
-The pool's operation lock also prevents direct commands from interleaving with
-a running `run`, `learn`, or `replay` task on the same phone.
+The pool's device-serial operation lock also prevents direct commands from
+interleaving with synchronous tasks or a running `run`, `learn`, or `replay`
+task on the same physical phone.
 The exposed operations are intentionally finite:
 
 - inspect accessibility elements;

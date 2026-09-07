@@ -55,6 +55,22 @@ def test_discovery_creates_an_initially_missing_config(tmp_path, monkeypatch):
         manager.shutdown()
 
 
+def test_discovery_deduplicates_an_existing_friendly_name(tmp_path, monkeypatch):
+    """One ADB serial cannot gain a second logical name and a second lock."""
+    config = tmp_path / "phones.json"
+    config.write_text(
+        '{"phones":[{"name":"primary","device_id":"good"}]}',
+        encoding="utf-8",
+    )
+    manager = PhonePoolManager(phones_config=str(config))
+    monkeypatch.setattr(pool_module, "list_devices", lambda: devices()[:1])
+    try:
+        assert manager.scan_and_add_devices() == 0
+        assert list(manager.phones) == ["primary"]
+    finally:
+        manager.shutdown()
+
+
 def test_direct_operation_shares_the_per_phone_task_lock():
     """A direct operation cannot interleave with another operation or task."""
     manager = PhonePoolManager()
@@ -63,6 +79,22 @@ def test_direct_operation_shares_the_per_phone_task_lock():
             with pytest.raises(RuntimeError, match="busy"):
                 with manager.phone_operation("primary"):
                     pass
+    finally:
+        manager.shutdown()
+
+
+def test_quick_run_shares_the_operation_lock(monkeypatch):
+    """Legacy synchronous tasks cannot overlap a direct operation."""
+    manager = PhonePoolManager()
+    manager.add_phone("primary", "serial")
+    monkeypatch.setattr(
+        pool_module, "PhoneAgent",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("agent must not start while busy")),
+    )
+    try:
+        with manager.phone_operation("primary"):
+            with pytest.raises(RuntimeError, match="busy"):
+                manager.quick_run("primary", "Open Settings")
     finally:
         manager.shutdown()
 

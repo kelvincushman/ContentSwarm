@@ -43,7 +43,8 @@ See [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md) for the component-level design and
 
 ## What it can do
 
-- Control one to twenty Android phones with a per-phone operation lock.
+- Control one to twenty Android phones with one operation lock per physical
+  ADB device, shared by direct, synchronous, and asynchronous tasks.
 - List devices, installed apps, connection state, and the foreground app.
 - Launch registered apps directly.
 - Read the current accessibility tree as structured JSON.

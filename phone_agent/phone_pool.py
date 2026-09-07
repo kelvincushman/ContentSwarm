@@ -112,7 +112,11 @@ class PhonePoolManager:
             data = json.load(f)
 
         self.phones = {}
+        seen_devices = set()
         for phone_data in data.get("phones", []):
+            if phone_data["device_id"] in seen_devices:
+                raise ValueError(f"Duplicate phone device_id: {phone_data['device_id']}")
+            seen_devices.add(phone_data["device_id"])
             phone = PhoneInfo(
                 device_id=phone_data["device_id"],
                 name=phone_data["name"],
@@ -182,6 +186,8 @@ class PhonePoolManager:
         """
         if name in self.phones:
             raise ValueError(f"Phone '{name}' already exists in pool")
+        if any(phone.device_id == device_id for phone in self.phones.values()):
+            raise ValueError(f"ADB device '{device_id}' already exists in pool")
 
         phone = PhoneInfo(
             device_id=device_id,
@@ -271,16 +277,19 @@ class PhonePoolManager:
         Returns:
             Result message.
         """
-        if not self.current_agent:
+        if not self.current_agent or not self.current_phone:
             raise RuntimeError("No phone selected. Use select_phone() first.")
 
+        phone_name = self.current_phone
+        agent = self.current_agent
+
         print(f"\n{'='*60}")
-        print(f"📱 Running on: {self.current_phone}")
+        print(f"📱 Running on: {phone_name}")
         print(f"📋 Task: {task}")
         print(f"{'='*60}\n")
 
-        result = self.current_agent.run(task)
-        return result
+        with self.phone_operation(phone_name):
+            return agent.run(task)
 
     def quick_run(self, phone_name: str, task: str) -> str:
         """
@@ -293,8 +302,18 @@ class PhonePoolManager:
         Returns:
             Result message.
         """
-        self.select_phone(phone_name)
-        return self.run_task(task)
+        if phone_name not in self.phones:
+            raise ValueError(f"Phone '{phone_name}' not found. Available: {list(self.phones.keys())}")
+        phone = self.phones[phone_name]
+        agent_config = AgentConfig(
+            max_steps=self.base_agent_config.max_steps,
+            device_id=phone.device_id,
+            lang=self.base_agent_config.lang,
+            verbose=self.base_agent_config.verbose,
+        )
+        with self.phone_operation(phone_name):
+            agent = PhoneAgent(model_config=self.model_config, agent_config=agent_config)
+            return agent.run(task)
 
     def set_event_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Set callback for task lifecycle events."""
@@ -310,8 +329,9 @@ class PhonePoolManager:
 
     def _get_phone_lock(self, phone_name: str) -> threading.Lock:
         """Get or create a lock for a specific phone (thread-safe)."""
+        lock_key = self.phones.get(phone_name).device_id if phone_name in self.phones else phone_name
         with self._locks_guard:
-            return self._phone_locks.setdefault(phone_name, threading.Lock())
+            return self._phone_locks.setdefault(lock_key, threading.Lock())
 
     @contextmanager
     def phone_operation(self, phone_name: str):
@@ -672,8 +692,11 @@ class PhonePoolManager:
         with self._discovery_lock:
             devices = [device for device in list_devices() if device.status == "device"]
             added_names: List[str] = []
+            known_devices = {phone.device_id for phone in self.phones.values()}
 
             for device in devices:
+                if device.device_id in known_devices:
+                    continue
                 name = f"phone_{device.device_id.replace(':', '_').replace('.', '_')}"
                 if name in self.phones:
                     continue
@@ -683,6 +706,7 @@ class PhonePoolManager:
                     description=f"Auto-detected {device.connection_type.value} device"
                 )
                 added_names.append(name)
+                known_devices.add(device.device_id)
 
             if added_names and self.config_path:
                 try:
