@@ -77,7 +77,7 @@ def test_allowlisted_actions_do_not_expose_raw_shell(use_bridge):
 
 def test_compose_never_taps_send(use_bridge):
     fake = use_bridge(FakeBridge([[
-        element(text="+44 7700 900123", clickable=False),
+        element(text="+44 7700 900123", id="conversation_contact_name", clickable=False),
         element(text="Hello", cls="android.widget.EditText"),
     ]]))
     result = bridge.compose_message("serial", "whatsapp", "+44 7700 900123", "Hello")
@@ -92,7 +92,7 @@ def test_compose_never_taps_send(use_bridge):
 def test_send_requires_expected_body_and_verifies_editor_cleared(use_bridge, monkeypatch):
     body = "Dentist confirmed"
     before = [
-        element(text="+447700900123", clickable=False),
+        element(text="+447700900123", id="conversation_contact_name", clickable=False),
         element(text=body, cls="android.widget.EditText", clickable=True),
         element(id="com.whatsapp:id/send", desc="Send"),
     ]
@@ -111,7 +111,7 @@ def test_send_requires_expected_body_and_verifies_editor_cleared(use_bridge, mon
 
 def test_send_does_not_tap_when_body_is_stale(use_bridge):
     fake = use_bridge(FakeBridge([[
-        element(text="+447700900123", clickable=False),
+        element(text="+447700900123", id="recipient_text_view", clickable=False),
         element(text="approved draft stale", cls="android.widget.EditText"),
         element(id="send_message", desc="Send"),
     ]]))
@@ -156,6 +156,18 @@ def test_send_does_not_trust_editor_as_recipient(use_bridge):
     ]]))
     with pytest.raises(LookupError, match="recipient"):
         bridge.send_composed_message("serial", "sms", body, body)
+    assert fake.calls == []
+
+
+def test_message_bubble_cannot_prove_recipient(use_bridge):
+    body = "Approved text"
+    fake = use_bridge(FakeBridge([[
+        element(text="+447700900123", id="message_text", clickable=False),
+        element(text=body, cls="android.widget.EditText"),
+        element(id="send_message", desc="Send"),
+    ]]))
+    with pytest.raises(LookupError, match="recipient"):
+        bridge.send_composed_message("serial", "sms", "+447700900123", body)
     assert fake.calls == []
 
 

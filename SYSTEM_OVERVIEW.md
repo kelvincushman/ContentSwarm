@@ -53,12 +53,14 @@ one to twenty Android phones
 `phone_agent/bridge.py` wraps
 [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge). It caches
 one bridge per device and serializes bridge calls with one lock per device.
+The pool's operation lock also prevents direct commands from interleaving with
+a running `run`, `learn`, or `replay` task on the same phone.
 The exposed operations are intentionally finite:
 
 - inspect accessibility elements;
 - tap exactly one enabled, clickable semantic match;
 - type at most 4,000 characters;
-- press a navigation/editing key from an allowlist;
+- press a confirmed navigation/editing key from an allowlist;
 - swipe within validated coordinates and duration;
 - open validated SMS and WhatsApp composers;
 - send a prepared message after verifying the approved body.

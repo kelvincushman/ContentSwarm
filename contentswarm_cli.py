@@ -213,6 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("key", help="Press an allowlisted Android key")
     p.add_argument("phone")
     p.add_argument("key")
+    p.add_argument("--confirm", action="store_true", required=True, help="Confirm this exact key event")
 
     p = sub.add_parser("swipe", help="Swipe between validated screen coordinates")
     p.add_argument("phone")
@@ -358,7 +359,7 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "key":
         output(client.post(f"/phones/{args.phone}/action", {
-            "action": "key", "key": args.key,
+            "action": "key", "key": args.key, "confirm": args.confirm,
         }))
 
     elif args.command == "swipe":

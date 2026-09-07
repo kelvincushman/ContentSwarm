@@ -133,7 +133,7 @@ These commands do not require the vision model:
 ```bash
 contentswarm ui phone_01
 contentswarm launch phone_01 WhatsApp
-contentswarm key phone_01 BACK
+contentswarm key phone_01 BACK --confirm
 contentswarm swipe phone_01 500 1600 500 500 --duration-ms 300
 ```
 
@@ -148,7 +148,7 @@ printf '%s' 'ContentSwarm setup test — do not send' >"$BODY_FILE"
 contentswarm compose phone_01 sms +447700900123 \
   --body-file "$BODY_FILE" --token-file "$TOKEN_FILE"
 contentswarm ui phone_01
-contentswarm key phone_01 BACK
+contentswarm key phone_01 BACK --confirm
 ```
 
 Do not include `send --confirm` in unattended deployment smoke tests. A real

@@ -82,7 +82,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             status = 400
         elif isinstance(error, LookupError):
             status = 404
-        elif "ambiguous" in str(error).lower():
+        elif any(word in str(error).lower() for word in ("ambiguous", "busy")):
             status = 409
         else:
             status = 502
@@ -349,16 +349,17 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         action = data.get("action")
         if not isinstance(action, str):
             return jsonify({"error": "action is required"}), 400
-        if action.casefold() == "tap" and data.get("confirm") is not True:
-            return jsonify({"error": "confirm must be true for every semantic tap"}), 409
+        if action.casefold() in ("tap", "key") and data.get("confirm") is not True:
+            return jsonify({"error": "confirm must be true for every tap or key event"}), 409
 
         from phone_agent.bridge import semantic_action
         try:
-            result = semantic_action(
-                device_id,
-                action,
-                **{key: value for key, value in data.items() if key not in ("action", "confirm")},
-            )
+            with _get_phone_manager().phone_operation(phone_name):
+                result = semantic_action(
+                    device_id,
+                    action,
+                    **{key: value for key, value in data.items() if key not in ("action", "confirm")},
+                )
         except Exception as exc:
             return _bridge_error(exc)
         result["phone"] = phone_name
@@ -378,7 +379,8 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             return error
         from phone_agent.bridge import inspect_messages
         try:
-            elements = inspect_messages(device_id, channel)
+            with _get_phone_manager().phone_operation(phone_name):
+                elements = inspect_messages(device_id, channel)
         except Exception as exc:
             return _bridge_error(exc)
         return jsonify({
@@ -401,18 +403,18 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         recipient = data.get("recipient")
         body = data.get("body")
         label = data.get("recipient_label")
-        with _prepared_lock:
-            for key in [
-                key for key, record in _prepared_messages.items()
-                if record["device_id"] == device_id
-            ]:
-                del _prepared_messages[key]
-
         from phone_agent.bridge import compose_message
         try:
-            result = compose_message(
-                device_id, channel, recipient, body, label,
-            )
+            with _get_phone_manager().phone_operation(phone_name):
+                with _prepared_lock:
+                    for key in [
+                        key for key, record in _prepared_messages.items()
+                        if record["device_id"] == device_id
+                    ]:
+                        del _prepared_messages[key]
+                result = compose_message(
+                    device_id, channel, recipient, body, label,
+                )
         except Exception as exc:
             return _bridge_error(exc)
         prepared_token = secrets.token_urlsafe(32)
@@ -461,26 +463,26 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         body = data.get("expected_body")
         if not all(isinstance(value, str) and value for value in (token, channel, recipient, body)):
             return jsonify({"error": "prepared_token, channel, recipient, and expected_body are required"}), 400
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        with _prepared_lock:
-            record = _prepared_messages.pop(token_hash, None)
-        if record is None:
-            return jsonify({"error": "prepared token is invalid or already used"}), 409
-        matches = (
-            record["expires_at"] >= time.time()
-            and record["device_id"] == device_id
-            and record["channel"] == channel.casefold()
-            and record["recipient"] == re.sub(r"[^0-9]", "", recipient)
-            and record["body_hash"] == hashlib.sha256(body.encode()).hexdigest()
-        )
-        if not matches:
-            return jsonify({"error": "prepared message expired or no longer matches"}), 409
-
         from phone_agent.bridge import send_composed_message
         try:
-            result = send_composed_message(
-                device_id, channel, recipient, body, record["recipient_label"]
-            )
+            with _get_phone_manager().phone_operation(phone_name):
+                token_hash = hashlib.sha256(token.encode()).hexdigest()
+                with _prepared_lock:
+                    record = _prepared_messages.pop(token_hash, None)
+                if record is None:
+                    return jsonify({"error": "prepared token is invalid or already used"}), 409
+                matches = (
+                    record["expires_at"] >= time.time()
+                    and record["device_id"] == device_id
+                    and record["channel"] == channel.casefold()
+                    and record["recipient"] == re.sub(r"[^0-9]", "", recipient)
+                    and record["body_hash"] == hashlib.sha256(body.encode()).hexdigest()
+                )
+                if not matches:
+                    return jsonify({"error": "prepared message expired or no longer matches"}), 409
+                result = send_composed_message(
+                    device_id, channel, recipient, body, record["recipient_label"]
+                )
         except Exception as exc:
             return _bridge_error(exc)
         result["phone"] = phone_name

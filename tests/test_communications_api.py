@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ def client():
         phones={"primary": phone}, current_phone="primary",
         scan_and_add_devices=lambda: 0,
         check_connections=lambda: {"primary": True},
+        phone_operation=lambda _phone: nullcontext(),
     )
     app = Flask(__name__)
     app.register_blueprint(create_api_blueprint({"phone_manager": pm}), url_prefix="/api/v1")
@@ -62,6 +64,18 @@ def test_every_tap_requires_confirmation_even_neutral_text(client, monkeypatch):
     response = client.post(
         "/api/v1/phones/primary/action",
         json={"action": "tap", "text": "Continue"},
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.parametrize("key", ["ENTER", "DPAD_CENTER", "BACK"])
+def test_every_key_requires_confirmation(client, monkeypatch, key):
+    monkeypatch.setattr(
+        bridge, "semantic_action",
+        lambda *_args, **_kwargs: pytest.fail("bridge must not run before confirmation"),
+    )
+    response = client.post(
+        "/api/v1/phones/primary/action", json={"action": "key", "key": key},
     )
     assert response.status_code == 409
 

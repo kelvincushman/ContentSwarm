@@ -34,13 +34,15 @@ contentswarm tap phone_01 --text Continue --confirm
 contentswarm tap phone_01 --id com.example:id/save --confirm
 contentswarm type phone_01 "Caption text"
 contentswarm type phone_01 " appended" --append
-contentswarm key phone_01 BACK
+contentswarm key phone_01 BACK --confirm
 contentswarm swipe phone_01 500 1600 500 500 --duration-ms 300
 ```
 
 Tap selectors are exact and must resolve to exactly one enabled clickable element. The API
 rejects ambiguous and missing targets. `key` accepts navigation and editing
-keys only. Coordinates and swipe duration are bounded. There is no raw ADB
+keys only, and every key event requires `--confirm`; treat `ENTER` and
+`DPAD_CENTER` as commit actions when a control is focused. Coordinates and
+swipe duration are bounded. There is no raw ADB
 shell route.
 
 Every tap requires `--confirm`, meaning the caller confirms the exact element

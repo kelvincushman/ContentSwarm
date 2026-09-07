@@ -41,3 +41,27 @@ def test_discovery_rolls_back_new_entries_when_persistence_fails(monkeypatch):
         assert manager.phones == {}
     finally:
         manager.shutdown()
+
+
+def test_discovery_creates_an_initially_missing_config(tmp_path, monkeypatch):
+    """A first discovery survives restart when the config did not exist."""
+    config = tmp_path / "phones.json"
+    manager = PhonePoolManager(phones_config=str(config))
+    monkeypatch.setattr(pool_module, "list_devices", lambda: devices()[:1])
+    try:
+        assert manager.scan_and_add_devices() == 1
+        assert '"device_id": "good"' in config.read_text(encoding="utf-8")
+    finally:
+        manager.shutdown()
+
+
+def test_direct_operation_shares_the_per_phone_task_lock():
+    """A direct operation cannot interleave with another operation or task."""
+    manager = PhonePoolManager()
+    try:
+        with manager.phone_operation("primary"):
+            with pytest.raises(RuntimeError, match="busy"):
+                with manager.phone_operation("primary"):
+                    pass
+    finally:
+        manager.shutdown()

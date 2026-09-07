@@ -47,7 +47,7 @@ contentswarm ui phone_01                # UI element tree - text/id/desc/center 
 contentswarm screenshot phone_01 -o screen.png   # see the screen - read the PNG after
 contentswarm tap phone_01 --text Continue --confirm
 contentswarm type phone_01 "hello"
-contentswarm key phone_01 BACK
+contentswarm key phone_01 BACK --confirm
 contentswarm swipe phone_01 500 1600 500 500
 ```
 

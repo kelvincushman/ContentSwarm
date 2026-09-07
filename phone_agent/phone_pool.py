@@ -4,6 +4,7 @@ import json
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -90,7 +91,7 @@ class PhonePoolManager:
         self._event_callback = event_callback
         self.config_path: Optional[str] = phones_config
 
-        if phones_config:
+        if phones_config and Path(phones_config).exists():
             self.load_phones(phones_config)
 
     def load_phones(self, config_path: str) -> None:
@@ -140,6 +141,7 @@ class PhonePoolManager:
             ]
         }
 
+        Path(config_path).parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, 'w') as f:
             json.dump(data, f, indent=2)
 
@@ -293,6 +295,17 @@ class PhonePoolManager:
         """Get or create a lock for a specific phone (thread-safe)."""
         with self._locks_guard:
             return self._phone_locks.setdefault(phone_name, threading.Lock())
+
+    @contextmanager
+    def phone_operation(self, phone_name: str):
+        """Reserve a phone for one direct or agent-driven operation."""
+        lock = self._get_phone_lock(phone_name)
+        if not lock.acquire(blocking=False):
+            raise RuntimeError(f"Phone '{phone_name}' is busy with another operation")
+        try:
+            yield
+        finally:
+            lock.release()
 
     def _run_task_on_phone(self, phone_name: str, task: str, task_id: str) -> str:
         """Run a task on a specific phone with locking. Used by async methods."""

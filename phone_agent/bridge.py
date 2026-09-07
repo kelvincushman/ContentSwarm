@@ -35,6 +35,16 @@ _SEND_IDS = {
     "whatsapp": ("send",),
 }
 _SEND_WORDS = ("send",)
+_RECIPIENT_IDS = {
+    "sms": {
+        "conversation_title", "contact_name", "message_recipient_name",
+        "recipient_name", "recipient_text_view", "recipients_view",
+    },
+    "whatsapp": {
+        "conversation_contact_name", "conversation_contact_status",
+        "contactpicker_row_name", "contactpicker_row_phone",
+    },
+}
 
 
 def installed() -> bool:
@@ -311,7 +321,7 @@ def compose_message(
             bridge.compose_whatsapp(recipient, body)
         time.sleep(1)
         elements = bridge.ui()
-    if not _recipient_visible(elements, recipient, recipient_label):
+    if not _recipient_visible(elements, channel, recipient, recipient_label):
         raise LookupError(
             "recipient is not visible in the composer; provide recipient_label when Android shows a contact name"
         )
@@ -332,7 +342,9 @@ def _is_editor(element: Any) -> bool:
     return element.enabled and element.cls.endswith("EditText")
 
 
-def _recipient_visible(elements: List[Any], recipient: str, label: str | None = None) -> bool:
+def _recipient_visible(
+    elements: List[Any], channel: str, recipient: str, label: str | None = None,
+) -> bool:
     """Confirm the addressee from recipient-specific, non-editor UI.
 
     The message editor is untrusted evidence here: its draft may contain the
@@ -343,6 +355,9 @@ def _recipient_visible(elements: List[Any], recipient: str, label: str | None = 
     expected_label = label.strip().casefold() if label else None
     for element in elements:
         if _is_editor(element):
+            continue
+        element_id = element.id.rsplit("/", 1)[-1].casefold()
+        if element_id not in _RECIPIENT_IDS[channel]:
             continue
         for value in (element.text, element.desc):
             clean = value.strip()
@@ -385,7 +400,7 @@ def send_composed_message(
     bridge = _require_bridge(device_id)
     with device_lock(device_id):
         before = bridge.ui()
-        if not _recipient_visible(before, recipient, recipient_label):
+        if not _recipient_visible(before, channel, recipient, recipient_label):
             raise LookupError("prepared recipient is no longer visible")
         editors = [e for e in before if _is_editor(e) and expected_body == e.text]
         if not editors:

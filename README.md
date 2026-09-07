@@ -163,7 +163,7 @@ contentswarm tap primary --text Continue --confirm
 contentswarm tap primary --id com.example:id/save --confirm
 contentswarm type primary "A Unicode caption ✓"
 contentswarm type primary " additional text" --append
-contentswarm key primary BACK
+contentswarm key primary BACK --confirm
 contentswarm swipe primary 500 1600 500 500 --duration-ms 300
 ```
 
@@ -176,7 +176,10 @@ calling agent:
 contentswarm tap primary --text Post --confirm
 ```
 
-Supported keys are `BACK`, `HOME`, `ENTER`, `TAB`, `ESCAPE`, directional
+Every key event also requires `--confirm`. Because `ENTER` and `DPAD_CENTER`
+can activate a focused control, callers must obtain human approval when that
+control would send, post, delete, log in, or make a payment. Supported keys are
+`BACK`, `HOME`, `ENTER`, `TAB`, `ESCAPE`, directional
 DPAD keys, `DPAD_CENTER`, `DEL`, `FORWARD_DEL`, `PAGE_UP`, and `PAGE_DOWN`.
 There is no raw-shell command.
 
