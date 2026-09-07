@@ -10,10 +10,24 @@ from phone_agent import bridge
 @pytest.fixture
 def client():
     phone = SimpleNamespace(device_id="serial-1", description="test", tags=[])
-    pm = SimpleNamespace(phones={"primary": phone}, current_phone="primary")
+    pm = SimpleNamespace(
+        phones={"primary": phone}, current_phone="primary",
+        scan_and_add_devices=lambda: 0,
+        check_connections=lambda: {"primary": True},
+    )
     app = Flask(__name__)
     app.register_blueprint(create_api_blueprint({"phone_manager": pm}), url_prefix="/api/v1")
     return app.test_client()
+
+
+def test_discover_returns_persisted_phone_inventory(client):
+    response = client.post("/api/v1/phones/discover")
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "added": 0,
+        "phones": [{"connected": True, "device_id": "serial-1", "name": "primary"}],
+        "total": 1,
+    }
 
 
 def test_action_rejects_non_json_and_missing_phone(client):

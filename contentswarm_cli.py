@@ -145,6 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("status", help="System overview")
     sub.add_parser("phones", help="List phones and connection status")
+    sub.add_parser("discover", help="Discover authorized ADB devices and persist them")
 
     p = sub.add_parser("phone", help="Details for one phone")
     p.add_argument("name")
@@ -288,6 +289,9 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "phones":
         output(client.get("/phones"))
+
+    elif args.command == "discover":
+        output(client.post("/phones/discover"))
 
     elif args.command == "phone":
         output(client.get(f"/phones/{args.name}"))

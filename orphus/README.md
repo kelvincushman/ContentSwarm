@@ -58,7 +58,7 @@ The copy installer is still required for the agent and fleet definitions.
 
 The phone operator should choose the first rung that can complete the task:
 
-1. `phones`, `installed`, `current`, or `ui` to sense structured state.
+1. `discover`, `phones`, `installed`, `current`, or `ui` to enroll and sense structured state.
 2. `launch`, `tap`, `type`, `key`, or `swipe` for one constrained action.
 3. `messages`, `compose`, and approved `send` for SMS or WhatsApp.
 4. `replay` for an existing healthy flow.

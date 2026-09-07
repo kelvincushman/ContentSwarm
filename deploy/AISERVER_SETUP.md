@@ -44,6 +44,7 @@ Edit `/opt/contentswarm/phones_config.json` with each phone's
 
 ```bash
 sudo systemctl restart contentswarm
+contentswarm discover   # adds authorized ADB devices and persists phones_config.json
 contentswarm phones     # all enrolled phones with connection status
 ```
 

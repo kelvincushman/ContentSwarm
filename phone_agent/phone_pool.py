@@ -87,6 +87,7 @@ class PhonePoolManager:
         self._locks_guard = threading.Lock()
         self._tasks: Dict[str, TaskResult] = {}
         self._event_callback = event_callback
+        self.config_path: Optional[str] = phones_config
 
         if phones_config:
             self.load_phones(phones_config)
@@ -98,6 +99,7 @@ class PhonePoolManager:
         Args:
             config_path: Path to JSON configuration file.
         """
+        self.config_path = config_path
         config_file = Path(config_path)
         if not config_file.exists():
             raise FileNotFoundError(f"Phone config file not found: {config_path}")
@@ -124,6 +126,7 @@ class PhonePoolManager:
         Args:
             config_path: Path to save JSON configuration.
         """
+        self.config_path = config_path
         data = {
             "phones": [
                 {
@@ -653,6 +656,9 @@ class PhonePoolManager:
                 description=f"Auto-detected {device.connection_type.value} device"
             )
             added += 1
+
+        if added and self.config_path:
+            self.save_phones(self.config_path)
 
         return added
 

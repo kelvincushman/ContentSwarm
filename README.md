@@ -130,6 +130,7 @@ In another shell:
 export CONTENTSWARM_API_URL="http://127.0.0.1:5000/api/v1"
 export CONTENTSWARM_API_TOKEN="<same token>"
 contentswarm status
+contentswarm discover
 contentswarm phones
 ```
 
@@ -142,6 +143,7 @@ Every CLI command prints JSON and exits nonzero on failure.
 
 ```bash
 contentswarm phones
+contentswarm discover
 contentswarm phone primary
 contentswarm installed primary
 contentswarm apps
@@ -261,6 +263,7 @@ The server exposes these routes below `/api/v1`:
 |---|---|---|
 | `GET` | `/status` | Server, fleet, pipeline, and bridge state |
 | `GET` | `/phones` | List configured phones and connections |
+| `POST` | `/phones/discover` | Scan authorized ADB devices and persist new phones |
 | `GET` | `/phones/<phone>` | One phone |
 | `POST` | `/phones/<phone>/app` | Launch a registered app |
 | `GET` | `/phones/<phone>/current_app` | Foreground package |

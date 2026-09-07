@@ -147,6 +147,27 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             "is_current": phone_name == pm.current_phone
         })
 
+    @api.route("/phones/discover", methods=["POST"])
+    def discover_phones():
+        """Scan authorized ADB devices, add new ones, and persist the registry."""
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+        try:
+            added = pm.scan_and_add_devices()
+            connections = pm.check_connections()
+        except Exception as exc:
+            return jsonify({"error": f"ADB discovery failed: {exc}"}), 502
+        phones = [
+            {
+                "name": name,
+                "device_id": info.device_id,
+                "connected": connections.get(name, False),
+            }
+            for name, info in pm.phones.items()
+        ]
+        return jsonify({"added": added, "phones": phones, "total": len(phones)})
+
     @api.route("/phones/<phone_name>/task", methods=["POST"])
     def run_phone_task(phone_name: str):
         """

@@ -32,6 +32,7 @@ All commands print JSON and exit 0 on success, 1 on failure.
 
 ```bash
 contentswarm status        # phones online, pipeline state
+contentswarm discover      # scan authorized ADB devices and persist new phones
 contentswarm phones        # every phone: name, device_id, connected, tags
 contentswarm phone phone_01
 ```
