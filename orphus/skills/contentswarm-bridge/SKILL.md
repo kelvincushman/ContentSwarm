@@ -30,22 +30,23 @@ contentswarm ui phone_01 | jq '.elements[] | select((.text // "") | test("Post")
 ## Act through the allowlisted kernel
 
 ```bash
-contentswarm tap phone_01 --text Continue
-contentswarm tap phone_01 --id com.example:id/save
+contentswarm tap phone_01 --text Continue --confirm
+contentswarm tap phone_01 --id com.example:id/save --confirm
 contentswarm type phone_01 "Caption text"
 contentswarm type phone_01 " appended" --append
 contentswarm key phone_01 BACK
 contentswarm swipe phone_01 500 1600 500 500 --duration-ms 300
 ```
 
-Tap selectors must resolve to exactly one enabled clickable element. The API
+Tap selectors are exact and must resolve to exactly one enabled clickable element. The API
 rejects ambiguous and missing targets. `key` accepts navigation and editing
 keys only. Coordinates and swipe duration are bounded. There is no raw ADB
 shell route.
 
-Targets that appear to commit external state—Send, Post, Delete, Login, Pay,
-Like, Follow, Share, and related controls—require `--confirm`. Obtain approval
-from the user before supplying it. Inspect again after acting; do not blindly
+Every tap requires `--confirm`, meaning the caller confirms the exact element
+it just sensed. For targets that commit external state—Send, Post, Delete,
+Login, Pay, Like, Follow, Share, and related controls—obtain approval from the
+user before supplying it. Inspect again after acting; do not blindly
 retry a state-changing action after a timeout or uncertain response.
 
 ## Decision order (cheapest first)

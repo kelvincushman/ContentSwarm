@@ -47,21 +47,21 @@ def test_action_calls_deterministic_bridge(client, monkeypatch):
     monkeypatch.setattr(bridge, "semantic_action", fake_action)
     response = client.post(
         "/api/v1/phones/primary/action",
-        json={"action": "tap", "text": "Continue"},
+        json={"action": "tap", "text": "Continue", "confirm": True},
     )
     assert response.status_code == 200
     assert response.get_json()["phone"] == "primary"
     assert seen == {"device": "serial-1", "action": "tap", "params": {"text": "Continue"}}
 
 
-def test_sensitive_tap_requires_confirmation(client, monkeypatch):
+def test_every_tap_requires_confirmation_even_neutral_text(client, monkeypatch):
     monkeypatch.setattr(
         bridge, "semantic_action",
         lambda *_args, **_kwargs: pytest.fail("bridge must not run before confirmation"),
     )
     response = client.post(
         "/api/v1/phones/primary/action",
-        json={"action": "tap", "text": "Send"},
+        json={"action": "tap", "text": "Continue"},
     )
     assert response.status_code == 409
 
@@ -81,28 +81,103 @@ def test_send_requires_literal_confirmation(client, monkeypatch):
 def test_compose_and_confirmed_send_contract(client, monkeypatch):
     monkeypatch.setattr(
         bridge, "compose_message",
-        lambda device, channel, recipient, body: {
+        lambda device, channel, recipient, body, label: {
             "success": True, "channel": channel, "recipient": recipient,
             "characters": len(body), "sent": False,
+            "recipient_verified": True, "body_verified": True,
         },
     )
     monkeypatch.setattr(
         bridge, "send_composed_message",
-        lambda device, channel, body: {
+        lambda device, channel, recipient, body, label: {
             "success": True, "channel": channel, "sent": True,
             "verified": True, "verification": "composer-cleared",
         },
     )
-    response = client.post(
+    compose = client.post(
         "/api/v1/phones/primary/communications/compose",
         json={"channel": "sms", "recipient": "+447700900123", "body": "hello"},
     )
-    assert response.status_code == 200
-    assert response.get_json()["sent"] is False
+    assert compose.status_code == 200
+    assert compose.get_json()["sent"] is False
+    prepared_token = compose.get_json()["prepared_token"]
 
     response = client.post(
         "/api/v1/phones/primary/communications/send",
-        json={"channel": "sms", "expected_body": "hello", "confirm": True},
+        json={
+            "channel": "sms", "recipient": "+447700900123",
+            "expected_body": "hello", "prepared_token": prepared_token,
+            "confirm": True,
+        },
     )
     assert response.status_code == 200
     assert response.get_json()["verified"] is True
+
+    reused = client.post(
+        "/api/v1/phones/primary/communications/send",
+        json={
+            "channel": "sms", "recipient": "+447700900123",
+            "expected_body": "hello", "prepared_token": prepared_token,
+            "confirm": True,
+        },
+    )
+    assert reused.status_code == 409
+
+
+def test_prepared_token_is_bound_to_recipient(client, monkeypatch):
+    monkeypatch.setattr(
+        bridge, "compose_message",
+        lambda device, channel, recipient, body, label: {
+            "success": True, "channel": channel, "recipient": recipient,
+            "characters": len(body), "sent": False,
+            "recipient_verified": True, "body_verified": True,
+        },
+    )
+    monkeypatch.setattr(
+        bridge, "send_composed_message",
+        lambda *_args: pytest.fail("mismatched recipient must never reach bridge send"),
+    )
+    compose = client.post(
+        "/api/v1/phones/primary/communications/compose",
+        json={"channel": "sms", "recipient": "+447700900123", "body": "hello"},
+    ).get_json()
+    response = client.post(
+        "/api/v1/phones/primary/communications/send",
+        json={
+            "channel": "sms", "recipient": "+447700900999",
+            "expected_body": "hello", "prepared_token": compose["prepared_token"],
+            "confirm": True,
+        },
+    )
+    assert response.status_code == 409
+
+
+def test_new_compose_invalidates_previous_prepared_token(client, monkeypatch):
+    monkeypatch.setattr(
+        bridge, "compose_message",
+        lambda device, channel, recipient, body, label: {
+            "success": True, "channel": channel, "recipient": recipient,
+            "characters": len(body), "sent": False,
+            "recipient_verified": True, "body_verified": True,
+        },
+    )
+    monkeypatch.setattr(
+        bridge, "send_composed_message",
+        lambda *_args: pytest.fail("invalidated token must not reach bridge send"),
+    )
+    first = client.post(
+        "/api/v1/phones/primary/communications/compose",
+        json={"channel": "sms", "recipient": "+447700900123", "body": "first"},
+    ).get_json()
+    client.post(
+        "/api/v1/phones/primary/communications/compose",
+        json={"channel": "sms", "recipient": "+447700900999", "body": "second"},
+    )
+    response = client.post(
+        "/api/v1/phones/primary/communications/send",
+        json={
+            "channel": "sms", "recipient": "+447700900123", "expected_body": "first",
+            "prepared_token": first["prepared_token"], "confirm": True,
+        },
+    )
+    assert response.status_code == 409

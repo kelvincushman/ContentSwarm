@@ -88,7 +88,7 @@ the visible accessibility tree.
 
 ### Requirements
 
-- Linux, macOS, or Windows with Python 3.10+
+- Linux with Python 3.10+ (the documented service and keyring setup targets Linux)
 - Android Platform Tools (`adb`)
 - One or more Android 7+ phones with USB debugging enabled
 - [ADB Keyboard](https://github.com/senzhk/ADBKeyBoard) on each phone for fast
@@ -105,8 +105,11 @@ python -m venv .venv
 .venv/bin/pip install -e .
 
 # Create phones_config.json using the example below, then:
-CONTENTSWARM_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
-  .venv/bin/python run_server.py
+# Store one random token in the desktop keyring, then reuse it for both sides.
+python -c 'import secrets; print(secrets.token_urlsafe(32))' |
+  secret-tool store --label="ContentSwarm API" service contentswarm account api-token
+export CONTENTSWARM_API_TOKEN="$(secret-tool lookup service contentswarm account api-token)"
+.venv/bin/python run_server.py
 ```
 
 `phones_config.json` uses this shape:
@@ -128,7 +131,7 @@ In another shell:
 
 ```bash
 export CONTENTSWARM_API_URL="http://127.0.0.1:5000/api/v1"
-export CONTENTSWARM_API_TOKEN="<same token>"
+export CONTENTSWARM_API_TOKEN="$(secret-tool lookup service contentswarm account api-token)"
 contentswarm status
 contentswarm discover
 contentswarm phones
@@ -156,16 +159,18 @@ contentswarm screenshot primary -o /tmp/primary.png
 Act on semantic elements whenever possible:
 
 ```bash
-contentswarm tap primary --text Continue
-contentswarm tap primary --id com.example:id/save
+contentswarm tap primary --text Continue --confirm
+contentswarm tap primary --id com.example:id/save --confirm
 contentswarm type primary "A Unicode caption ✓"
 contentswarm type primary " additional text" --append
 contentswarm key primary BACK
 contentswarm swipe primary 500 1600 500 500 --duration-ms 300
 ```
 
-`tap` rejects zero matches, disabled controls, and ambiguous matches. Sensitive
-targets require an explicit caller confirmation:
+`tap` rejects zero matches, disabled controls, fuzzy selectors, and ambiguous
+matches. Every tap requires `--confirm` so the caller asserts the exact action
+it just sensed. Sensitive targets additionally require human approval in the
+calling agent:
 
 ```bash
 contentswarm tap primary --text Post --confirm
@@ -188,8 +193,13 @@ Prepare a message. Prefer a file or stdin so shell history does not retain its
 contents:
 
 ```bash
-printf '%s' 'I will arrive at 09:00.' >/tmp/message.txt
-contentswarm compose primary sms +447700900123 --body-file /tmp/message.txt
+BODY_FILE=$(mktemp)
+TOKEN_FILE=$(mktemp)
+trap 'rm -f "$BODY_FILE" "$TOKEN_FILE"' EXIT
+chmod 600 "$BODY_FILE" "$TOKEN_FILE"
+printf '%s' 'I will arrive at 09:00.' >"$BODY_FILE"
+contentswarm compose primary sms +447700900123 \
+  --body-file "$BODY_FILE" --token-file "$TOKEN_FILE"
 
 printf '%s' 'The appointment is confirmed.' |
   contentswarm compose primary whatsapp +447700900123
@@ -198,10 +208,16 @@ printf '%s' 'The appointment is confirmed.' |
 After the user approves the exact recipient and body, send the prepared draft:
 
 ```bash
-contentswarm send primary sms --expect-body-file /tmp/message.txt --confirm
+contentswarm send primary sms +447700900123 \
+  --expect-body-file "$BODY_FILE" --prepared-token-file "$TOKEN_FILE" --confirm
 ```
 
-The result contains `sent`, `verified`, and `verification`. A successful send
+Composition verifies that both the body and recipient are visible. If Android
+shows a saved contact name instead of its number, add `--recipient-label` with
+that exact visible name. It returns a five-minute, single-use token bound to
+the phone, channel, recipient, and body; `--token-file` keeps it out of output.
+
+The send result contains `sent`, `verified`, and `verification`. A successful send
 currently verifies that the exact approved body left the composer. For stronger
 proof, inspect the conversation or take a screenshot after sending.
 

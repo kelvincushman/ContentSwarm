@@ -195,11 +195,11 @@ def _validate_text(text: Any, *, required: bool = True) -> str:
 
 
 def _matches(element: Any, text: str | None, id: str | None, desc: str | None) -> bool:
-    if text is not None and text.casefold() not in element.text.casefold():
+    if text is not None and text.strip().casefold() != element.text.strip().casefold():
         return False
     if id is not None and element.id != id and not element.id.endswith("/" + id):
         return False
-    if desc is not None and desc.casefold() not in element.desc.casefold():
+    if desc is not None and desc.strip().casefold() != element.desc.strip().casefold():
         return False
     return True
 
@@ -288,30 +288,61 @@ def inspect_messages(device_id: str | None, channel: str) -> List[Dict[str, Any]
 
 
 def compose_message(
-    device_id: str | None, channel: str, recipient: str, body: str
+    device_id: str | None,
+    channel: str,
+    recipient: str,
+    body: str,
+    recipient_label: str | None = None,
 ) -> Dict[str, Any]:
-    """Open a prepared SMS or WhatsApp composer. This never taps Send."""
+    """Open and verify a prepared composer. This never taps Send."""
     channel = _channel(channel)
     body = _validate_text(body)
     if not isinstance(recipient, str) or not re.fullmatch(r"\+?[0-9][0-9 ()-]{2,30}", recipient):
         raise ValueError("recipient must be a phone number")
+    if recipient_label is not None and (
+        not isinstance(recipient_label, str) or not recipient_label.strip() or len(recipient_label) > 200
+    ):
+        raise ValueError("recipient_label must be a non-empty string up to 200 characters")
     bridge = _require_bridge(device_id)
     with device_lock(device_id):
         if channel == "sms":
             bridge.compose_sms(recipient, body)
         else:
             bridge.compose_whatsapp(recipient, body)
+        time.sleep(1)
+        elements = bridge.ui()
+    if not _recipient_visible(elements, recipient, recipient_label):
+        raise LookupError(
+            "recipient is not visible in the composer; provide recipient_label when Android shows a contact name"
+        )
+    if not any(_is_editor(element) and element.text == body for element in elements):
+        raise LookupError("exact body is not visible in an enabled message editor")
     return {
         "success": True,
         "channel": channel,
         "recipient": recipient,
         "characters": len(body),
         "sent": False,
+        "recipient_verified": True,
+        "body_verified": True,
     }
 
 
 def _is_editor(element: Any) -> bool:
     return element.enabled and element.cls.endswith("EditText")
+
+
+def _recipient_visible(elements: List[Any], recipient: str, label: str | None = None) -> bool:
+    expected_digits = re.sub(r"[^0-9]", "", recipient)
+    expected_label = label.strip().casefold() if label else None
+    for element in elements:
+        for value in (element.text, element.desc):
+            clean = value.strip()
+            if expected_label and clean.casefold() == expected_label:
+                return True
+            if expected_digits and re.sub(r"[^0-9]", "", clean) == expected_digits:
+                return True
+    return False
 
 
 def _is_send(element: Any, channel: str) -> bool:
@@ -330,7 +361,11 @@ def _is_send(element: Any, channel: str) -> bool:
 
 
 def send_composed_message(
-    device_id: str | None, channel: str, expected_body: str
+    device_id: str | None,
+    channel: str,
+    recipient: str,
+    expected_body: str,
+    recipient_label: str | None = None,
 ) -> Dict[str, Any]:
     """Send one prepared message and verify that the composer cleared.
 
@@ -342,7 +377,9 @@ def send_composed_message(
     bridge = _require_bridge(device_id)
     with device_lock(device_id):
         before = bridge.ui()
-        editors = [e for e in before if _is_editor(e) and expected_body in e.text]
+        if not _recipient_visible(before, recipient, recipient_label):
+            raise LookupError("prepared recipient is no longer visible")
+        editors = [e for e in before if _is_editor(e) and expected_body == e.text]
         if not editors:
             raise LookupError("expected body is not present in an enabled message editor")
         sends = [e for e in before if _is_send(e, channel)]
@@ -353,7 +390,7 @@ def send_composed_message(
         bridge.tap(sends[0])
         time.sleep(1)
         after = bridge.ui()
-    still_present = any(_is_editor(e) and expected_body in e.text for e in after)
+    still_present = any(_is_editor(e) and expected_body == e.text for e in after)
     return {
         "success": not still_present,
         "channel": channel,

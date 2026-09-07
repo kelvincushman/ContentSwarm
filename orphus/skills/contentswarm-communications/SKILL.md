@@ -27,10 +27,14 @@ Write the final text to a mode-600 temporary file, then compose:
 
 ```bash
 umask 077
-cat >/tmp/message.txt <<'EOF'
+BODY_FILE=$(mktemp)
+TOKEN_FILE=$(mktemp)
+trap 'rm -f "$BODY_FILE" "$TOKEN_FILE"' EXIT
+cat >"$BODY_FILE" <<'EOF'
 I will arrive at 09:00.
 EOF
-contentswarm compose primary sms +447700900123 --body-file /tmp/message.txt
+contentswarm compose primary sms +447700900123 \
+  --body-file "$BODY_FILE" --token-file "$TOKEN_FILE"
 ```
 
 For WhatsApp, use `whatsapp` and an international number. `compose` returns
@@ -42,7 +46,8 @@ Show the user the channel, exact recipient, and exact body. Obtain a clear
 approval. Then call once:
 
 ```bash
-contentswarm send primary sms --expect-body-file /tmp/message.txt --confirm
+contentswarm send primary sms +447700900123 \
+  --expect-body-file "$BODY_FILE" --prepared-token-file "$TOKEN_FILE" --confirm
 ```
 
 The server verifies that the approved body is still in an enabled editor,
@@ -51,11 +56,7 @@ composer cleared. Only report success when `verified` is true. If the request
 times out or returns an uncertain result, inspect the conversation before any
 retry.
 
-Delete the temporary file after the result is recorded:
-
-```bash
-rm -f /tmp/message.txt
-```
+The EXIT trap deletes both temporary files, including on early failure.
 
 ## Rules
 
@@ -65,4 +66,3 @@ rm -f /tmp/message.txt
 - Never claim that SMS delivery or WhatsApp receipt is proven by a cleared
   composer. That proves submission from the UI only.
 - Login and multi-factor challenges require the user at the phone.
-

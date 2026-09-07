@@ -85,10 +85,16 @@ inspect ─▶ compose(recipient, body) ─▶ external user approval
                             composer cleared = verified
 ```
 
-Composition and send are separate routes. The API requires the literal JSON
-boolean `confirm: true`. The CLI requires `--confirm`. The Omarchy wrapper
-adds a desktop Allow/Deny menu before invoking that CLI flag. The API does not
-emit recipients or message bodies to its event stream.
+Composition and send are separate routes. A successful composition checks the
+live recipient and exact body, then returns a five-minute, single-use token
+bound to the device, channel, recipient, and body hash. A new composition on
+the device invalidates its earlier token. Send consumes the token before its
+one state-changing attempt and independently checks the live composer.
+
+The API requires the literal JSON boolean `confirm: true`. The CLI requires
+`--confirm`. The Omarchy wrapper adds a desktop Allow/Deny menu before invoking
+that CLI flag. The API does not emit recipients, tokens, or message bodies to
+its event stream.
 
 ## Social workflows
 

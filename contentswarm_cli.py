@@ -113,8 +113,11 @@ def read_text_argument(value: str | None, file_path: str | None) -> str:
     if value is not None and file_path is not None:
         raise ValueError("use either --body or --body-file, not both")
     if file_path is not None:
-        with open(file_path, encoding="utf-8") as handle:
-            return handle.read()
+        try:
+            with open(file_path, encoding="utf-8") as handle:
+                return handle.read()
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ValueError(f"cannot read text file: {exc}") from exc
     if value is not None:
         return value
     if sys.stdin.isatty():
@@ -200,7 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--text")
     p.add_argument("--id")
     p.add_argument("--desc")
-    p.add_argument("--confirm", action="store_true", help="Confirm a state-changing target")
+    p.add_argument("--confirm", action="store_true", required=True, help="Confirm this exact tap")
 
     p = sub.add_parser("type", help="Type into the focused phone field")
     p.add_argument("phone")
@@ -229,12 +232,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("recipient")
     p.add_argument("--body")
     p.add_argument("--body-file")
+    p.add_argument("--recipient-label", help="Exact visible contact name when the phone hides its number")
+    p.add_argument("--token-file", help="Write the short-lived prepared token here (mode 600)")
 
     p = sub.add_parser("send", help="Send the prepared message after explicit confirmation")
     p.add_argument("phone")
     p.add_argument("channel", choices=("sms", "whatsapp"))
+    p.add_argument("recipient")
     p.add_argument("--expect-body")
     p.add_argument("--expect-body-file")
+    token = p.add_mutually_exclusive_group(required=True)
+    token.add_argument("--prepared-token")
+    token.add_argument("--prepared-token-file")
     p.add_argument("--confirm", action="store_true", required=True)
 
     p = sub.add_parser("installed", help="Discover apps installed on a phone")
@@ -363,14 +372,30 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "compose":
         body = read_text_argument(args.body, args.body_file)
-        output(client.post(f"/phones/{args.phone}/communications/compose", {
+        result = client.post(f"/phones/{args.phone}/communications/compose", {
             "channel": args.channel, "recipient": args.recipient, "body": body,
-        }))
+            "recipient_label": args.recipient_label,
+        })
+        if args.token_file:
+            try:
+                flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+                fd = os.open(args.token_file, flags, 0o600)
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    handle.write(result.pop("prepared_token") + "\n")
+            except (OSError, KeyError) as exc:
+                raise ValueError(f"cannot write prepared token: {exc}") from exc
+        output(result)
 
     elif args.command == "send":
         body = read_text_argument(args.expect_body, args.expect_body_file)
+        if args.prepared_token_file:
+            token = read_text_argument(None, args.prepared_token_file).strip()
+        else:
+            token = args.prepared_token
         output(client.post(f"/phones/{args.phone}/communications/send", {
-            "channel": args.channel, "expected_body": body, "confirm": args.confirm,
+            "channel": args.channel, "recipient": args.recipient,
+            "expected_body": body, "prepared_token": token, "confirm": args.confirm,
         }))
 
     elif args.command == "runs":

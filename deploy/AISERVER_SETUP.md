@@ -139,11 +139,14 @@ Verify message preparation without sending:
 
 ```bash
 umask 077
-printf '%s' 'ContentSwarm setup test — do not send' >/tmp/cs-message.txt
-contentswarm compose phone_01 sms +447700900123 --body-file /tmp/cs-message.txt
+BODY_FILE=$(mktemp)
+TOKEN_FILE=$(mktemp)
+trap 'rm -f "$BODY_FILE" "$TOKEN_FILE"' EXIT
+printf '%s' 'ContentSwarm setup test — do not send' >"$BODY_FILE"
+contentswarm compose phone_01 sms +447700900123 \
+  --body-file "$BODY_FILE" --token-file "$TOKEN_FILE"
 contentswarm ui phone_01
 contentswarm key phone_01 BACK
-rm -f /tmp/cs-message.txt
 ```
 
 Do not include `send --confirm` in unattended deployment smoke tests. A real

@@ -76,11 +76,15 @@ def test_allowlisted_actions_do_not_expose_raw_shell(use_bridge):
 
 
 def test_compose_never_taps_send(use_bridge):
-    fake = use_bridge(FakeBridge())
+    fake = use_bridge(FakeBridge([[
+        element(text="+44 7700 900123", clickable=False),
+        element(text="Hello", cls="android.widget.EditText"),
+    ]]))
     result = bridge.compose_message("serial", "whatsapp", "+44 7700 900123", "Hello")
     assert result == {
         "success": True, "channel": "whatsapp", "recipient": "+44 7700 900123",
-        "characters": 5, "sent": False,
+        "characters": 5, "sent": False, "recipient_verified": True,
+        "body_verified": True,
     }
     assert fake.calls == [("compose_whatsapp", "+44 7700 900123", "Hello")]
 
@@ -88,6 +92,7 @@ def test_compose_never_taps_send(use_bridge):
 def test_send_requires_expected_body_and_verifies_editor_cleared(use_bridge, monkeypatch):
     body = "Dentist confirmed"
     before = [
+        element(text="+447700900123", clickable=False),
         element(text=body, cls="android.widget.EditText", clickable=True),
         element(id="com.whatsapp:id/send", desc="Send"),
     ]
@@ -95,7 +100,9 @@ def test_send_requires_expected_body_and_verifies_editor_cleared(use_bridge, mon
     fake = use_bridge(FakeBridge([before, after]))
     monkeypatch.setattr(bridge.time, "sleep", lambda _seconds: None)
 
-    result = bridge.send_composed_message("serial", "whatsapp", body)
+    result = bridge.send_composed_message(
+        "serial", "whatsapp", "+447700900123", body
+    )
     assert result["sent"] is True
     assert result["verified"] is True
     assert result["verification"] == "composer-cleared"
@@ -104,10 +111,29 @@ def test_send_requires_expected_body_and_verifies_editor_cleared(use_bridge, mon
 
 def test_send_does_not_tap_when_body_is_stale(use_bridge):
     fake = use_bridge(FakeBridge([[
-        element(text="different draft", cls="android.widget.EditText"),
+        element(text="+447700900123", clickable=False),
+        element(text="approved draft stale", cls="android.widget.EditText"),
         element(id="send_message", desc="Send"),
     ]]))
     with pytest.raises(LookupError, match="expected body"):
-        bridge.send_composed_message("serial", "sms", "approved draft")
+        bridge.send_composed_message(
+            "serial", "sms", "+447700900123", "approved draft"
+        )
     assert fake.calls == []
 
+
+def test_compose_fails_closed_when_recipient_is_not_visible(use_bridge):
+    fake = use_bridge(FakeBridge([[
+        element(text="Wrong contact", clickable=False),
+        element(text="Hello", cls="android.widget.EditText"),
+    ]]))
+    with pytest.raises(LookupError, match="recipient"):
+        bridge.compose_message("serial", "sms", "+447700900123", "Hello")
+    assert all(call[0] != "tap" for call in fake.calls)
+
+
+def test_exact_tap_selector_cannot_expand_to_send(use_bridge):
+    fake = use_bridge(FakeBridge([[element(text="Send")]]))
+    with pytest.raises(LookupError, match="no enabled"):
+        bridge.semantic_action("serial", "tap", text="s")
+    assert fake.calls == []

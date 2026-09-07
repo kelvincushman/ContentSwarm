@@ -94,15 +94,17 @@ contentswarm phones
 contentswarm messages primary whatsapp
 
 umask 077
-printf '%s' 'I will arrive at 09:00.' >/tmp/approved-message.txt
+BODY_FILE=$(mktemp)
+TOKEN_FILE=$(mktemp)
+trap 'rm -f "$BODY_FILE" "$TOKEN_FILE"' EXIT
+printf '%s' 'I will arrive at 09:00.' >"$BODY_FILE"
 contentswarm compose primary whatsapp +447700900123 \
-  --body-file /tmp/approved-message.txt
+  --body-file "$BODY_FILE" --token-file "$TOKEN_FILE"
 
 # Show the exact recipient/body and obtain user approval here.
-contentswarm send primary whatsapp \
-  --expect-body-file /tmp/approved-message.txt --confirm
+contentswarm send primary whatsapp +447700900123 \
+  --expect-body-file "$BODY_FILE" --prepared-token-file "$TOKEN_FILE" --confirm
 contentswarm messages primary whatsapp
-rm -f /tmp/approved-message.txt
 ```
 
 Only report a send when the JSON result has `"verified": true`. A cleared
