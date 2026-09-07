@@ -23,6 +23,10 @@ to understand current state. The response is not a complete mailbox export.
 
 ## Compose without sending
 
+Recipient verification uses a recipient-specific UI element. Text in the
+message editor is never accepted as evidence of the recipient, even when the
+draft contains the expected phone number or contact name.
+
 Write the final text to a mode-600 temporary file, then compose:
 
 ```bash

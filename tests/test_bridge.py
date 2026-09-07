@@ -132,6 +132,33 @@ def test_compose_fails_closed_when_recipient_is_not_visible(use_bridge):
     assert all(call[0] != "tap" for call in fake.calls)
 
 
+@pytest.mark.parametrize("editor_text", ["+447700900123", "Kelvin"])
+def test_editor_text_cannot_prove_recipient(use_bridge, editor_text):
+    fake = use_bridge(FakeBridge([[
+        element(text="Wrong contact", clickable=False),
+        element(text=editor_text, cls="android.widget.EditText"),
+        element(id="send_message", desc="Send"),
+    ]]))
+    with pytest.raises(LookupError, match="recipient"):
+        bridge.compose_message(
+            "serial", "sms", "+447700900123", editor_text,
+            recipient_label="Kelvin",
+        )
+    assert all(call[0] != "tap" for call in fake.calls)
+
+
+def test_send_does_not_trust_editor_as_recipient(use_bridge):
+    body = "+447700900123"
+    fake = use_bridge(FakeBridge([[
+        element(text="Wrong contact", clickable=False),
+        element(text=body, cls="android.widget.EditText"),
+        element(id="send_message", desc="Send"),
+    ]]))
+    with pytest.raises(LookupError, match="recipient"):
+        bridge.send_composed_message("serial", "sms", body, body)
+    assert fake.calls == []
+
+
 def test_exact_tap_selector_cannot_expand_to_send(use_bridge):
     fake = use_bridge(FakeBridge([[element(text="Send")]]))
     with pytest.raises(LookupError, match="no enabled"):

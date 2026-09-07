@@ -333,9 +333,17 @@ def _is_editor(element: Any) -> bool:
 
 
 def _recipient_visible(elements: List[Any], recipient: str, label: str | None = None) -> bool:
+    """Confirm the addressee from recipient-specific, non-editor UI.
+
+    The message editor is untrusted evidence here: its draft may contain the
+    expected phone number or contact label while the composer targets somebody
+    else.  Failing closed is preferable to sending to an inferred recipient.
+    """
     expected_digits = re.sub(r"[^0-9]", "", recipient)
     expected_label = label.strip().casefold() if label else None
     for element in elements:
+        if _is_editor(element):
+            continue
         for value in (element.text, element.desc):
             clean = value.strip()
             if expected_label and clean.casefold() == expected_label:

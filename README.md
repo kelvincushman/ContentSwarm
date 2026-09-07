@@ -212,7 +212,8 @@ contentswarm send primary sms +447700900123 \
   --expect-body-file "$BODY_FILE" --prepared-token-file "$TOKEN_FILE" --confirm
 ```
 
-Composition verifies that both the body and recipient are visible. If Android
+Composition verifies the body in the editor and the recipient in a separate
+recipient-specific UI element; editor text never counts as recipient proof. If Android
 shows a saved contact name instead of its number, add `--recipient-label` with
 that exact visible name. It returns a five-minute, single-use token bound to
 the phone, channel, recipient, and body; `--token-file` keeps it out of output.
