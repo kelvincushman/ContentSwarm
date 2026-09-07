@@ -266,7 +266,11 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         from phone_agent.adb import launch_app
 
         device_id = pm.phones[phone_name].device_id
-        success = launch_app(app_name, device_id)
+        try:
+            with pm.phone_operation(phone_name):
+                success = launch_app(app_name, device_id)
+        except Exception as exc:
+            return _bridge_error(exc)
 
         if not success:
             return jsonify({"error": f"App not found or failed to launch: {app_name}"}), 400
@@ -415,25 +419,25 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
                 result = compose_message(
                     device_id, channel, recipient, body, label,
                 )
+                prepared_token = secrets.token_urlsafe(32)
+                token_hash = hashlib.sha256(prepared_token.encode()).hexdigest()
+                record = {
+                    "device_id": device_id,
+                    "channel": result["channel"],
+                    "recipient": re.sub(r"[^0-9]", "", recipient),
+                    "recipient_label": label,
+                    "body_hash": hashlib.sha256(body.encode()).hexdigest(),
+                    "expires_at": time.time() + _PREPARED_TTL_SECONDS,
+                }
+                with _prepared_lock:
+                    for key in [
+                        key for key, previous in _prepared_messages.items()
+                        if previous["device_id"] == device_id
+                    ]:
+                        del _prepared_messages[key]
+                    _prepared_messages[token_hash] = record
         except Exception as exc:
             return _bridge_error(exc)
-        prepared_token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(prepared_token.encode()).hexdigest()
-        record = {
-            "device_id": device_id,
-            "channel": result["channel"],
-            "recipient": re.sub(r"[^0-9]", "", recipient),
-            "recipient_label": label,
-            "body_hash": hashlib.sha256(body.encode()).hexdigest(),
-            "expires_at": time.time() + _PREPARED_TTL_SECONDS,
-        }
-        with _prepared_lock:
-            for key in [
-                key for key, previous in _prepared_messages.items()
-                if previous["device_id"] == device_id
-            ]:
-                del _prepared_messages[key]
-            _prepared_messages[token_hash] = record
         result["prepared_token"] = prepared_token
         result["expires_in"] = _PREPARED_TTL_SECONDS
         result["phone"] = phone_name

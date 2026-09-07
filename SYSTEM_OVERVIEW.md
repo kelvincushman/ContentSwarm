@@ -84,7 +84,7 @@ inspect ─▶ compose(recipient, body) ─▶ external user approval
                                              │
                                       inspect again
                                              │
-                            composer cleared = verified
+                    same editor visibly empty = verified
 ```
 
 Composition and send are separate routes. A successful composition checks the

@@ -1,8 +1,8 @@
 import pytest
+import phone_agent.phone_pool as pool_module
 
 from phone_agent.adb.connection import ConnectionType, DeviceInfo
 from phone_agent.phone_pool import PhonePoolManager
-import phone_agent.phone_pool as pool_module
 
 
 def devices():
@@ -63,5 +63,22 @@ def test_direct_operation_shares_the_per_phone_task_lock():
             with pytest.raises(RuntimeError, match="busy"):
                 with manager.phone_operation("primary"):
                     pass
+    finally:
+        manager.shutdown()
+
+
+def test_save_phones_keeps_existing_config_when_replace_fails(tmp_path, monkeypatch):
+    """An interrupted atomic commit cannot truncate the canonical registry."""
+    config = tmp_path / "phones.json"
+    original = '{"phones": [{"name": "existing"}]}\n'
+    config.write_text(original, encoding="utf-8")
+    manager = PhonePoolManager()
+    manager.add_phone("new", "serial")
+    monkeypatch.setattr(pool_module.os, "replace", lambda *_args: (_ for _ in ()).throw(OSError("full")))
+    try:
+        with pytest.raises(OSError, match="full"):
+            manager.save_phones(str(config))
+        assert config.read_text(encoding="utf-8") == original
+        assert not list(tmp_path.glob(".phones.json.*"))
     finally:
         manager.shutdown()

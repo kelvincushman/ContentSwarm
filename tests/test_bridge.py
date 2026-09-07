@@ -109,6 +109,30 @@ def test_send_requires_expected_body_and_verifies_editor_cleared(use_bridge, mon
     assert len(fake.calls) == 1
 
 
+@pytest.mark.parametrize("after", [[], [element(text="Sent", id="message_text")]])
+def test_send_is_unverified_without_positive_empty_editor_evidence(
+    use_bridge, monkeypatch, after,
+):
+    body = "Approved body"
+    editor = element(
+        text=body, id="message_editor", cls="android.widget.EditText",
+        bounds=(0, 100, 500, 200),
+    )
+    before = [
+        element(text="+447700900123", id="recipient_text_view", clickable=False),
+        editor,
+        element(id="send_message", desc="Send"),
+    ]
+    fake = use_bridge(FakeBridge([before, after]))
+    monkeypatch.setattr(bridge.time, "sleep", lambda _seconds: None)
+    result = bridge.send_composed_message(
+        "serial", "sms", "+447700900123", body,
+    )
+    assert result["sent"] is False
+    assert result["verified"] is False
+    assert result["verification"] == "composer-clear-not-observed"
+
+
 def test_send_does_not_tap_when_body_is_stale(use_bridge):
     fake = use_bridge(FakeBridge([[
         element(text="+447700900123", id="recipient_text_view", clickable=False),

@@ -1,6 +1,8 @@
 """Phone Pool Manager for controlling multiple phones with easy switching."""
 
 import json
+import os
+import tempfile
 import threading
 import time
 import uuid
@@ -141,9 +143,24 @@ class PhonePoolManager:
             ]
         }
 
-        Path(config_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        target = Path(config_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w", encoding="utf-8", dir=target.parent,
+                prefix=f".{target.name}.", delete=False,
+            ) as handle:
+                temporary = Path(handle.name)
+                json.dump(data, handle, indent=2)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        except Exception:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+            raise
 
         print(f"✅ Saved {len(self.phones)} phones to {config_path}")
 

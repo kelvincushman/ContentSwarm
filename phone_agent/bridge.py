@@ -405,6 +405,9 @@ def send_composed_message(
         editors = [e for e in before if _is_editor(e) and expected_body == e.text]
         if not editors:
             raise LookupError("expected body is not present in an enabled message editor")
+        if len(editors) > 1:
+            raise RuntimeError("message editor is ambiguous; no action taken")
+        editor = editors[0]
         sends = [e for e in before if _is_send(e, channel)]
         if not sends:
             raise LookupError("no enabled Send control found")
@@ -413,11 +416,18 @@ def send_composed_message(
         bridge.tap(sends[0])
         time.sleep(1)
         after = bridge.ui()
-    still_present = any(_is_editor(e) and expected_body == e.text for e in after)
+    def same_editor(element: Any) -> bool:
+        if not _is_editor(element):
+            return False
+        if editor.id:
+            return element.id == editor.id
+        return element.cls == editor.cls and element.bounds == editor.bounds
+
+    cleared = any(same_editor(element) and element.text == "" for element in after)
     return {
-        "success": not still_present,
+        "success": cleared,
         "channel": channel,
-        "sent": not still_present,
-        "verified": not still_present,
-        "verification": "composer-cleared" if not still_present else "expected-body-still-present",
+        "sent": cleared,
+        "verified": cleared,
+        "verification": "composer-cleared" if cleared else "composer-clear-not-observed",
     }

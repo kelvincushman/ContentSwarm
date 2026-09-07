@@ -222,7 +222,8 @@ that exact visible name. It returns a five-minute, single-use token bound to
 the phone, channel, recipient, and body; `--token-file` keeps it out of output.
 
 The send result contains `sent`, `verified`, and `verification`. A successful send
-currently verifies that the exact approved body left the composer. For stronger
+requires the same enabled editor to remain visible with an empty value. If the
+composer disappears, the result stays unverified. For stronger
 proof, inspect the conversation or take a screenshot after sending.
 
 ## Social media
