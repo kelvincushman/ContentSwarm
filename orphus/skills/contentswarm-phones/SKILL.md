@@ -44,6 +44,10 @@ contentswarm launch phone_01 TikTok     # launch app directly via ADB
 contentswarm current phone_01           # foreground app
 contentswarm ui phone_01                # UI element tree - text/id/desc/center per element
 contentswarm screenshot phone_01 -o screen.png   # see the screen - read the PNG after
+contentswarm tap phone_01 --text Continue
+contentswarm type phone_01 "hello"
+contentswarm key phone_01 BACK
+contentswarm swipe phone_01 500 1600 500 500
 ```
 
 Prefer `ui` over `screenshot` to check what is on screen: it returns every
@@ -91,7 +95,14 @@ curl -s -X POST -H "Authorization: Bearer $CONTENTSWARM_API_TOKEN" -H "Content-T
   vision agent.
 - After a task completes, take a screenshot to verify the outcome before
   reporting success.
+- Obtain explicit approval before login, payment, sending, deleting, posting,
+  commenting, liking, following, reposting, subscribing, or sharing. Use
+  `--confirm` only after approval. Never retry one of these actions without
+  inspecting the phone first.
 - Tasks that hit login walls or captchas pause for human takeover - if a task
   seems stuck in `running` far past its expected duration, report it rather
   than resubmitting.
 - Phone names come from `contentswarm phones`; never guess them.
+- Ordinary ADB cannot bypass app permissions, encryption, `FLAG_SECURE`, or
+  private app storage. Report those boundaries rather than attempting a
+  workaround.

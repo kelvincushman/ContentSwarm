@@ -108,6 +108,20 @@ def parse_batch_tasks(pairs: list[str]) -> dict:
     return tasks
 
 
+def read_text_argument(value: str | None, file_path: str | None) -> str:
+    """Read message text from one safe source; stdin is used when neither is given."""
+    if value is not None and file_path is not None:
+        raise ValueError("use either --body or --body-file, not both")
+    if file_path is not None:
+        with open(file_path, encoding="utf-8") as handle:
+            return handle.read()
+    if value is not None:
+        return value
+    if sys.stdin.isatty():
+        raise ValueError("provide --body, --body-file, or pipe the message on stdin")
+    return sys.stdin.read()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="contentswarm",
@@ -179,6 +193,48 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("screenshot", help="Capture a phone's screen as PNG")
     p.add_argument("phone")
     p.add_argument("-o", "--output", help="Output file (default: <phone>_<ts>.png)")
+
+    p = sub.add_parser("tap", help="Tap one enabled clickable element by text/id/desc")
+    p.add_argument("phone")
+    p.add_argument("--text")
+    p.add_argument("--id")
+    p.add_argument("--desc")
+    p.add_argument("--confirm", action="store_true", help="Confirm a state-changing target")
+
+    p = sub.add_parser("type", help="Type into the focused phone field")
+    p.add_argument("phone")
+    p.add_argument("text")
+    p.add_argument("--append", action="store_true", help="Append instead of clearing first")
+
+    p = sub.add_parser("key", help="Press an allowlisted Android key")
+    p.add_argument("phone")
+    p.add_argument("key")
+
+    p = sub.add_parser("swipe", help="Swipe between validated screen coordinates")
+    p.add_argument("phone")
+    p.add_argument("x1", type=int)
+    p.add_argument("y1", type=int)
+    p.add_argument("x2", type=int)
+    p.add_argument("y2", type=int)
+    p.add_argument("--duration-ms", type=int, default=300)
+
+    p = sub.add_parser("messages", help="Open SMS or WhatsApp and inspect the UI tree")
+    p.add_argument("phone")
+    p.add_argument("channel", choices=("sms", "whatsapp"))
+
+    p = sub.add_parser("compose", help="Prepare an SMS or WhatsApp message; never sends")
+    p.add_argument("phone")
+    p.add_argument("channel", choices=("sms", "whatsapp"))
+    p.add_argument("recipient")
+    p.add_argument("--body")
+    p.add_argument("--body-file")
+
+    p = sub.add_parser("send", help="Send the prepared message after explicit confirmation")
+    p.add_argument("phone")
+    p.add_argument("channel", choices=("sms", "whatsapp"))
+    p.add_argument("--expect-body")
+    p.add_argument("--expect-body-file")
+    p.add_argument("--confirm", action="store_true", required=True)
 
     p = sub.add_parser("installed", help="Discover apps installed on a phone")
     p.add_argument("phone")
@@ -275,6 +331,43 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "ui":
         output(client.get(f"/phones/{args.phone}/ui"))
+
+    elif args.command == "tap":
+        output(client.post(f"/phones/{args.phone}/action", {
+            "action": "tap", "text": args.text, "id": args.id, "desc": args.desc,
+            "confirm": args.confirm,
+        }))
+
+    elif args.command == "type":
+        output(client.post(f"/phones/{args.phone}/action", {
+            "action": "type", "text": args.text, "clear": not args.append,
+        }))
+
+    elif args.command == "key":
+        output(client.post(f"/phones/{args.phone}/action", {
+            "action": "key", "key": args.key,
+        }))
+
+    elif args.command == "swipe":
+        output(client.post(f"/phones/{args.phone}/action", {
+            "action": "swipe", "x1": args.x1, "y1": args.y1,
+            "x2": args.x2, "y2": args.y2, "duration_ms": args.duration_ms,
+        }))
+
+    elif args.command == "messages":
+        output(client.get(f"/phones/{args.phone}/communications/{args.channel}"))
+
+    elif args.command == "compose":
+        body = read_text_argument(args.body, args.body_file)
+        output(client.post(f"/phones/{args.phone}/communications/compose", {
+            "channel": args.channel, "recipient": args.recipient, "body": body,
+        }))
+
+    elif args.command == "send":
+        body = read_text_argument(args.expect_body, args.expect_body_file)
+        output(client.post(f"/phones/{args.phone}/communications/send", {
+            "channel": args.channel, "expected_body": body, "confirm": args.confirm,
+        }))
 
     elif args.command == "runs":
         output(client.get(f"/flows/{args.flow}/runs"))

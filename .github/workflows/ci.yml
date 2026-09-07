@@ -22,6 +22,11 @@ jobs:
       - name: Compile all Python sources
         run: python -m compileall -q phone_agent dashboard contentswarm_cli.py run_server.py main.py
 
+      - name: Unit and API contract tests
+        run: |
+          pip install --quiet -r requirements.txt -r dashboard/requirements.txt pytest
+          python -m pytest -q
+
       - name: Validate JSON and YAML artifacts
         run: |
           python - <<'EOF'

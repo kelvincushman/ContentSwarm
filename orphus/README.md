@@ -1,111 +1,159 @@
-# Driving ContentSwarm from Orphus
+# ContentSwarm for Orphus and Pi
 
-[Orphus](https://github.com/kelvincushman/orphus) is the main driver: its
-agents control the ContentSwarm phone fleet through the `contentswarm` CLI.
-ContentSwarm's only job here is the mobile phone interface — multi-device
-control and app control.
+Orphus or Pi is the brain; ContentSwarm is the Android execution layer. Agents
+use the `contentswarm` JSON CLI, which talks to the authenticated REST API.
+They never import ContentSwarm modules or invoke raw ADB.
 
+```text
+request
+  └─ Orphus/Pi phone-operator
+       ├─ skill: choose safe command and approval boundary
+       └─ bash: contentswarm … ─HTTP─▶ ContentSwarm ─ADB─▶ phone
 ```
-Orphus agents (phone-operator, fleets)
-   └─ bash → contentswarm CLI ──HTTP──▶ ContentSwarm API :5000/api/v1
-                                            └─ PhoneAgent (vision) ─ADB─▶ phones
-```
 
-## What's in this directory
+## Included integration
 
 | Path | Purpose |
 |---|---|
-| `skills/contentswarm-phones/` | Agent Skill: device + app control via the CLI |
-| `skills/contentswarm-flow-learning/` | Learn once with the LLM, replay exact presses deterministically |
-| `skills/contentswarm-pipeline/` | Agent Skill: optional content-pipeline control |
-| `skills/contentswarm-app-{tiktok,instagram,youtube,twitter,facebook,linkedin}/` | Per-app skills with verified flows — load only when that app is involved |
-| `skills/contentswarm-skill-maker/` | Skill generator: explores an unfamiliar app on a real phone and writes a new `contentswarm-app-<name>` skill |
-| `agents/phone-operator.md` | Orphus agent definition for phone work |
-| `agents/worker.md` | Override of the builtin worker: main coding work on the model lineup below |
-| `agents/final-gate.md` | Final review gate (GPT Sol) — read-only, rules APPROVE/BLOCK before work lands |
-| `fleets/contentswarm.fleet.yaml` | Fleet blueprint: strategy huddle → parallel execution |
-| `install.sh` | Copies the above into `~/.orphus/agent/` |
+| `skills/contentswarm-phones/` | Fleet discovery, app launch, screenshots, and tasks |
+| `skills/contentswarm-bridge/` | Semantic UI sensing and direct deterministic actions |
+| `skills/contentswarm-communications/` | SMS/WhatsApp inspect, compose, approve, send, verify |
+| `skills/contentswarm-flow-learning/` | Teach once, replay without a model |
+| `skills/contentswarm-app-*/` | TikTok, Instagram, YouTube, X, Facebook, and LinkedIn guidance |
+| `skills/contentswarm-skill-maker/` | Explore a new app and create a reusable skill |
+| `agents/phone-operator.md` | Dedicated constrained phone operator |
+| `agents/worker.md` | Repository implementation worker |
+| `agents/final-gate.md` | GPT Sol review gate |
+| `fleets/contentswarm.fleet.yaml` | Multi-phone planning and execution fleet |
+| `install.sh` | User-level installer |
 
-## Model routing
+## Install
 
-| Role | Model | Fallbacks |
-|---|---|---|
-| Main coding work (`worker`) | `openai-codex/gpt-5.6-terra:max` | `gpt-5.6-luna:max` → `zai/glm-5.2` → `moonshot/kimi-k3` |
-| Phone operation (`phone-operator`) | `openai-codex/gpt-5.6-terra:medium` | `gpt-5.6-luna:medium` → `zai/glm-5.2` → `moonshot/kimi-k3` |
-| Final gate (`final-gate`) | `openai-codex/gpt-5.6-sol:max` | `gpt-5.6-terra:max` → `zai/glm-5.2` |
-
-Review pipeline for repo changes: **worker writes → CodeRabbit reviews the PR
-(`.coderabbit.yaml`) → GPT Sol is the final gate** (locally via the
-`final-gate` agent; on GitHub via `.github/workflows/ai-final-gate.yml`).
-Adjust model ids to whatever `orphus models` lists for your logins — providers
-need credentials in `~/.orphus/agent/auth.json` (`/login` for OpenAI Codex,
-API keys for ZAI and Moonshot).
-
-Skills are on-demand by design: only each skill's one-line description sits in
-the agent's context; the body loads only when the agent actually works with
-that app. New apps get covered by running the skill-maker once
-("make a skill for the Reddit app") — it explores the app with screenshots and
-writes a new skill from its template.
-
-## Install — option A: user-level copy
+From the ContentSwarm checkout:
 
 ```bash
 ./orphus/install.sh
+python -m pip install -e .
+export CONTENTSWARM_API_URL="http://<server>:5000/api/v1"
+export CONTENTSWARM_API_TOKEN="<server token>"
+contentswarm status
 ```
 
-Copies skills, the agent, and the fleet into `~/.orphus/agent/{skills,agents,fleets}/`
-so every Orphus session can use them.
+The installer defaults to `~/.orphus/agent`. Plain Pi uses the same artifacts:
 
-## Install — option B: load ContentSwarm as an Orphus package
+```bash
+ORPHUS_CODING_AGENT_DIR="$HOME/.pi/agent" ./orphus/install.sh
+```
 
-The repo root has a `package.json` with an `orphus` manifest key exposing the
-skills. Add the checkout path to your Orphus `settings.json`:
+ContentSwarm can also expose its skill directory as an Orphus package by adding
+the checkout to the harness settings:
 
 ```json
 { "packages": ["/path/to/ContentSwarm"] }
 ```
 
-(Skills load this way; the agent and fleet still need copying into
-`.orphus/agents/` and `.orphus/fleets/` — `install.sh` does both.)
+The copy installer is still required for the agent and fleet definitions.
 
-## Using Pi instead of Orphus
+## Operating ladder
 
-Orphus is a fork of the [Pi agent harness](https://github.com/badlogic/pi-mono),
-and this integration works with plain Pi too — Pi and Orphus share the same
-skills, agents, and config formats, and Orphus reads legacy `.pi` directories.
+The phone operator should choose the first rung that can complete the task:
+
+1. `phones`, `installed`, `current`, or `ui` to sense structured state.
+2. `launch`, `tap`, `type`, `key`, or `swipe` for one constrained action.
+3. `messages`, `compose`, and approved `send` for SMS or WhatsApp.
+4. `replay` for an existing healthy flow.
+5. `learn` for a new workflow that will recur.
+6. `run` for a one-off task that needs visual reasoning.
+7. A screenshot for rendered evidence or when accessibility data is thin.
+
+This order keeps routine execution cheap, inspectable, and repeatable. The
+vision model is a teacher and fallback, rather than the default actuator.
+
+## Approval boundaries
+
+The agent must stop and obtain explicit approval immediately before:
+
+- login or submitting multi-factor authentication;
+- payment or purchase;
+- sending SMS, WhatsApp, email, or another external message;
+- posting, commenting, liking, following, subscribing, sharing, or reposting;
+- deleting or removing content or data.
+
+The user should see the account or recipient, action, and content before
+approval. After approval, execute once and verify through a fresh UI dump or
+screenshot. A timeout after an action is uncertainty; inspect before retrying.
+
+For messages, `compose` cannot send and the API independently requires
+`confirm: true` for `send`. For social flows, learn and replay up to the final
+commit control and use one confirmed semantic tap for the commit.
+
+## Example: WhatsApp
 
 ```bash
-# Pi's agent directory replaces ~/.orphus/agent:
-ORPHUS_CODING_AGENT_DIR="$HOME/.pi/agent" ./orphus/install.sh
+contentswarm phones
+contentswarm messages primary whatsapp
+
+umask 077
+printf '%s' 'I will arrive at 09:00.' >/tmp/approved-message.txt
+contentswarm compose primary whatsapp +447700900123 \
+  --body-file /tmp/approved-message.txt
+
+# Show the exact recipient/body and obtain user approval here.
+contentswarm send primary whatsapp \
+  --expect-body-file /tmp/approved-message.txt --confirm
+contentswarm messages primary whatsapp
+rm -f /tmp/approved-message.txt
 ```
 
-Project-level also works: put the same files under `.pi/skills/`,
-`.pi/agents/`, and `.pi/fleets/` in the project Pi runs from (Orphus-only
-features like fleets require the roundtable/fleet packages; skills and agent
-definitions work everywhere). Model ids in the agent frontmatter follow the
-same `provider/model` format in both harnesses.
+Only report a send when the JSON result has `"verified": true`. A cleared
+composer proves UI submission, not network delivery or recipient receipt.
 
-## Configure the Orphus machine
+## Example: reusable social post
 
 ```bash
-# The ContentSwarm server (your AI server's LAN IP, or however you reach it):
-export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"
-export CONTENTSWARM_API_TOKEN="<token>"     # if the server sets one
+contentswarm flows
+contentswarm learn primary \
+  "Open Instagram, select the newest image, reach the caption screen, then stop" \
+  --name instagram-prepare-post --wait
+contentswarm replay primary instagram-prepare-post --wait
+contentswarm type primary "Final approved caption"
 
-# Install the CLI:
-pip install -e /path/to/ContentSwarm        # provides the `contentswarm` command
-contentswarm status                         # smoke test
+# Obtain approval, then:
+contentswarm tap primary --text Share --confirm
+contentswarm ui primary
+contentswarm screenshot primary -o /tmp/instagram-result.png
 ```
 
-## Use it
+Do not record Share inside the reusable flow.
 
-- Any Orphus session with the skills installed can drive phones directly:
-  the model reads `contentswarm-phones` and calls the CLI via bash.
-- Semantic-first control: `contentswarm-bridge` teaches reading the UI
-  element tree (`contentswarm ui`) and element-targeted replays with run
-  reports (`contentswarm runs`) instead of pixel-guessing from screenshots.
-  Use `contentswarm health <flow>` to monitor the per-flow verified-rate trend.
-- Dispatch the dedicated agent: `subagent({ agent: "phone-operator", task: "…" })`.
-- Run the fleet for multi-phone campaigns: `/fleet contentswarm <request>` —
-  a deliberation team agrees a per-phone plan, then three phone-operators
-  execute it in parallel.
+## Model routing
+
+| Role | Primary | Fallbacks |
+|---|---|---|
+| Main coding worker | `openai-codex/gpt-5.6-terra:max` | `gpt-5.6-luna:max` → `zai/glm-5.2` → `moonshot/kimi-k3` |
+| Phone operator | `openai-codex/gpt-5.6-terra:medium` | `gpt-5.6-luna:medium` → `zai/glm-5.2` → `moonshot/kimi-k3` |
+| Final gate | `openai-codex/gpt-5.6-sol:max` | `gpt-5.6-terra:max` → `zai/glm-5.2` |
+
+The phone vision model configured in ContentSwarm is separate. It is called by
+`learn` and `run`, while direct actions, communication operations, and replay
+use no model.
+
+## Repository review pipeline
+
+Every change follows this sequence:
+
+1. feature or fix branch;
+2. implementation and synchronized docs/skills;
+3. pull request into `main`;
+4. CodeRabbit review;
+5. GPT Sol final gate;
+6. merge only after both approve.
+
+The authoritative rules are in [../CLAUDE.md](../CLAUDE.md).
+
+## Android limits
+
+The operator sees only what normal ADB, accessibility, screenshots, and Android
+intents expose. It cannot bypass app sandboxes, end-to-end encryption,
+authentication, captchas, or protected screenshots. A user may need to unlock
+the phone, grant a permission, or complete a login directly on the device.

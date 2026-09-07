@@ -15,6 +15,12 @@ from typing import Any, Dict, Optional
 from flask import Blueprint, Response, jsonify, request
 
 
+_SENSITIVE_TAP_WORDS = (
+    "buy", "delete", "follow", "like", "login", "log in", "pay", "post",
+    "purchase", "remove", "repost", "send", "share", "sign in", "subscribe",
+)
+
+
 def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
     """
     Create the API Blueprint with access to shared application state.
@@ -52,6 +58,33 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
     def _get_socketio():
         return state.get("socketio")
+
+    def _phone_device(phone_name: str):
+        pm = _get_phone_manager()
+        if not pm:
+            return None, (jsonify({"error": "Phone manager not initialized"}), 503)
+        if phone_name not in pm.phones:
+            return None, (jsonify({"error": f"Phone '{phone_name}' not found"}), 404)
+        return pm.phones[phone_name].device_id, None
+
+    def _json_body():
+        if not request.is_json:
+            return None, (jsonify({"error": "Content-Type must be application/json"}), 415)
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return None, (jsonify({"error": "JSON body must be an object"}), 400)
+        return data, None
+
+    def _bridge_error(error: Exception):
+        if isinstance(error, ValueError):
+            status = 400
+        elif isinstance(error, LookupError):
+            status = 404
+        elif "ambiguous" in str(error).lower():
+            status = 409
+        else:
+            status = 502
+        return jsonify({"error": str(error)}), status
 
     def _emit_event(event: Dict[str, Any]):
         """Emit event via SocketIO to /ws/events namespace."""
@@ -280,6 +313,121 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             "elements": elements,
             "count": len(elements),
         })
+
+    @api.route("/phones/<phone_name>/action", methods=["POST"])
+    def phone_action(phone_name: str):
+        """Run one allowlisted semantic action with no model or raw ADB shell."""
+        device_id, error = _phone_device(phone_name)
+        if error:
+            return error
+        data, error = _json_body()
+        if error:
+            return error
+        action = data.get("action")
+        if not isinstance(action, str):
+            return jsonify({"error": "action is required"}), 400
+        selector_text = " ".join(
+            str(data.get(key, "")) for key in ("text", "id", "desc")
+        ).casefold()
+        if (
+            action.casefold() == "tap"
+            and any(word in selector_text for word in _SENSITIVE_TAP_WORDS)
+            and data.get("confirm") is not True
+        ):
+            return jsonify({"error": "confirm must be true for this state-changing tap"}), 409
+
+        from phone_agent.bridge import semantic_action
+        try:
+            result = semantic_action(
+                device_id,
+                action,
+                **{key: value for key, value in data.items() if key not in ("action", "confirm")},
+            )
+        except Exception as exc:
+            return _bridge_error(exc)
+        result["phone"] = phone_name
+        _emit_event({
+            "event": "device_action",
+            "phone": phone_name,
+            "action": action,
+            "timestamp": time.time(),
+        })
+        return jsonify(result)
+
+    @api.route("/phones/<phone_name>/communications/<channel>", methods=["GET"])
+    def inspect_phone_messages(phone_name: str, channel: str):
+        """Open SMS or WhatsApp and return its semantic UI tree."""
+        device_id, error = _phone_device(phone_name)
+        if error:
+            return error
+        from phone_agent.bridge import inspect_messages
+        try:
+            elements = inspect_messages(device_id, channel)
+        except Exception as exc:
+            return _bridge_error(exc)
+        return jsonify({
+            "phone": phone_name,
+            "channel": channel.casefold(),
+            "elements": elements,
+            "count": len(elements),
+        })
+
+    @api.route("/phones/<phone_name>/communications/compose", methods=["POST"])
+    def compose_phone_message(phone_name: str):
+        """Prepare an SMS or WhatsApp message without sending it."""
+        device_id, error = _phone_device(phone_name)
+        if error:
+            return error
+        data, error = _json_body()
+        if error:
+            return error
+        from phone_agent.bridge import compose_message
+        try:
+            result = compose_message(
+                device_id,
+                data.get("channel"),
+                data.get("recipient"),
+                data.get("body"),
+            )
+        except Exception as exc:
+            return _bridge_error(exc)
+        result["phone"] = phone_name
+        _emit_event({
+            "event": "message_composed",
+            "phone": phone_name,
+            "channel": result["channel"],
+            "timestamp": time.time(),
+        })
+        return jsonify(result)
+
+    @api.route("/phones/<phone_name>/communications/send", methods=["POST"])
+    def send_phone_message(phone_name: str):
+        """Send one prepared message after an explicit caller confirmation."""
+        device_id, error = _phone_device(phone_name)
+        if error:
+            return error
+        data, error = _json_body()
+        if error:
+            return error
+        if data.get("confirm") is not True:
+            return jsonify({"error": "confirm must be true for a send"}), 409
+
+        from phone_agent.bridge import send_composed_message
+        try:
+            result = send_composed_message(
+                device_id, data.get("channel"), data.get("expected_body")
+            )
+        except Exception as exc:
+            return _bridge_error(exc)
+        result["phone"] = phone_name
+        _emit_event({
+            "event": "message_sent" if result["verified"] else "message_unverified",
+            "phone": phone_name,
+            "channel": result["channel"],
+            "verified": result["verified"],
+            "timestamp": time.time(),
+        })
+        return jsonify(result), (200 if result["verified"] else 502)
 
     @api.route("/phones/<phone_name>/current_app", methods=["GET"])
     def phone_current_app(phone_name: str):
