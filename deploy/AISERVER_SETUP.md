@@ -44,6 +44,8 @@ Edit `/opt/contentswarm/phones_config.json` with each phone's
 
 ```bash
 sudo systemctl restart contentswarm
+export CONTENTSWARM_API_URL="http://127.0.0.1:5000/api/v1"
+export CONTENTSWARM_API_TOKEN="$(sudo sed -n 's/^CONTENTSWARM_API_TOKEN=//p' /etc/contentswarm/env)"
 contentswarm discover   # adds authorized ADB devices and persists phones_config.json
 contentswarm phones     # all enrolled phones with connection status
 ```

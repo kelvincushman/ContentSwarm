@@ -85,6 +85,7 @@ class PhonePoolManager:
         self._executor = ThreadPoolExecutor(max_workers=max_parallel)
         self._phone_locks: Dict[str, threading.Lock] = {}
         self._locks_guard = threading.Lock()
+        self._discovery_lock = threading.RLock()
         self._tasks: Dict[str, TaskResult] = {}
         self._event_callback = event_callback
         self.config_path: Optional[str] = phones_config
@@ -638,29 +639,30 @@ class PhonePoolManager:
         Returns:
             Number of new devices added.
         """
-        devices = list_devices()
-        added = 0
+        with self._discovery_lock:
+            devices = [device for device in list_devices() if device.status == "device"]
+            added_names: List[str] = []
 
-        for device in devices:
-            # Generate name from device ID
-            name = f"phone_{device.device_id.replace(':', '_').replace('.', '_')}"
+            for device in devices:
+                name = f"phone_{device.device_id.replace(':', '_').replace('.', '_')}"
+                if name in self.phones:
+                    continue
+                self.add_phone(
+                    name=name,
+                    device_id=device.device_id,
+                    description=f"Auto-detected {device.connection_type.value} device"
+                )
+                added_names.append(name)
 
-            # Skip if already exists
-            if name in self.phones:
-                continue
+            if added_names and self.config_path:
+                try:
+                    self.save_phones(self.config_path)
+                except Exception:
+                    for name in added_names:
+                        self.phones.pop(name, None)
+                    raise
 
-            # Add device
-            self.add_phone(
-                name=name,
-                device_id=device.device_id,
-                description=f"Auto-detected {device.connection_type.value} device"
-            )
-            added += 1
-
-        if added and self.config_path:
-            self.save_phones(self.config_path)
-
-        return added
+            return len(added_names)
 
     def check_connections(self) -> Dict[str, bool]:
         """
