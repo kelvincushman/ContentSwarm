@@ -10,6 +10,22 @@ Server startup now fails without `CONTENTSWARM_API_TOKEN`. Browser cookies are
 Secure by default; terminate HTTPS at a reverse proxy for remote use. Only a
 loopback-bound local HTTP service may set `CONTENTSWARM_COOKIE_SECURE=0`.
 
+Existing installations must change `CONTENTSWARM_HOST=0.0.0.0` to
+`CONTENTSWARM_HOST=127.0.0.1` in `/etc/contentswarm/env`. For remote access, put
+an HTTPS reverse proxy on the same server and set `CONTENTSWARM_TRUST_PROXY=1`.
+For example, Caddy with a domain pointing at this server:
+
+```caddyfile
+contentswarm.example.com {
+    reverse_proxy 127.0.0.1:5000
+}
+```
+
+[Caddy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) terminates HTTPS and sets the forwarded scheme; keep Secure cookies
+enabled (the default). Alternatively, use an SSH tunnel to the loopback service
+and `CONTENTSWARM_COOKIE_SECURE=0` for the local HTTP browser endpoint. The
+installer prepares the service; configure the proxy or tunnel before remote use.
+
 How to run ContentSwarm on your home AI server so Orphus (running there or on
 any machine that can reach it — e.g. over your LAN, or remotely via Netbird)
 can drive the phone fleet.
@@ -113,7 +129,7 @@ reach it — a Netbird peer address works the same as a LAN IP):
 ./orphus/install.sh                      # installs skills/agent/fleet into ~/.orphus/agent/
 pip install -e /path/to/ContentSwarm     # provides the contentswarm CLI
 
-export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"
+export CONTENTSWARM_API_URL="https://<server-domain>/api/v1"
 export CONTENTSWARM_API_TOKEN="<token from /etc/contentswarm/env>"
 contentswarm status                      # smoke test
 ```

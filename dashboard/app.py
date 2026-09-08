@@ -427,7 +427,7 @@ def handle_events_disconnect():
 def init_dashboard(
     phone_manager: PhonePoolManager,
     automation: SocialMediaAutomation,
-    host: str = '0.0.0.0',
+    host: str = '127.0.0.1',
     port: int = 5000
 ):
     """
@@ -439,6 +439,8 @@ def init_dashboard(
         host: Host to bind to
         port: Port to bind to
     """
+    if host not in ('127.0.0.1', '::1', 'localhost'):
+        raise ValueError('Use a loopback bind address with a local HTTPS reverse proxy')
     state['phone_manager'] = phone_manager
     state['automation'] = automation
     state['socketio'] = socketio
@@ -475,16 +477,13 @@ def init_dashboard(
 
     # Production runs on eventlet (installed via dashboard/requirements.txt);
     # allow_unsafe_werkzeug only permits the Werkzeug DEV fallback when
-    # eventlet is absent - and that fallback is forced onto localhost so the
-    # unauthenticated dashboard routes are never LAN-reachable on a dev server.
+    # eventlet is absent. Both servers stay on loopback behind the HTTPS proxy.
     try:
         import eventlet  # noqa: F401
     except ImportError:
-        if host == '0.0.0.0':
-            host = '127.0.0.1'
         print("⚠️  eventlet not installed - falling back to the Werkzeug DEV "
               f"server, bound to {host} only. Install eventlet for production "
-              "(pip install -r dashboard/requirements.txt) to serve the LAN.")
+              "(pip install -r dashboard/requirements.txt).")
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
 
 
@@ -502,5 +501,4 @@ install_console(app)
 
 
 if __name__ == '__main__':
-    # For testing
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    raise SystemExit('Start the initialized console with python run_server.py from the repository root')

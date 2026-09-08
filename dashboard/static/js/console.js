@@ -6,6 +6,7 @@ function el(tag, text, cls) { const e = document.createElement(tag); if(text !==
 function button(text, fn) { const b=el("button",text); b.type="button"; b.onclick=()=>guard(fn,b); return b; }
 async function guard(fn, b) { if(b)b.disabled=true; try { await fn(); } catch(e) { say(e.message); } finally { if(b)b.disabled=false; } }
 async function api(path, body, raw=false) {
+  if(location.protocol!=="https:" && !["localhost","127.0.0.1","[::1]"].includes(location.hostname))throw Error("Open this console over HTTPS before signing in.");
   const r=await fetch(path.startsWith("/api/")?path:"/api/v1"+path,{method:body===undefined?"GET":"POST",credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:body===undefined?undefined:JSON.stringify(body)});
   if(!r.ok){let data;try{data=await r.json();}catch{}throw Error(data?.error||`Request failed (${r.status})`);}
   return raw?r:await r.json();

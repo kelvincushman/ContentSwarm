@@ -9,6 +9,10 @@ Cookies are Secure by default for HTTPS deployments. For local HTTP only, set
 `CONTENTSWARM_HOST=127.0.0.1` and `CONTENTSWARM_COOKIE_SECURE=0`. Startup rejects
 this cookie exception on a non-loopback bind address. CLI bearer requests do not
 use cookies.
+The service binds to loopback only. A local HTTPS proxy must overwrite
+`X-Forwarded-Proto`; set `CONTENTSWARM_TRUST_PROXY=1` to trust that one proxy's
+scheme header. Leave it unset for direct localhost use. Plain remote browser
+requests are refused before the login form sends a token.
 
 Tasks, phone preview, app launch, Home/Back, screen inspection and flow replay
 use the existing API. Screenshots refresh on demand. Run and Learn require the

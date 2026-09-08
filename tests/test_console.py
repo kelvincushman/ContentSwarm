@@ -44,3 +44,16 @@ def test_startup_requires_token_and_secure_remote_cookies(monkeypatch):
     install_console(local)
     response = local.test_client().post("/api/console/login", json={"token": "test-token"})
     assert "; Secure;" not in response.headers["Set-Cookie"]
+
+
+def test_remote_plaintext_refused_and_explicit_proxy_trust(monkeypatch):
+    monkeypatch.setenv("CONTENTSWARM_API_TOKEN", "test-token")
+    monkeypatch.setenv("CONTENTSWARM_HOST", "127.0.0.1")
+    monkeypatch.delenv("CONTENTSWARM_TRUST_PROXY", raising=False)
+    app = Flask(__name__)
+    install_console(app)
+    assert app.test_client().post("/api/console/login", base_url="http://remote.example", json={"token": "test-token"}, headers={"X-Forwarded-Proto": "https"}).status_code == 403
+    monkeypatch.setenv("CONTENTSWARM_TRUST_PROXY", "1")
+    proxied = Flask(__name__)
+    install_console(proxied)
+    assert proxied.test_client().post("/api/console/login", base_url="http://remote.example", json={"token": "test-token"}, headers={"X-Forwarded-Proto": "https"}).status_code == 200

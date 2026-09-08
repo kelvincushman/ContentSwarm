@@ -24,7 +24,9 @@ Read `contentswarm reviews`. Claim an approved item using
 `contentswarm review-action ID claim --revision N`. Verify its exact account and
 source conversation again. Enter the returned reply unchanged, tap the final
 action once, and independently inspect the published conversation. Report with
-`contentswarm review-action ID complete --revision N --evidence 'verified URL'`.
+`contentswarm review-action ID complete --revision CLAIM_REVISION --evidence 'verified URL'`.
+Use the new revision returned by claim for complete or uncertain; the revision
+submitted to claim is stale after the claim succeeds.
 If uncertain, use `uncertain` with evidence; never blindly retry publication.
 Crashed workers leave items executing for inspection. This is a pull-based agent
 handoff; no automatic delivery worker is bundled.

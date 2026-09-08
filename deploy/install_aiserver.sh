@@ -41,7 +41,8 @@ if [ ! -f "$ENV_DIR/env" ]; then
     GENERATED_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
     sudo tee "$ENV_DIR/env" >/dev/null <<EOF
 # ContentSwarm server environment - edit and restart the service to apply.
-CONTENTSWARM_HOST=0.0.0.0
+CONTENTSWARM_HOST=127.0.0.1
+CONTENTSWARM_TRUST_PROXY=1
 CONTENTSWARM_PORT=5000
 CONTENTSWARM_PHONES_CONFIG=$INSTALL_DIR/phones_config.json
 CONTENTSWARM_API_TOKEN=$GENERATED_TOKEN

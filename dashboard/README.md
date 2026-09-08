@@ -3,6 +3,9 @@
 The server root now serves the [mobile console](CONSOLE.md): phone tasks,
 preview, learned flows and human-reviewed social replies. The historical
 pipeline dashboard files below remain in the repository for reference.
+All instructions below, including `python app.py`, are historical reference
+only. Use `python run_server.py` from the repository root for an initialized
+mobile console; direct `app.py` execution is no longer supported.
 
 Real-time web dashboard for managing the phone fleet and social media automation.
 

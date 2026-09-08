@@ -38,12 +38,14 @@ From the ContentSwarm checkout:
 ```bash
 ./orphus/install.sh
 python -m pip install -e .
-export CONTENTSWARM_API_URL="http://<server>:5000/api/v1"
+export CONTENTSWARM_API_URL="https://<server>/api/v1"
 export CONTENTSWARM_API_TOKEN="<server token>"
 contentswarm status
 ```
 
-The installer defaults to `~/.orphus/agent`. Plain Pi uses the same artifacts:
+Use HTTPS for remote API access. HTTP is only for a loopback endpoint, including
+the local end of an encrypted tunnel. The installer defaults to `~/.orphus/agent`.
+Plain Pi uses the same artifacts:
 
 ```bash
 ORPHUS_CODING_AGENT_DIR="$HOME/.pi/agent" ./orphus/install.sh
