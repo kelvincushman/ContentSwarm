@@ -122,8 +122,8 @@ sudo systemctl enable --now vllm
 
 ## 4. Point Orphus at the server
 
-On the machine running Orphus (the server itself, or any machine that can
-reach it — a Netbird peer address works the same as a LAN IP):
+On the machine running Orphus, use the HTTPS proxy address configured above.
+For direct local use or an SSH tunnel, use its loopback HTTP endpoint instead.
 
 ```bash
 ./orphus/install.sh                      # installs skills/agent/fleet into ~/.orphus/agent/

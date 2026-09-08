@@ -72,6 +72,7 @@ echo
 echo "=== Done ==="
 echo "Status:   systemctl status contentswarm"
 echo "Logs:     journalctl -u contentswarm -f"
-echo "API:      http://<this-server>:5000/api/v1/status"
+echo "Local API: http://127.0.0.1:5000/api/v1/status"
+echo "Remote access: configure a local HTTPS reverse proxy or encrypted tunnel; see deploy/AISERVER_SETUP.md"
 echo "Next:     edit $INSTALL_DIR/phones_config.json with your phones' ADB addresses,"
 echo "          then: sudo systemctl restart contentswarm"

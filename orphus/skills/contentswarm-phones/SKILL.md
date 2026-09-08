@@ -15,7 +15,7 @@ or raw `curl` via the bash tool.
 Required environment (set on the machine running Orphus):
 
 ```bash
-export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"   # ContentSwarm server
+export CONTENTSWARM_API_URL="https://<server-domain>/api/v1"   # HTTPS proxy; loopback HTTP is also supported
 export CONTENTSWARM_API_TOKEN="<token>"                        # only if the server sets one
 ```
 
