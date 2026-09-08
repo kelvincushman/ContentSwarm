@@ -17,6 +17,7 @@ The service binds to loopback only. A local HTTPS proxy must overwrite
 `X-Forwarded-Proto`; set `CONTENTSWARM_TRUST_PROXY=1` to trust that one proxy's
 scheme header. Leave it unset for direct localhost use. Plain remote browser
 requests are refused before the login form sends a token.
+The same HTTPS-or-loopback transport check applies to Socket.IO connections.
 
 Tasks, phone preview, app launch, Home/Back, screen inspection and flow replay
 use the existing API. Screenshots refresh on demand. Run and Learn require the

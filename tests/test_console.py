@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 import pytest
-from dashboard.console import install_console
+from dashboard.console import install_console, transport_allowed
 from phone_agent.api import create_api_blueprint
 
 
@@ -45,7 +45,7 @@ def test_startup_requires_token_and_secure_remote_cookies(monkeypatch):
     monkeypatch.setenv("CONTENTSWARM_HOST", "0.0.0.0")
     with pytest.raises(RuntimeError, match="loopback"):
         install_console(Flask(__name__))
-    monkeypatch.setenv("CONTENTSWARM_HOST", "127.0.0.1")
+    monkeypatch.delenv("CONTENTSWARM_HOST", raising=False)
     local = Flask(__name__)
     install_console(local)
     response = local.test_client().post("/api/console/login", json={"token": "owner-token"})
@@ -91,3 +91,10 @@ def test_owner_secret_cannot_reuse_agent_secret(monkeypatch):
     monkeypatch.setenv("CONTENTSWARM_API_TOKEN", "owner-token")
     with pytest.raises(RuntimeError, match="must differ"):
         install_console(Flask(__name__))
+
+
+def test_transport_check_covers_socket_paths():
+    app = Flask(__name__)
+    for base, allowed in (("http://remote.example", False), ("https://remote.example", True), ("http://127.0.0.1:5055", True)):
+        with app.test_request_context("/socket.io/", base_url=base):
+            assert transport_allowed() is allowed

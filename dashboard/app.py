@@ -491,12 +491,14 @@ def _socket_authorized():
     import hmac
     import os
     from flask import session
+    if not transport_allowed():
+        return False
     token = os.environ.get("CONTENTSWARM_API_TOKEN", "")
     return bool(session.get("console") or (token and hmac.compare_digest(
         request.headers.get("Authorization", ""), "Bearer " + token)))
 
 
-from console import install_console
+from console import install_console, transport_allowed
 install_console(app)
 
 

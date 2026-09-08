@@ -10,6 +10,10 @@ from flask import jsonify, render_template, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 
+def transport_allowed():
+    return request.is_secure or urlsplit(request.host_url).hostname in ("127.0.0.1", "::1", "localhost")
+
+
 def install_console(app):
     if not os.environ.get("CONTENTSWARM_API_TOKEN"):
         raise RuntimeError("CONTENTSWARM_API_TOKEN is required; load it from your keyring or service environment before starting ContentSwarm")
@@ -21,7 +25,7 @@ def install_console(app):
     if os.environ.get("CONTENTSWARM_TRUST_PROXY") == "1":
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=0, x_proto=1, x_host=0, x_port=0, x_prefix=0)
     secure_cookie = os.environ.get("CONTENTSWARM_COOKIE_SECURE", "1") != "0"
-    if not secure_cookie and os.environ.get("CONTENTSWARM_HOST") not in ("127.0.0.1", "::1", "localhost"):
+    if not secure_cookie and os.environ.get("CONTENTSWARM_HOST", "127.0.0.1") not in loopbacks:
         raise RuntimeError("CONTENTSWARM_COOKIE_SECURE=0 is only supported with a loopback CONTENTSWARM_HOST")
     app.secret_key = secrets.token_hex(32)
     app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_SECURE=secure_cookie,
@@ -32,7 +36,7 @@ def install_console(app):
         if request.path == "/" or request.path.startswith("/static/"):
             return None
         if request.path.startswith("/api/") or request.path.startswith("/generated/"):
-            if not request.is_secure and urlsplit(request.host_url).hostname not in loopbacks:
+            if not transport_allowed():
                 return jsonify(error="HTTPS is required for remote access"), 403
             origin = request.headers.get("Origin")
             if origin and urlsplit(origin).netloc != request.host:
