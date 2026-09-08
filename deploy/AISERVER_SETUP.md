@@ -138,7 +138,9 @@ export CONTENTSWARM_API_TOKEN="<token from /etc/contentswarm/env>"
 contentswarm status                      # smoke test
 ```
 
-Put the two exports in the shell profile of whatever user runs Orphus.
+Use these exports only in the current shell session. For persistent agent
+services, load the token from a keyring or an owner-only service environment
+file; do not copy the literal secret into a shared or unprotected shell profile.
 See `orphus/README.md` for using the `phone-operator` agent and the
 `contentswarm` fleet.
 
