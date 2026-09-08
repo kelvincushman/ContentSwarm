@@ -4,6 +4,11 @@ Open the server root, e.g. http://127.0.0.1:5055 on Omarchy, and sign in with it
 CONTENTSWARM_API_TOKEN. This creates an eight-hour HttpOnly, SameSite session.
 The token is not retained in browser storage. Server restarts invalidate sessions.
 Use HTTPS remotely and keep the Omarchy service bound to localhost.
+Startup requires a nonempty token; the old tokenless server mode is removed.
+Cookies are Secure by default for HTTPS deployments. For local HTTP only, set
+`CONTENTSWARM_HOST=127.0.0.1` and `CONTENTSWARM_COOKIE_SECURE=0`. Startup rejects
+this cookie exception on a non-loopback bind address. CLI bearer requests do not
+use cookies.
 
 Tasks, phone preview, app launch, Home/Back, screen inspection and flow replay
 use the existing API. Screenshots refresh on demand. Run and Learn require the

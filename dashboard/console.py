@@ -10,8 +10,13 @@ from flask import jsonify, render_template, request, session
 
 
 def install_console(app):
+    if not os.environ.get("CONTENTSWARM_API_TOKEN"):
+        raise RuntimeError("CONTENTSWARM_API_TOKEN is required; load it from your keyring or service environment before starting ContentSwarm")
+    secure_cookie = os.environ.get("CONTENTSWARM_COOKIE_SECURE", "1") != "0"
+    if not secure_cookie and os.environ.get("CONTENTSWARM_HOST") not in ("127.0.0.1", "::1", "localhost"):
+        raise RuntimeError("CONTENTSWARM_COOKIE_SECURE=0 is only supported with a loopback CONTENTSWARM_HOST")
     app.secret_key = secrets.token_hex(32)
-    app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict",
+    app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_SECURE=secure_cookie,
                       PERMANENT_SESSION_LIFETIME=timedelta(hours=8), MAX_CONTENT_LENGTH=1024 * 1024)
 
     @app.before_request

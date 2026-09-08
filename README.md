@@ -120,6 +120,7 @@ python -m venv .venv
 python -c 'import secrets; print(secrets.token_urlsafe(32))' |
   secret-tool store --label="ContentSwarm API" service contentswarm account api-token
 export CONTENTSWARM_API_TOKEN="$(secret-tool lookup service contentswarm account api-token)"
+export CONTENTSWARM_HOST=127.0.0.1 CONTENTSWARM_COOKIE_SECURE=0
 .venv/bin/python run_server.py
 ```
 

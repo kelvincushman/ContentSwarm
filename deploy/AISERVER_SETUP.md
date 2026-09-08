@@ -6,6 +6,9 @@ browser sessions last eight hours and expire on restart. Set
 `CONTENTSWARM_STATE_DIR` to a private writable directory for the durable reply
 queue (default `~/.local/state/contentswarm`). Use HTTPS for remote browser access.
 See [console setup](../dashboard/CONSOLE.md).
+Server startup now fails without `CONTENTSWARM_API_TOKEN`. Browser cookies are
+Secure by default; terminate HTTPS at a reverse proxy for remote use. Only a
+loopback-bound local HTTP service may set `CONTENTSWARM_COOKIE_SECURE=0`.
 
 How to run ContentSwarm on your home AI server so Orphus (running there or on
 any machine that can reach it — e.g. over your LAN, or remotely via Netbird)
