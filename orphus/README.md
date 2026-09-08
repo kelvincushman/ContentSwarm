@@ -1,5 +1,9 @@
 # ContentSwarm for Orphus and Pi
 
+Use the [social review skill](skills/contentswarm-social-review/SKILL.md) for
+X, LinkedIn and Facebook replies. It includes Humanizer 3.0.0 and documents
+`reviews`, `review-add`, and `review-action` for the human-reviewed handoff.
+
 Orphus or Pi is the brain; ContentSwarm is the Android execution layer. Agents
 use the `contentswarm` JSON CLI, which talks to the authenticated REST API.
 They never import ContentSwarm modules or invoke raw ADB.

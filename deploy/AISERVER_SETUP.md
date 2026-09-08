@@ -1,5 +1,12 @@
 # AI Server Setup
 
+The mobile console now requires the configured API token for sign-in, including
+legacy dashboard routes and Socket.IO. Agents keep sending bearer headers;
+browser sessions last eight hours and expire on restart. Set
+`CONTENTSWARM_STATE_DIR` to a private writable directory for the durable reply
+queue (default `~/.local/state/contentswarm`). Use HTTPS for remote browser access.
+See [console setup](../dashboard/CONSOLE.md).
+
 How to run ContentSwarm on your home AI server so Orphus (running there or on
 any machine that can reach it — e.g. over your LAN, or remotely via Netbird)
 can drive the phone fleet.

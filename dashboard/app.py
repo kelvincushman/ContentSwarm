@@ -32,8 +32,7 @@ from phone_screen_streaming import StreamManager, StreamQuality, estimate_bandwi
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'viral-content-automation-secret'
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app)
 
 # Global state
 state = {
@@ -396,6 +395,8 @@ def get_screen_stats():
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection."""
+    if not _socket_authorized():
+        return False
     emit('connected', {'status': 'connected'})
     log_event("Client connected")
 
@@ -411,6 +412,8 @@ def handle_disconnect():
 @socketio.on('connect', namespace='/ws/events')
 def handle_events_connect():
     """Handle external consumer connection to the events namespace."""
+    if not _socket_authorized():
+        return False
     emit('connected', {'status': 'connected', 'namespace': '/ws/events'}, namespace='/ws/events')
     log_event("External events client connected")
 
@@ -483,6 +486,19 @@ def init_dashboard(
               f"server, bound to {host} only. Install eventlet for production "
               "(pip install -r dashboard/requirements.txt) to serve the LAN.")
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
+
+
+def _socket_authorized():
+    import hmac
+    import os
+    from flask import session
+    token = os.environ.get("CONTENTSWARM_API_TOKEN", "")
+    return bool(session.get("console") or (token and hmac.compare_digest(
+        request.headers.get("Authorization", ""), "Bearer " + token)))
+
+
+from console import install_console
+install_console(app)
 
 
 if __name__ == '__main__':

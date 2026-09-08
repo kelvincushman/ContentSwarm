@@ -1,5 +1,15 @@
 # ContentSwarm
 
+## Mobile console
+
+The server opens a workspace for tasks, phone preview, app controls, learned
+flows and reply review for X, LinkedIn and Facebook. Compare the source with a
+Humanizer-edited draft, approve it, or reject and rewrite. Approved replies wait
+for an external agent to claim and deliver them.
+
+Sign in at the server root with its API token. Read the
+[console guide](dashboard/CONSOLE.md) for setup and delivery limits.
+
 ContentSwarm is the Android phone kernel for AI agents. It exposes connected
 phones through a JSON CLI and authenticated REST API, while keeping routine
 device operations deterministic. A model is used only to understand an

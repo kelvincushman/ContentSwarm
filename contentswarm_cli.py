@@ -149,6 +149,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="System overview")
     sub.add_parser("phones", help="List phones and connection status")
     sub.add_parser("discover", help="Discover authorized ADB devices and persist them")
+    sub.add_parser("reviews", help="List durable social reply reviews")
+    p = sub.add_parser("review-add", help="Queue a Humanizer-reviewed draft from a JSON file")
+    p.add_argument("file")
+    p = sub.add_parser("review-action", help="Claim or report an approved reply; decisions happen in the GUI")
+    p.add_argument("id")
+    p.add_argument("action", choices=("claim", "complete", "uncertain"))
+    p.add_argument("--revision", type=int, required=True)
+    p.add_argument("--evidence", default="")
 
     p = sub.add_parser("phone", help="Details for one phone")
     p.add_argument("name")
@@ -333,6 +341,26 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "tasks":
         output(client.get("/tasks"))
+
+    elif args.command == "reviews":
+        output(client.get("/reviews"))
+
+    elif args.command == "review-add":
+        try:
+            with open(args.file, encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Cannot read review JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise ValueError("Review JSON must be an object")
+        output(client.post("/reviews", data))
+
+    elif args.command == "review-action":
+        if not all(c in "0123456789abcdef" for c in args.id) or len(args.id) != 32:
+            raise ValueError("Invalid review id")
+        output(client.post(f"/reviews/{args.id}/{args.action}", {
+            "revision": args.revision, "evidence": args.evidence,
+        }))
 
     elif args.command == "apps":
         output(client.get("/apps"))

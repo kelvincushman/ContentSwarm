@@ -15,7 +15,7 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify, request, session
 
 
 _PREPARED_TTL_SECONDS = 300
@@ -50,7 +50,43 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         auth_header = request.headers.get("Authorization", "")
         if auth_header == f"Bearer {token}":
             return None
+        # Browser sessions are authenticated and CSRF-checked by console.py.
+        if session.get("console"):
+            return None
         return jsonify({"error": "Unauthorized"}), 401
+
+    def review_queue():
+        from phone_agent.review_queue import ReviewQueue
+        from pathlib import Path
+        root = os.environ.get("CONTENTSWARM_STATE_DIR", str(Path.home() / ".local/state/contentswarm"))
+        return ReviewQueue(Path(root) / "reviews.sqlite3")
+
+    @api.route("/reviews", methods=["GET", "POST"])
+    def reviews():
+        if request.method == "GET":
+            return jsonify(reviews=review_queue().list())
+        data, error = _json_body()
+        if error:
+            return error
+        _, error = _phone_device(data.get("phone", "")) if isinstance(data.get("phone"), str) else (None, (jsonify(error="phone required"), 400))
+        if error:
+            return error
+        try:
+            return jsonify(review_queue().create(data)), 201
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+
+    @api.post("/reviews/<item_id>/<action>")
+    def review_action(item_id, action):
+        data, error = _json_body()
+        if error:
+            return error
+        try:
+            return jsonify(review_queue().update(item_id, action, data))
+        except LookupError as exc:
+            return jsonify(error=str(exc)), 404
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 409
 
     def _get_phone_manager():
         return state.get("phone_manager")

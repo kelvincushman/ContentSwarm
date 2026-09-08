@@ -1,5 +1,9 @@
 # ContentSwarm Dashboard
 
+The server root now serves the [mobile console](CONSOLE.md): phone tasks,
+preview, learned flows and human-reviewed social replies. The historical
+pipeline dashboard files below remain in the repository for reference.
+
 Real-time web dashboard for managing the phone fleet and social media automation.
 
 ## Features
