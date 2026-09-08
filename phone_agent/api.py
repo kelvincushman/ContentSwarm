@@ -7,6 +7,7 @@ as REST + WebSocket endpoints that an external agent harness (Orphus via the
 
 import base64
 import hashlib
+import hmac
 import os
 import re
 import secrets
@@ -78,6 +79,9 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
     @api.post("/reviews/<item_id>/<action>")
     def review_action(item_id, action):
+        if action in ("approve", "reject", "edit"):
+            if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", ""), session.get("csrf", "!")):
+                return jsonify(error="Review decisions require the owner's console session and CSRF token"), 403
         data, error = _json_body()
         if error:
             return error

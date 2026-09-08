@@ -39,6 +39,7 @@ sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install -e "$INSTALL_DIR"
 sudo mkdir -p "$ENV_DIR"
 if [ ! -f "$ENV_DIR/env" ]; then
     GENERATED_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+    GENERATED_CONSOLE_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
     sudo tee "$ENV_DIR/env" >/dev/null <<EOF
 # ContentSwarm server environment - edit and restart the service to apply.
 CONTENTSWARM_HOST=127.0.0.1
@@ -46,6 +47,7 @@ CONTENTSWARM_TRUST_PROXY=1
 CONTENTSWARM_PORT=5000
 CONTENTSWARM_PHONES_CONFIG=$INSTALL_DIR/phones_config.json
 CONTENTSWARM_API_TOKEN=$GENERATED_TOKEN
+CONTENTSWARM_CONSOLE_TOKEN=$GENERATED_CONSOLE_TOKEN
 
 # Vision model serving the on-phone agent (vLLM/SGLang or a hosted provider):
 PHONE_AGENT_BASE_URL=http://localhost:8000/v1

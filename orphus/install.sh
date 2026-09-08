@@ -24,6 +24,6 @@ echo "  fleet:   contentswarm"
 echo
 echo "Next, on this machine:"
 echo "  export CONTENTSWARM_API_URL=\"https://<server-domain>/api/v1\""
-echo "  export CONTENTSWARM_API_TOKEN=\"<token>\"   # if the server sets one"
+echo "  export CONTENTSWARM_API_TOKEN=\"<token>\"   # required agent credential"
 echo "  pip install -e \"$(dirname "$HERE")\"        # provides the contentswarm CLI"
 echo "  contentswarm status                          # smoke test"

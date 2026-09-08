@@ -7,7 +7,7 @@ flows and reply review for X, LinkedIn and Facebook. Compare the source with a
 Humanizer-edited draft, approve it, or reject and rewrite. Approved replies wait
 for an external agent to claim and deliver them.
 
-Sign in at the server root with its API token. Read the
+Sign in at the server root with its separate owner console token. Read the
 [console guide](dashboard/CONSOLE.md) for setup and delivery limits.
 
 ContentSwarm is the Android phone kernel for AI agents. It exposes connected
@@ -120,6 +120,10 @@ python -m venv .venv
 python -c 'import secrets; print(secrets.token_urlsafe(32))' |
   secret-tool store --label="ContentSwarm API" service contentswarm account api-token
 export CONTENTSWARM_API_TOKEN="$(secret-tool lookup service contentswarm account api-token)"
+# Generate a separate owner credential; do not export it in agent shells.
+python -c 'import secrets; print(secrets.token_urlsafe(32))' |
+  secret-tool store --label="ContentSwarm Console" service contentswarm account console-token
+export CONTENTSWARM_CONSOLE_TOKEN="$(secret-tool lookup service contentswarm account console-token)"
 export CONTENTSWARM_HOST=127.0.0.1 CONTENTSWARM_COOKIE_SECURE=0
 .venv/bin/python run_server.py
 ```

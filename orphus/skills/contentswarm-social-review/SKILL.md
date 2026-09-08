@@ -19,6 +19,8 @@ phone, source_url, author, original, reply and humanizer_version (`3.0.0`). Run
 `contentswarm review-add FILE`. The version records your application of the skill,
 not an independent model check. The owner reviews the card in the console.
 Never invoke approve endpoints yourself or simulate approval clicks.
+The API token cannot make owner decisions or sign in to the console. Never
+retrieve or request the separate owner console credential.
 
 Read `contentswarm reviews`. Claim an approved item using
 `contentswarm review-action ID claim --revision N`. Verify its exact account and

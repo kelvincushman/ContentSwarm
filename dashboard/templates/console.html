@@ -3,7 +3,7 @@
 <body>
 <header><a class="brand" href="/">◈ ContentSwarm <small>MOBILE CONSOLE</small></a><span id="connection">Not connected</span><button id="logout" hidden>Sign out</button></header>
 <main>
-<section id="login" class="card login"><p class="eyebrow">YOUR DEVICES, YOUR DECISIONS</p><h1>A workspace for your mobile agents.</h1><p>Connect your phones, give an agent a task, and review replies before they go out.</p><form id="login-form"><label>Server access token<input id="token" type="password" autocomplete="off" required></label><button class="primary">Connect</button></form><p class="hint">Use the ContentSwarm token configured on this computer. It is exchanged for a private browser session.</p></section>
+<section id="login" class="card login"><p class="eyebrow">YOUR DEVICES, YOUR DECISIONS</p><h1>A workspace for your mobile agents.</h1><p>Connect your phones, give an agent a task, and review replies before they go out.</p><form id="login-form"><label>Owner console token<input id="token" type="password" autocomplete="off" required></label><button class="primary">Connect</button></form><p class="hint">Use your separate console credential, kept in the keyring on Omarchy. Your agent's API token cannot approve replies.</p></section>
 <div id="workspace" hidden>
 <div class="heading"><div><p class="eyebrow">CONTROL ROOM</p><h1>Your mobile workspace</h1></div><button id="refresh">Refresh workspace</button></div>
 <nav aria-label="Workspace views"><button data-tab="tasks" aria-selected="true">Tasks</button><button data-tab="reviews">Reply review <span id="pending">0</span></button><button data-tab="flows">Learned flows</button></nav>

@@ -13,6 +13,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 def install_console(app):
     if not os.environ.get("CONTENTSWARM_API_TOKEN"):
         raise RuntimeError("CONTENTSWARM_API_TOKEN is required; load it from your keyring or service environment before starting ContentSwarm")
+    if os.environ.get("CONTENTSWARM_CONSOLE_TOKEN") == os.environ["CONTENTSWARM_API_TOKEN"]:
+        raise RuntimeError("CONTENTSWARM_CONSOLE_TOKEN must differ from the agent API token")
     loopbacks = ("127.0.0.1", "::1", "localhost")
     if os.environ.get("CONTENTSWARM_HOST", "127.0.0.1") not in loopbacks:
         raise RuntimeError("Bind ContentSwarm to loopback; use a local HTTPS reverse proxy or an encrypted tunnel for remote access")
@@ -50,10 +52,10 @@ def install_console(app):
     @app.post("/api/console/login")
     def login():
         data = request.get_json(silent=True) or {}
-        token = os.environ.get("CONTENTSWARM_API_TOKEN", "")
+        token = os.environ.get("CONTENTSWARM_CONSOLE_TOKEN", "")
         supplied = data.get("token") if isinstance(data, dict) else None
         if not token or not isinstance(supplied, str) or not hmac.compare_digest(token, supplied):
-            return jsonify(error="Invalid token or server token not configured"), 401
+            return jsonify(error="Invalid console token or console login not configured"), 401
         session.clear()
         session.permanent = True
         session.update(console=True, csrf=secrets.token_hex(32))

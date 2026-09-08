@@ -10,7 +10,8 @@ Environment variables:
     CONTENTSWARM_HOST          Loopback bind address (default: 127.0.0.1)
     CONTENTSWARM_PORT          Port (default: 5000)
     CONTENTSWARM_PHONES_CONFIG Path to phones config JSON (default: phones_config.json)
-    CONTENTSWARM_API_TOKEN     Required bearer token and console login secret
+    CONTENTSWARM_API_TOKEN     Required agent bearer token
+    CONTENTSWARM_CONSOLE_TOKEN Separate owner login secret; never supply to agents
     CONTENTSWARM_COOKIE_SECURE Secure session cookies (default: 1; 0 only for loopback HTTP)
     CONTENTSWARM_TRUST_PROXY   Set 1 behind one local HTTPS reverse proxy
     PHONE_AGENT_BASE_URL       Vision model API URL (default: http://localhost:8000/v1)

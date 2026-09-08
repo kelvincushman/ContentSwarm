@@ -1,10 +1,14 @@
 # AI Server Setup
 
-The mobile console now requires the configured API token for sign-in, including
+The mobile console now requires its separate `CONTENTSWARM_CONSOLE_TOKEN` for sign-in, including
 legacy dashboard routes and Socket.IO. Agents keep sending bearer headers;
 browser sessions last eight hours and expire on restart. Set
 `CONTENTSWARM_STATE_DIR` to a private writable directory for the durable reply
 queue (default `~/.local/state/contentswarm`). Use HTTPS for remote browser access.
+New installs generate both credentials. Existing installs must add a distinct
+random `CONTENTSWARM_CONSOLE_TOKEN` to the private service environment before
+using the GUI. Only the API token belongs in an agent environment. Review
+decisions require an owner console session and CSRF token.
 See [console setup](../dashboard/CONSOLE.md).
 Server startup now fails without `CONTENTSWARM_API_TOKEN`. Browser cookies are
 Secure by default; terminate HTTPS at a reverse proxy for remote use. Only a

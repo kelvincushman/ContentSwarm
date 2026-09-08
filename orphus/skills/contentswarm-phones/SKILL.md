@@ -16,7 +16,7 @@ Required environment (set on the machine running Orphus):
 
 ```bash
 export CONTENTSWARM_API_URL="https://<server-domain>/api/v1"   # HTTPS proxy; loopback HTTP is also supported
-export CONTENTSWARM_API_TOKEN="<token>"                        # only if the server sets one
+export CONTENTSWARM_API_TOKEN="<token>"                        # required agent credential
 ```
 
 If the `contentswarm` command is missing, install it:
