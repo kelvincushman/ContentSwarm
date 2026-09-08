@@ -1,745 +1,374 @@
 # ContentSwarm
 
-**The mobile phone interface for AI agents — multi-device control and app
-control across a fleet of Android phones.**
+ContentSwarm is the Android phone kernel for AI agents. It exposes connected
+phones through a JSON CLI and authenticated REST API, while keeping routine
+device operations deterministic. A model is used only to understand an
+unfamiliar interface or teach a reusable flow; app launch, screen inspection,
+typing, tapping, swiping, messaging, and learned-flow replay run through code.
 
-Developed by **Kelvin Lee**.
+Developed by **Kelvin Lee** and released under Apache-2.0.
 
----
-
-## 🚀 What is ContentSwarm?
-
-ContentSwarm turns up to **20 Android phones** into an API any agent harness
-can drive. Its only job is the phone interface: discover the apps on a
-device, learn how to drive them, and execute — the strategic brain lives in
-[Orphus](https://github.com/kelvincushman/orphus) (or its upstream,
-[Pi](https://github.com/badlogic/pi-mono)).
+## Architecture
 
 ```text
-Orphus / Pi agents (the brain)
-   └─ bash → contentswarm CLI ──HTTP──▶ ContentSwarm server :5000/api/v1
-                                            ├─ learn: vision model drives an app ONCE,
-                                            │         recording every exact press point
-                                            ├─ replay: deterministic driver repeats the
-                                            │          exact presses — no LLM, near-free
-                                            └─ ADB ──TCP──▶ up to 20 phones
+Omarchy Assistant / Orphus / Pi (intent and language)
+                 │
+                 └─ contentswarm CLI ─HTTP─▶ ContentSwarm :5000/api/v1
+                                               │
+                         ┌─────────────────────┼──────────────────────┐
+                         │                     │                      │
+                  deterministic         learn once with        optional social
+                  phone kernel          a vision model          content pipeline
+                         │                     │                      │
+                         └────────────── ADB + adb-agent-bridge ──────┘
+                                               │
+                                         Android phones
 ```
 
-**The core pattern — learn once, replay forever:**
+The separation is deliberate:
 
-1. **Discover** — `contentswarm installed phone_01` lists the apps actually
-   on a device
-2. **Learn** — `contentswarm learn phone_01 "Open TikTok and reach the upload
-   screen" --name tiktok-upload` — the vision-language model figures the app
-   out while every action is recorded with its exact press points
-   (resolution-independent coordinates)
-3. **Replay** — `contentswarm replay phone_02 tiktok-upload` — the
-   deterministic driver repeats the exact presses on any phone: fast,
-   repeatable, zero model cost
+- **The brain understands the request.** Omarchy Assistant, Orphus, or Pi
+  decides what should happen and asks for human approval where required.
+- **ContentSwarm performs phone operations.** Its public boundary is the
+  `contentswarm` CLI and `/api/v1`; agents do not import its Python modules.
+- **adb-agent-bridge supplies constrained Android primitives.** It exposes the
+  accessibility tree, semantic element taps, fast text entry, allowlisted keys
+  and URI composers. It never exposes an arbitrary device shell.
+- **Learn once, replay deterministically.** A vision model may demonstrate a
+  new app flow once. Later runs use the recorded semantic targets and exact
+  coordinates without a model.
 
-Everything else supports that loop: per-app Orphus skills with verified
-flows, a skill generator for unknown apps, parallel execution across the
-fleet, live screen streaming, and an optional content pipeline
-(discover → analyze → generate → post).
+See [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md) for the component-level design and
+[orphus/README.md](orphus/README.md) for agent integration.
 
-## 🧠 Quick start with Orphus (or Pi)
+## What it can do
 
-```bash
-# On the server:
-./deploy/install_aiserver.sh          # systemd service: API + dashboard on :5000
+- Control one to twenty Android phones with one operation lock per physical
+  ADB device, shared by direct, synchronous, and asynchronous tasks.
+- List devices, installed apps, connection state, and the foreground app.
+- Launch registered apps directly.
+- Read the current accessibility tree as structured JSON.
+- Tap one unambiguous enabled element by text, resource id, or description.
+- Type Unicode text, press allowlisted navigation keys, and swipe.
+- Capture screenshots for pixel-level verification.
+- Inspect SMS and WhatsApp, prepare a message without sending, and send a
+  prepared message through a separately confirmed operation.
+- Learn unfamiliar app workflows with a vision model and replay them without
+  one.
+- Run and verify repeatable social workflows for TikTok, Instagram, YouTube,
+  X, Facebook, and LinkedIn.
+- Track replay reports and verified-rate trends in SQLite.
+- Operate through an authenticated API, JSON CLI, web dashboard, Orphus skill,
+  or the Omarchy phone kernel.
 
-# On the agent machine:
-./orphus/install.sh                   # skills, agents, fleet → ~/.orphus/agent
-pip install -e .                      # provides the `contentswarm` CLI
-export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"
-export CONTENTSWARM_API_TOKEN="<token from /etc/contentswarm/env>"
+## Safety contract
 
-contentswarm phones                                   # fleet status
-contentswarm ui phone_01                              # semantic UI dump - no vision model
-contentswarm learn phone_01 "Open Settings and enable dark mode" --name dark-mode --wait
-contentswarm replay phone_02 dark-mode --wait         # element-targeted presses, no LLM
-contentswarm runs dark-mode                           # what each replay actually did
-contentswarm health dark-mode                         # verified-rate trend (--days N)
-```
+ContentSwarm separates preparation from commitment:
 
-👉 **[Orphus/Pi Integration](orphus/README.md)** | **[AI Server Setup](deploy/AISERVER_SETUP.md)** | **[Agent rules & review gates](CLAUDE.md)**
+1. `compose` opens SMS or WhatsApp with the recipient and body filled in. It
+   never taps Send.
+2. The caller shows the exact action to the user and obtains approval.
+3. `send --confirm` checks that the approved body is still in an enabled
+   message editor, finds one enabled Send control, taps it once, and then
+   checks that the composer cleared.
+4. A state-changing tap such as Send, Delete, Post, Pay, Like, Follow, or Login
+   also requires `--confirm`.
 
-## 🔀 Which driver runs what
+The kernel never blindly retries a state-changing action. A transport error
+after a tap is reported as uncertain and must be inspected before another
+attempt. API tokens stay in environment variables; message bodies and tokens
+are omitted from emitted events.
 
-| Situation | Driver | Cost |
-|---|---|---|
-| Unknown app or first time on a workflow | `learn` — vision model + recorder | one LLM run |
-| Known workflow, any phone, any time | `replay` — element-targeted presses via the semantic bridge, recorded coordinates as fallback | none |
-| Reading the screen for a decision | `ui` — element tree over ADB ([adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge)) | none |
-| Simple app open / screenshot / state check | `launch` / `screenshot` / `current` — direct ADB | none |
-| One-off task that never repeats | `run` — vision model, no recording | one LLM run |
+ContentSwarm does not root a phone, bypass Android permissions, defeat app
+login or multi-factor authentication, read private app databases, circumvent
+end-to-end encryption, or capture screens protected by Android
+`FLAG_SECURE`. SMS and WhatsApp access is through normal Android intents and
+the visible accessibility tree.
 
-## 🛡️ Contributing & review gates
+## Quick start
 
-Every change lands via PR into `main` with docs updated in the same PR;
-**CodeRabbit** reviews automatically and **GPT Sol is the final gate**
-(`.github/workflows/ai-final-gate.yml`). The full mandatory process for AI
-coding agents is in [CLAUDE.md](CLAUDE.md). Main coding work runs on
-gpt-5.6-terra with luna / GLM 5.2 / Kimi K3 fallbacks — see the
-[model routing table](orphus/README.md#model-routing).
+### Requirements
 
----
+- Linux with Python 3.10+ (the documented service and keyring setup targets Linux)
+- Android Platform Tools (`adb`)
+- One or more Android 7+ phones with USB debugging enabled
+- [ADB Keyboard](https://github.com/senzhk/ADBKeyBoard) on each phone for fast
+  Unicode text entry
+- A vision-model endpoint only for `run` and `learn`
 
-## 🎉 Key Features
-
-### 📱 Multi-Phone Control (20 Phones)
-- **Phone Pool Management**: Control 20 phones in parallel from one central API (per-phone locking)
-- **Wireless ADB**: Connect phones via WiFi for cable-free operation
-- **Batch Operations**: Run tasks across multiple phones in parallel
-- **Configuration-Based**: JSON-based phone configuration for easy management
-
-👉 **[Complete Guide](PHONE_POOL_GUIDE.md)** | **[Quick Start](QUICK_START.md)**
-
-### 🧭 Flow Learning (learn once, replay forever)
-- **Discover**: `contentswarm installed <phone>` lists the apps on a device
-- **Learn**: the vision model drives an app once while every action is
-  recorded with its exact press points **and** the semantic identity
-  (text/id/desc) of the element under each tap
-- **Replay**: taps target the recorded element wherever it now sits — flows
-  survive layout shifts and different screens; recorded coordinates remain
-  the fallback. No LLM, near-zero cost
-- **Verify**: every replay attempts to write a run report (best-effort if
-  storage fails) — per step, did it succeed and did it hit the intended
-  element (`contentswarm runs <flow>`). Run reports are indexed into SQLite;
-  `contentswarm health <flow>` returns the verified-rate trend across replays
-
-👉 **[Flow Learning Skill](orphus/skills/contentswarm-flow-learning/SKILL.md)**
-
-### 🎯 Semantic UI Bridge (fast, accurate, no vision model)
-- **Element addressing** via [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge):
-  `uiautomator dump` exposes every element's text, id, desc, and bounds over
-  plain ADB — taps land on element centers instead of model-guessed pixels
-- **Instant text**: captions commit in ~100ms (the old IME dance took ~4s per field)
-- **Graceful fallback**: replay taps and typing silently use the original
-  vision/ADB path on any phone where the bridge is unavailable; UI inspection
-  (`ui`) reports an error instead, since it has no vision equivalent
-
-👉 **[Bridge Skill](orphus/skills/contentswarm-bridge/SKILL.md)**
-
-### 🤖 Social Media Automation Pipeline (optional)
-- **Discover**: Find trending content across TikTok, Instagram, YouTube, Twitter, Facebook
-- **Analyze**: Use 12labs AI to analyze viral videos
-- **Generate**: Bring your own generation API (e.g. Kie.ai, Veo3)
-- **Post**: Automatically distribute to all platforms using phone pool
-
-👉 **[Viral Content Strategy Guide](VIRAL_CONTENT_GUIDE.md)**
-
-### 🖥️ Real-Time Web Dashboard
-- **Live Monitoring**: Monitor all 20 phones in real-time
-- **Phone Control**: Select and control any phone from the web interface
-- **Automation**: Start/stop the content pipeline
-- **Analytics**: Track performance across all platforms
-
-👉 **[Dashboard Documentation](dashboard/README.md)**
-
-### 📺 Live Screen Streaming
-- **Multi-Phone View**: See all 20 phone screens simultaneously
-- **Resizable Grid**: Adjust thumbnail size (100-250px)
-- **Toggleable**: Turn individual phone streams on/off to save bandwidth
-- **Click to Enlarge**: Select any phone for full-screen viewing
-- **Bandwidth Optimized**: ~4-6 Mbps for all 20 phones
-
-👉 **[Screen Streaming Analysis](SCREEN_STREAMING_ANALYSIS.md)**
-
----
-
-## 🚀 Standalone Quick Start (Python, no agent harness)
-
-### Prerequisites
-
-- **Android phones** (Android 7.0+) with USB debugging enabled — 1 to 20
-- **Python 3.10+**
-- **ADB installed** ([Download](https://developer.android.com/tools/releases/platform-tools))
-- Optional: a GPU for local vision-model serving (vLLM + AutoGLM-9B)
-
-### Installation
+### Install and run locally
 
 ```bash
-# 1. Clone repository
 git clone https://github.com/kelvincushman/ContentSwarm
 cd ContentSwarm
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt -r dashboard/requirements.txt
+.venv/bin/pip install -e .
 
-# 2. Install dependencies
-pip install -r requirements.txt -r dashboard/requirements.txt
-pip install -e .
-
-# 3. Configure your phones
-# Edit phones_config.json with your phones' ADB addresses
-
-# 4. Start the server (API + dashboard)
-python run_server.py
-
-# 5. Open http://localhost:5000
+# Create phones_config.json using the example below, then:
+# Store one random token in the desktop keyring, then reuse it for both sides.
+python -c 'import secrets; print(secrets.token_urlsafe(32))' |
+  secret-tool store --label="ContentSwarm API" service contentswarm account api-token
+export CONTENTSWARM_API_TOKEN="$(secret-tool lookup service contentswarm account api-token)"
+.venv/bin/python run_server.py
 ```
 
-**Complete Setup Guide**: [QUICK_START.md](QUICK_START.md)
+`phones_config.json` uses this shape:
 
-**System Overview**: [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)
+```json
+{
+  "phones": [
+    {
+      "name": "primary",
+      "device_id": "192.168.1.40:5555",
+      "description": "Kelvin's Android phone",
+      "tags": ["personal"]
+    }
+  ]
+}
+```
 
----
-
-## 📖 Core Concepts
-
-### Phone Agent Framework
-
-ContentSwarm is built on a phone agent framework that:
-- **Input**: Natural language instructions (e.g., "Open TikTok and post this video")
-- **Output**: Automatically operates Android phones to complete tasks
-- **Mechanism**: Screenshot → Vision model understands interface → Outputs tap coordinates → ADB executes actions → Loop
-
-### How It Works
-
-1. **Connect Phones**: phones connected via USB or wireless ADB
-2. **Control System**: parallel task execution with per-phone locking
-3. **Vision Model**: AI understands phone screens and plans actions (learning only)
-4. **Flow Replay**: learned workflows re-run as exact presses, no model calls
-5. **Distribution**: automated posting across all platforms (optional pipeline)
-
----
-
-## 🛠️ Environment Setup
-
-### 1. Python Environment
-
-Python 3.10 or higher is recommended.
-
-### 2. ADB (Android Debug Bridge)
-
-1. Download the official ADB [installation package](https://developer.android.com/tools/releases/platform-tools) and extract it to a custom path
-2. Configure environment variables
-
-- MacOS configuration: In `Terminal` or any command line tool
-
-  ```bash
-  # Assuming the extracted directory is ~/Downloads/platform-tools. Adjust the command if different.
-  export PATH=${PATH}:~/Downloads/platform-tools
-  ```
-
-- Windows configuration: Refer to [third-party tutorials](https://blog.csdn.net/x2584179909/article/details/108319973) for configuration.
-
-### 3. Android 7.0+ Device or Emulator with Developer Mode and USB Debugging Enabled
-
-1. Enable Developer Mode: The typical method is to find `Settings > About Phone > Build Number` and tap it rapidly about 10 times until a popup shows "Developer mode has been enabled." This may vary slightly between phones; search online for tutorials if you can't find it.
-2. Enable USB Debugging: After enabling Developer Mode, go to `Settings > Developer Options > USB Debugging` and enable it
-3. Some devices may require a restart after setting developer options for them to take effect. You can test by connecting your phone to your computer via USB cable and running `adb devices` to see if device information appears. If not, the connection has failed.
-
-**Please carefully check the relevant permissions**
-
-![Permissions](resources/screenshot-20251210-120416.png)
-
-### 4. Install ADB Keyboard (for Text Input)
-
-Download the [installation package](https://github.com/senzhk/ADBKeyBoard/blob/master/ADBKeyboard.apk) and install it on the corresponding Android device.
-Note: After installation, you need to enable `ADB Keyboard` in `Settings > Input Method` or `Settings > Keyboard List` for it to work. (or use command `adb shell ime enable com.android.adbkeyboard/.AdbIME` [How-to-use](https://github.com/senzhk/ADBKeyBoard/blob/master/README.md#how-to-use))
-
----
-
-## 📦 Deployment
-
-### 1. Install Dependencies
+In another shell:
 
 ```bash
-pip install -r requirements.txt
-pip install -e .
+export CONTENTSWARM_API_URL="http://127.0.0.1:5000/api/v1"
+export CONTENTSWARM_API_TOKEN="$(secret-tool lookup service contentswarm account api-token)"
+contentswarm status
+contentswarm discover
+contentswarm phones
 ```
 
-### 2. Configure ADB
+For a systemd deployment on a home server, follow
+[deploy/AISERVER_SETUP.md](deploy/AISERVER_SETUP.md).
 
-Make sure your **USB cable supports data transfer**, not just charging.
+## Deterministic phone control
 
-Ensure ADB is installed and connect the device via **USB cable**:
+Every CLI command prints JSON and exits nonzero on failure.
 
 ```bash
-# Check connected devices
-adb devices
-
-# Output should show your device, e.g.:
-# List of devices attached
-# emulator-5554   device
+contentswarm phones
+contentswarm discover
+contentswarm phone primary
+contentswarm installed primary
+contentswarm apps
+contentswarm current primary
+contentswarm launch primary WhatsApp
+contentswarm ui primary
+contentswarm screenshot primary -o /tmp/primary.png
 ```
 
-### 3. Start Model Service
-
-ContentSwarm uses vision-language models to understand phone screens and plan actions.
-
-#### Option A: Use Third-Party Model Services
-
-If you don't want to deploy the model yourself, you can use the following third-party services:
-
-**1. z.ai**
-
-- Documentation: https://docs.z.ai/api-reference/introduction
-- `--base-url`: `https://api.z.ai/api/paas/v4`
-- `--model`: `autoglm-phone-multilingual`
-- `--apikey`: Apply for your own API key on the z.ai platform
-
-**2. Novita AI**
-
-- Documentation: https://novita.ai/models/model-detail/zai-org-autoglm-phone-9b-multilingual
-- `--base-url`: `https://api.novita.ai/openai`
-- `--model`: `zai-org/autoglm-phone-9b-multilingual`
-- `--apikey`: Apply for your own API key on the Novita AI platform
-
-**3. Parasail**
-
-- Documentation: https://www.saas.parasail.io/serverless?name=auto-glm-9b-multilingual
-- `--base-url`: `https://api.parasail.io/v1`
-- `--model`: `parasail-auto-glm-9b-multilingual`
-- `--apikey`: Apply for your own API key on the Parasail platform
-
-Example usage with third-party services:
+Act on semantic elements whenever possible:
 
 ```bash
-# Using z.ai
-python main.py --base-url https://api.z.ai/api/paas/v4 --model "autoglm-phone-multilingual" --apikey "your-z-ai-api-key" "Open Chrome browser"
-
-# Using Novita AI
-python main.py --base-url https://api.novita.ai/openai --model "zai-org/autoglm-phone-9b-multilingual" --apikey "your-novita-api-key" "Open Chrome browser"
-
-# Using Parasail
-python main.py --base-url https://api.parasail.io/v1 --model "parasail-auto-glm-9b-multilingual" --apikey "your-parasail-api-key" "Open Chrome browser"
+contentswarm tap primary --text Continue --confirm
+contentswarm tap primary --id com.example:id/save --confirm
+contentswarm type primary "A Unicode caption ✓"
+contentswarm type primary " additional text" --append
+contentswarm key primary BACK --confirm
+contentswarm swipe primary 500 1600 500 500 --duration-ms 300
 ```
 
-#### Option B: Deploy Model Yourself
-
-If you prefer to deploy the model locally or on your own server:
-
-1. Download a compatible vision-language model (GLM-4.1V-9B-Thinking architecture)
-2. Start via SGlang / vLLM to get an OpenAI-format service. Here's a vLLM deployment solution:
-
-```shell
-python3 -m vllm.entrypoints.openai.api_server \
- --served-model-name autoglm-phone-9b-multilingual \
- --allowed-local-media-path /   \
- --mm-encoder-tp-mode data \
- --mm_processor_cache_type shm \
- --mm_processor_kwargs "{\"max_pixels\":5000000}" \
- --max-model-len 25480  \
- --chat-template-content-format string \
- --limit-mm-per-prompt "{\"image\":10}" \
- --model <your-model-path> \
- --port 8000
-```
-
-After successful startup, the model service will be accessible at `http://localhost:8000/v1`.
-
-### 4. Check Model Deployment
-
-After starting the model service, you can use the following command to verify the deployment:
+`tap` rejects zero matches, disabled controls, fuzzy selectors, and ambiguous
+matches. Every tap requires `--confirm` so the caller asserts the exact action
+it just sensed. Sensitive targets additionally require human approval in the
+calling agent:
 
 ```bash
-python scripts/check_deployment_en.py --base-url http://localhost:8000/v1 --model autoglm-phone-9b-multilingual
+contentswarm tap primary --text Post --confirm
 ```
 
-If using a third-party model service:
+Every key event also requires `--confirm`. Because `ENTER` and `DPAD_CENTER`
+can activate a focused control, callers must obtain human approval when that
+control would send, post, delete, log in, or make a payment. Supported keys are
+`BACK`, `HOME`, `ENTER`, `TAB`, `ESCAPE`, directional
+DPAD keys, `DPAD_CENTER`, `DEL`, `FORWARD_DEL`, `PAGE_UP`, and `PAGE_DOWN`.
+There is no raw-shell command.
+
+## SMS and WhatsApp
+
+Read the visible messaging screen:
 
 ```bash
-# Novita AI
-python scripts/check_deployment_en.py --base-url https://api.novita.ai/openai --model zai-org/autoglm-phone-9b-multilingual --apikey your-novita-api-key
-
-# Parasail
-python scripts/check_deployment_en.py --base-url https://api.parasail.io/v1 --model parasail-auto-glm-9b-multilingual --apikey your-parasail-api-key
+contentswarm messages primary sms
+contentswarm messages primary whatsapp
 ```
 
-Upon successful execution, the script will display the model's inference result and token statistics.
-
----
-
-## 🎯 Using ContentSwarm
-
-### Command Line
-
-Set the `--base-url` and `--model` parameters according to your deployed model. For example:
+Prepare a message. Prefer a file or stdin so shell history does not retain its
+contents:
 
 ```bash
-# Interactive mode
-python main.py --base-url http://localhost:8000/v1 --model "autoglm-phone-9b-multilingual"
+BODY_FILE=$(mktemp)
+TOKEN_FILE=$(mktemp)
+trap 'rm -f "$BODY_FILE" "$TOKEN_FILE"' EXIT
+chmod 600 "$BODY_FILE" "$TOKEN_FILE"
+printf '%s' 'I will arrive at 09:00.' >"$BODY_FILE"
+contentswarm compose primary sms +447700900123 \
+  --body-file "$BODY_FILE" --token-file "$TOKEN_FILE"
 
-# Specify model endpoint
-python main.py --base-url http://localhost:8000/v1 "Open Maps and search for nearby coffee shops"
-
-# Use API key for authentication
-python main.py --apikey sk-xxxxx
-
-# Use English system prompt
-python main.py --lang en --base-url http://localhost:8000/v1 "Open Chrome browser"
-
-# List supported apps
-python main.py --list-apps
+printf '%s' 'The appointment is confirmed.' |
+  contentswarm compose primary whatsapp +447700900123
 ```
 
-### Python API
-
-```python
-from phone_agent import PhoneAgent
-from phone_agent.model import ModelConfig
-
-# Configure model
-model_config = ModelConfig(
-    base_url="http://localhost:8000/v1",
-    model_name="autoglm-phone-9b-multilingual",
-)
-
-# Create Agent
-agent = PhoneAgent(model_config=model_config)
-
-# Execute task
-result = agent.run("Open eBay and search for wireless earphones")
-print(result)
-```
-
----
-
-## 🌐 Remote Debugging
-
-ContentSwarm supports remote ADB debugging via WiFi/network, allowing device control without a USB connection.
-
-### Configure Remote Debugging
-
-#### Enable Wireless Debugging on Phone
-
-Ensure the phone and computer are on the same WiFi network, as shown below:
-
-![Enable Wireless Debugging](resources/screenshot-20251210-120630.png)
-
-#### Use Standard ADB Commands on Computer
+After the user approves the exact recipient and body, send the prepared draft:
 
 ```bash
-# Connect via WiFi, replace with the IP address and port shown on your phone
-adb connect 192.168.1.100:5555
-
-# Verify connection
-adb devices
-# Should show: 192.168.1.100:5555    device
+contentswarm send primary sms +447700900123 \
+  --expect-body-file "$BODY_FILE" --prepared-token-file "$TOKEN_FILE" --confirm
 ```
 
-### Device Management Commands
+Composition verifies the body in the editor and the recipient in a separate
+recipient-specific UI element; editor text never counts as recipient proof. If Android
+shows a saved contact name instead of its number, add `--recipient-label` with
+that exact visible name. It returns a five-minute, single-use token bound to
+the phone, channel, recipient, and body; `--token-file` keeps it out of output.
+
+The send result contains `sent`, `verified`, and `verification`. A successful send
+requires the same enabled editor to remain visible with an empty value. If the
+composer disappears, the result stays unverified. For stronger
+proof, inspect the conversation or take a screenshot after sending.
+
+## Social media
+
+ContentSwarm ships app skills for TikTok, Instagram, YouTube, X, Facebook, and
+LinkedIn. Use the deterministic ladder:
+
+1. Inspect with `ui` and use `launch`, `tap`, `type`, `key`, and `swipe` for a
+   short known operation.
+2. Check `contentswarm flows` for an existing learned workflow.
+3. Replay a known flow with no model.
+4. Use `learn` when the workflow is new and will recur.
+5. Use `run` only for a one-off, open-ended task.
 
 ```bash
-# List all connected devices
-adb devices
-
-# Connect to remote device
-adb connect 192.168.1.100:5555
-
-# Disconnect specific device
-adb disconnect 192.168.1.100:5555
-
-# Execute task on specific device
-python main.py --device-id 192.168.1.100:5555 --base-url http://localhost:8000/v1 --model "autoglm-phone-9b-multilingual" "Open TikTok and browse videos"
+contentswarm installed primary
+contentswarm learn primary \
+  "Open Instagram, reach the new-post caption screen, then stop" \
+  --name instagram-open-caption --wait
+contentswarm replay primary instagram-open-caption --wait
+contentswarm runs instagram-open-caption
+contentswarm health instagram-open-caption --days 7
 ```
 
-### Python API Remote Connection
+Posting, commenting, liking, following, sharing, logging in, deleting, and
+buying require approval in the calling agent. A learned flow that reaches a
+commit button should end before that button; use one confirmed semantic tap
+for the final action.
 
-```python
-from phone_agent.adb import ADBConnection, list_devices
+The optional content pipeline is retained for discovery, analysis, generation,
+and distribution. It is separate from the phone kernel and should be enabled
+only when its external generation and analysis providers are configured. See
+[VIRAL_CONTENT_GUIDE.md](VIRAL_CONTENT_GUIDE.md).
 
-# Create connection manager
-conn = ADBConnection()
+## Learn once, replay without AI
 
-# Connect to remote device
-success, message = conn.connect("192.168.1.100:5555")
-print(f"Connection status: {message}")
+During `learn`, `PhoneAgent` uses a compatible vision model to navigate an app.
+The recorder stores successful actions in resolution-independent coordinates
+and stores the text, id, and description of tapped elements when available.
 
-# List connected devices
-devices = list_devices()
-for device in devices:
-    print(f"{device.device_id} - {device.connection_type.value}")
+During `replay`, ContentSwarm:
 
-# Enable TCP/IP on USB device
-success, message = conn.enable_tcpip(5555)
-ip = conn.get_device_ip()
-print(f"Device IP: {ip}")
+- looks for the recorded semantic element at its current location;
+- taps its current center when found;
+- falls back to the recorded coordinate when necessary;
+- records whether each step was semantic and verified or a coordinate fallback;
+- never calls the vision model.
 
-# Disconnect
-conn.disconnect("192.168.1.100:5555")
-```
+Flows live under `CONTENTSWARM_FLOWS_DIR` (default `flows/`). Run reports and
+the SQLite health index live under `<flows_dir>/runs/`. Back up this directory:
+it is the fleet's learned operational knowledge.
 
----
+## REST API
 
-## ⚙️ Configuration
+The server exposes these routes below `/api/v1`:
 
-### Environment Variables
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/status` | Server, fleet, pipeline, and bridge state |
+| `GET` | `/phones` | List configured phones and connections |
+| `POST` | `/phones/discover` | Scan authorized ADB devices and persist new phones |
+| `GET` | `/phones/<phone>` | One phone |
+| `POST` | `/phones/<phone>/app` | Launch a registered app |
+| `GET` | `/phones/<phone>/current_app` | Foreground package |
+| `GET` | `/phones/<phone>/installed` | Third-party packages |
+| `GET` | `/phones/<phone>/ui` | Accessibility elements |
+| `GET` | `/phones/<phone>/screenshot` | PNG screenshot |
+| `POST` | `/phones/<phone>/action` | Tap, type, key, or swipe |
+| `GET` | `/phones/<phone>/communications/<channel>` | Inspect SMS or WhatsApp |
+| `POST` | `/phones/<phone>/communications/compose` | Prepare a message |
+| `POST` | `/phones/<phone>/communications/send` | Confirm and send prepared message |
+| `POST` | `/phones/<phone>/task` | Asynchronous one-off vision task |
+| `POST` | `/phones/<phone>/learn` | Teach and record a flow |
+| `POST` | `/phones/<phone>/replay` | Deterministically replay a flow |
+| `GET` | `/tasks`, `/tasks/<id>` | Task status |
+| `GET` | `/flows`, `/flows/<name>` | Flow inventory and details |
+| `GET` | `/flows/<name>/runs` | Replay reports |
+| `GET` | `/flows/health`, `/flows/<name>/health` | Verified-rate health |
 
-| Variable                  | Description               | Default Value              |
-|---------------------------|---------------------------|----------------------------|
-| `PHONE_AGENT_BASE_URL`    | Model API URL             | `http://localhost:8000/v1` |
-| `PHONE_AGENT_MODEL`       | Model name                | `autoglm-phone-9b`         |
-| `PHONE_AGENT_API_KEY`     | API key for authentication| `EMPTY`                    |
-| `PHONE_AGENT_MAX_STEPS`   | Maximum steps per task    | `100`                      |
-| `PHONE_AGENT_DEVICE_ID`   | ADB device ID             | (auto-detect)              |
-| `PHONE_AGENT_LANG`        | Language (`cn` or `en`)   | `en`                       |
+When `CONTENTSWARM_API_TOKEN` is set, every route requires
+`Authorization: Bearer <token>`. Production deployments should always set it
+and restrict port 5000 to the local network or a private overlay network such
+as NetBird.
 
-### Model Configuration
-
-```python
-from phone_agent.model import ModelConfig
-
-config = ModelConfig(
-    base_url="http://localhost:8000/v1",
-    api_key="EMPTY",  # API key (if required)
-    model_name="autoglm-phone-9b-multilingual",  # Model name
-    max_tokens=3000,  # Maximum output tokens
-    temperature=0.1,  # Sampling temperature
-    frequency_penalty=0.2,  # Frequency penalty
-)
-```
-
-### Agent Configuration
-
-```python
-from phone_agent.agent import AgentConfig
-
-config = AgentConfig(
-    max_steps=100,  # Maximum steps per task
-    device_id=None,  # ADB device ID (None for auto-detect)
-    lang="en",  # Language: cn (Chinese) or en (English)
-    verbose=True,  # Print debug info (including thinking process and actions)
-)
-```
-
----
-
-## 📱 Supported Apps
-
-ContentSwarm supports 50+ mainstream applications:
-
-| Category                 | Apps                                                                                   |
-|--------------------------|----------------------------------------------------------------------------------------|
-| Social & Messaging       | X, Tiktok, WhatsApp, Telegram, FacebookMessenger, GoogleChat, Quora, Reddit, Instagram |
-| Productivity & Office    | Gmail, GoogleCalendar, GoogleDrive, GoogleDocs, GoogleTasks, Joplin                    |
-| Life, Shopping & Finance | Amazon shopping, Temu, Bluecoins, Duolingo, GoogleFit, ebay                            |
-| Utilities & Media        | GoogleClock, Chrome, GooglePlayStore, GooglePlayBooks, FilesbyGoogle                   |
-| Travel & Navigation      | GoogleMaps, Booking.com, Trip.com, Expedia, OpenTracks                                 |
-
-Run `python main.py --list-apps` to see the complete list.
-
----
-
-## 🎬 Available Actions
-
-The Agent can perform the following actions:
-
-| Action         | Description                              |
-|----------------|------------------------------------------|
-| `Launch`       | Launch an app                            |
-| `Tap`          | Tap at specified coordinates             |
-| `Type`         | Input text                               |
-| `Swipe`        | Swipe the screen                         |
-| `Back`         | Go back to previous page                 |
-| `Home`         | Return to home screen                    |
-| `Long Press`   | Long press                               |
-| `Double Tap`   | Double tap                               |
-| `Wait`         | Wait for page to load                    |
-| `Take_over`    | Request manual takeover (login/captcha)  |
-
----
-
-## 🔧 Custom Callbacks
-
-Handle sensitive operation confirmation and manual takeover:
-
-```python
-def my_confirmation(message: str) -> bool:
-    """Sensitive operation confirmation callback"""
-    return input(f"Confirm execution of {message}? (y/n): ").lower() == "y"
-
-
-def my_takeover(message: str) -> None:
-    """Manual takeover callback"""
-    print(f"Please complete manually: {message}")
-    input("Press Enter after completion...")
-
-
-agent = PhoneAgent(
-    confirmation_callback=my_confirmation,
-    takeover_callback=my_takeover,
-)
-```
-
----
-
-## 📂 Examples
-
-Check the `examples/` directory for more usage examples:
-
-- `basic_usage.py` - Basic task execution
-- Single-step debugging mode
-- Batch task execution
-- Custom callbacks
-
----
-
-## 🛠️ Development
-
-### Set Up Development Environment
-
-Development requires dev dependencies:
+Example:
 
 ```bash
-pip install -e ".[dev]"
+curl -sS \
+  -H "Authorization: Bearer $CONTENTSWARM_API_TOKEN" \
+  "$CONTENTSWARM_API_URL/phones"
+
+curl -sS -X POST \
+  -H "Authorization: Bearer $CONTENTSWARM_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"key","key":"BACK"}' \
+  "$CONTENTSWARM_API_URL/phones/primary/action"
 ```
 
-### Run Tests
+## Vision model configuration
+
+Only `run` and `learn` need a model. Configure an OpenAI-compatible endpoint:
 
 ```bash
-pytest tests/
+export PHONE_AGENT_BASE_URL="http://localhost:8000/v1"
+export PHONE_AGENT_MODEL="autoglm-phone-9b"
+export PHONE_AGENT_API_KEY="EMPTY"
+export PHONE_AGENT_MAX_STEPS="100"
+export PHONE_AGENT_LANG="en"
 ```
 
-### Complete Project Structure
+The service starts without a phone or reachable model, so its deterministic
+status API can still be tested. Model failures affect only model-backed tasks.
 
-```
-phone_agent/
-├── __init__.py          # Package exports
-├── agent.py             # PhoneAgent main class
-├── adb/                 # ADB utilities
-│   ├── connection.py    # Remote/local connection management
-│   ├── screenshot.py    # Screen capture
-│   ├── input.py         # Text input (ADB Keyboard)
-│   └── device.py        # Device control (tap, swipe, etc.)
-├── actions/             # Action handling
-│   └── handler.py       # Action executor
-├── config/              # Configuration
-│   ├── apps.py          # Supported app mappings
-│   ├── prompts_zh.py    # Chinese system prompts
-│   └── prompts_en.py    # English system prompts
-└── model/               # AI model client
-    └── client.py        # OpenAI-compatible client
-```
+## Omarchy and Orphus
 
----
+The Omarchy Assistant integration runs ContentSwarm as a user service and
+exposes a smaller `omarchy-phone-kernel` command to its voice brain. The kernel
+retrieves the API token from the desktop keyring, applies the Omarchy approval
+menu to sends and other state-changing actions, and then invokes this CLI.
 
-## ❓ FAQ
+The `orphus/` directory contains phone and communications skills, per-app
+social skills, a phone-operator definition, a multi-phone fleet blueprint, and
+an installer for `~/.orphus/agent` or a Pi-compatible directory. Run
+`./orphus/install.sh`, then see [orphus/README.md](orphus/README.md).
 
-### Device Not Found
-
-Try resolving by restarting the ADB service:
+## Development and review
 
 ```bash
-adb kill-server
-adb start-server
-adb devices
+python -m compileall -q phone_agent dashboard contentswarm_cli.py run_server.py main.py
+python -m pytest -q
+python contentswarm_cli.py --help
 ```
 
-If the device is still not recognized, please check:
-1. Whether USB debugging is enabled
-2. Whether the USB cable supports data transfer (some cables only support charging)
-3. Whether you have tapped "Allow" on the authorization popup on your phone
-4. Try a different USB port or cable
+Every repository change uses a feature branch and includes its documentation.
+CodeRabbit reviews the pull request and GPT Sol is the final gate before merge.
+The exact contributor and agent rules are in [CLAUDE.md](CLAUDE.md).
 
-### Can Open Apps but Cannot Tap
+## Related documentation
 
-Some devices require both debugging options to be enabled:
-- **USB Debugging**
-- **USB Debugging (Security Settings)**
-
-Please check in `Settings → Developer Options` that both options are enabled.
-
-### Text Input Not Working
-
-1. Ensure ADB Keyboard is installed on the device
-2. Enable it in Settings > System > Language & Input > Virtual Keyboard
-3. The Agent will automatically switch to ADB Keyboard when input is needed
-
-### Screenshot Failed (Black Screen)
-
-This usually means the app is displaying a sensitive page (payment, password, banking apps). The Agent will automatically detect this and request manual takeover.
-
-### Windows Encoding Issues
-Error message like `UnicodeEncodeError gbk code`
-
-Solution: Add the environment variable before running the code: `PYTHONIOENCODING=utf-8`
-
-### Interactive Mode Not Working in Non-TTY Environment
-Error like: `EOF when reading a line`
-
-Solution: Use non-interactive mode to specify tasks directly, or switch to a TTY-mode terminal application.
-
----
-
-## Nova Integration & USB Hub Setup
-
-### Persona-Phone Mapping
-
-ContentSwarm maps physical phones to content personas via USB hub:
-
-| Phone | Persona | Platforms | Description |
-|-------|---------|-----------|-------------|
-| Phone 1 | **Zara** | TikTok, Instagram | Young female AI/lifestyle persona |
-| Phone 2 | **Marcus** | LinkedIn, Twitter, YouTube | Professional finance/AI persona |
-| Phone 3 | **Jay** | Twitter, TikTok, Reddit | Trading/working class persona |
-
-Phones connect via USB hub and are identified by serial ID (e.g. `RFCN30XXXXX`). Run device discovery to auto-map:
-
-```bash
-python -m phone_agent.device_discovery
-```
-
-### Nova REST API
-
-ContentSwarm exposes a REST API on port **8771** so Nova can control posting:
-
-```bash
-python nova_api.py
-```
-
-**Endpoints:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/status` | List all phones + connection status + persona |
-| `POST` | `/post` | Queue and execute a post `{persona, platform, text, media_path}` |
-| `POST` | `/discover` | Run device discovery, update config |
-| `GET` | `/queue` | Show pending posts per persona |
-
-**Example — post a tweet as Marcus:**
-
-```bash
-curl -X POST http://localhost:8771/post \
-  -H "Content-Type: application/json" \
-  -d '{"persona": "marcus", "platform": "twitter", "text": "AI is reshaping finance. Thread incoming..."}'
-```
-
-### Content Queue
-
-Posts are queued and executed asynchronously. The queue also ingests JSON files from:
-```
-~/.openclaw/workspace/marketing/x-posts/*.json
-```
-
-Each JSON file should contain: `{"persona": "...", "platform": "...", "text": "...", "media_path": "..."}`
-
-### USB Hub Setup
-
-1. Connect a powered USB hub to your server
-2. Plug in Android phones (USB debugging enabled)
-3. Run `adb devices` to verify all phones appear
-4. Run `python -m phone_agent.device_discovery` to auto-map serials to personas
-5. Start the Nova API: `python nova_api.py`
-
----
-
-## 📜 Terms of Use
-
-> ⚠️ This project is for research and learning purposes only. It is strictly prohibited to use for illegal information acquisition, system interference, or any illegal activities. Please carefully review the [Terms of Use](resources/privacy_policy_en.txt).
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-## 📄 License
-
-This project is licensed under the terms specified in the LICENSE file.
-
----
-
-**Built with ❤️ for content creators and social media automation**
+- [System overview](SYSTEM_OVERVIEW.md)
+- [AI server setup](deploy/AISERVER_SETUP.md)
+- [Orphus and Pi integration](orphus/README.md)
+- [Phone pool guide](PHONE_POOL_GUIDE.md)
+- [Flow-learning skill](orphus/skills/contentswarm-flow-learning/SKILL.md)
+- [Communications skill](orphus/skills/contentswarm-communications/SKILL.md)
+- [Social content pipeline](VIRAL_CONTENT_GUIDE.md)
+- [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge)

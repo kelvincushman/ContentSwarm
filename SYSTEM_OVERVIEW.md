@@ -1,94 +1,176 @@
-# ContentSwarm System Overview
+# ContentSwarm system overview
 
-**The mobile phone interface for AI agents** — multi-device control and app
-control across a fleet of up to 20 Android phones. Developed by Kelvin Lee.
+ContentSwarm is a constrained Android execution service. Agent harnesses own
+language, planning, and user interaction. ContentSwarm owns device identity,
+serialization, actions, learned flows, and verification evidence.
 
-## Architecture
+## Components
 
 ```text
-Orphus / Pi agents (the brain — strategy, deliberation)
-   └─ bash → contentswarm CLI ──HTTP──▶ ContentSwarm server :5000
-                                          ├─ /api/v1  REST API (bearer token)
-                                          ├─ Web dashboard + screen streaming
-                                          ├─ PhonePoolManager (parallel, per-phone locks)
-                                          ├─ Flow engine: learn (LLM) / replay (element-targeted presses)
-                                          ├─ Semantic bridge: UI element tree, element taps, instant text
-                                          ├─ Run reports + SQLite health index (verified-rate per flow)
-                                          ├─ PhoneAgent (vision model, learning only)
-                                          └─ ADB ──USB / TCP──▶ phones
+voice/text request
+      │
+      ▼
+Omarchy Assistant / Orphus / Pi
+      │  JSON CLI contract
+      ▼
+contentswarm CLI
+      │  bearer-authenticated HTTP
+      ▼
+Flask API blueprint ────────────────────────────────┐
+      │                                             │
+      ├─ deterministic routes                       ├─ model-backed routes
+      │   app, current, ui, action,                  │   task, learn
+      │   screenshot, communications                │
+      │                                             │
+      ├─ flow routes                                └─ optional content pipeline
+      │   replay, reports, health
+      ▼
+PhonePoolManager + per-device bridge lock
+      │
+      ├─ phone_agent.adb: app launch and screenshots
+      ├─ adb-agent-bridge: tree, tap, text, key, swipe, URI composers
+      └─ FlowReplayer: semantic target then coordinate fallback
+      ▼
+Android Debug Bridge
+      ▼
+one to twenty Android phones
 ```
 
-| Layer | Component | Role |
+## Responsibility boundaries
+
+| Layer | Owns | Does not own |
 |---|---|---|
-| Brain | [Orphus](https://github.com/kelvincushman/orphus) or Pi | Decides WHAT to do; drives everything via the CLI |
-| Interface | `contentswarm` CLI + `/api/v1` | The contract between brain and phones |
-| Orchestration | `PhonePoolManager` | Parallel task execution, per-phone locking, task tracking |
-| Learning | `PhoneAgent` + `FlowRecorder` | Vision model drives an app once; every action recorded with the element under each tap |
-| Execution | `FlowReplayer` + `ActionHandler` | Deterministic replay — element-targeted presses (coordinate fallback), no LLM; each replay writes a run report |
-| Sensing | `phone_agent/bridge.py` + [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge) | UI element tree over plain ADB (`contentswarm ui`), semantic taps, ~100ms text |
-| Devices | ADB (USB or TCP) | Screenshots, taps, swipes, typing, app launch |
+| Agent brain | Understanding, planning, reply text, approval dialogue | Direct ADB or ContentSwarm module imports |
+| Omarchy phone kernel | Keyring token lookup, approval UI, constrained command routing | Phone UI implementation |
+| CLI and REST API | Stable JSON contract, validation, HTTP auth | Natural-language interpretation |
+| PhonePoolManager | Device registry, async tasks, per-phone task locks | User consent |
+| Deterministic bridge | Semantic sensing and allowlisted actions | Arbitrary device shell |
+| Vision agent | First-time/open-ended UI navigation and flow teaching | Routine replay |
+| Flow replayer | Repeat execution and step reports | Replanning a changed app |
 
-## The core pattern: learn once, replay forever
+## Deterministic control
 
-1. **Discover** — `contentswarm installed phone_01` lists apps on the device
-2. **Learn** — `contentswarm learn phone_01 "<task>" --name <flow>`: the
-   vision-language model figures out the app while each successful action is
-   recorded with resolution-independent press points (0-1000 space)
-3. **Replay** — `contentswarm replay <any-phone> <flow>`: the deterministic
-   driver taps the recorded element wherever it now sits, falling back to the
-   recorded coordinates. Fast, repeatable, zero model cost.
-4. **Verify** — every replay writes a run report, best-effort — a storage
-   failure never fails the replay (`contentswarm runs <flow>`):
-   per step, did it succeed and did it hit the intended element. Reports are
-   indexed into SQLite; `contentswarm health <flow>` shows the verified-rate
-   trend — when it drops after an app update, re-learn before it misclicks.
+`phone_agent/bridge.py` wraps
+[adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge). It caches
+one bridge per device and serializes bridge calls with one lock per device.
+The pool's device-serial operation lock also prevents direct commands from
+interleaving with synchronous tasks or a running `run`, `learn`, or `replay`
+task on the same physical phone.
+The exposed operations are intentionally finite:
 
-Flows are JSON files under `CONTENTSWARM_FLOWS_DIR` (default `flows/`); run
-reports and the health index live under `<flows_dir>/runs/`.
+- inspect accessibility elements;
+- tap exactly one enabled, clickable semantic match;
+- type at most 4,000 characters;
+- press a confirmed navigation/editing key from an allowlist;
+- swipe within validated coordinates and duration;
+- open validated SMS and WhatsApp composers;
+- send a prepared message after verifying the approved body.
 
-## Key modules
+No route accepts a shell command, Android intent action, arbitrary URI scheme,
+or application package from the caller.
+
+## Communications transaction
+
+```text
+inspect ─▶ compose(recipient, body) ─▶ external user approval
+                                             │
+                                             ▼
+                                send(confirm=true, expected_body)
+                                             │
+                   ┌─────────────────────────┼─────────────────────────┐
+                   │                         │                         │
+             body matches             one Send control          otherwise stop
+                   │                         │
+                   └──────────── tap exactly once
+                                             │
+                                      inspect again
+                                             │
+                    same editor visibly empty = verified
+```
+
+Composition and send are separate routes. A successful composition checks the
+live recipient and exact body, then returns a five-minute, single-use token
+bound to the device, channel, recipient, and body hash. A new composition on
+the device invalidates its earlier token. Send consumes the token before its
+one state-changing attempt and independently checks the live composer.
+
+The API requires the literal JSON boolean `confirm: true`. The CLI requires
+`--confirm`. The Omarchy wrapper adds a desktop Allow/Deny menu before invoking
+that CLI flag. The API does not emit recipients, tokens, or message bodies to
+its event stream.
+
+## Social workflows
+
+Social apps use the same ladder:
+
+1. semantic primitives for short known steps;
+2. a deterministic replay when a flow exists;
+3. a vision-backed `learn` for a reusable unknown flow;
+4. a vision-backed `task` only for an unrepeated open-ended job.
+
+Flows should stop before Post, Send, Delete, Pay, Follow, Like, Share, or other
+external commitments. The calling agent obtains approval and commits with one
+confirmed semantic tap. This preserves deterministic replay while keeping the
+user at the irreversible boundary.
+
+## Flow data and verification
+
+The learning recorder stores actions in a 0–1000 coordinate space and records
+the semantic identity of tapped elements. During replay, the current semantic
+match wins; recorded coordinates are a fallback. Each run report records
+whether a step used an element or coordinates. The SQLite run index aggregates
+verified rates over time so app changes can trigger re-learning.
+
+Flow files live under `CONTENTSWARM_FLOWS_DIR`; reports and the index live in
+its `runs/` child. Treat the directory as operational data and back it up.
+
+## API security
+
+- Set `CONTENTSWARM_API_TOKEN`; clients send it as a bearer token.
+- Keep the service on localhost, a trusted LAN, or a private overlay network.
+- Use HTTPS at the reverse proxy when traffic crosses an untrusted network.
+- Environment variables hold server and model credentials. They do not belong
+  in source, phone configuration, flow files, events, or logs.
+- Sensitive taps and all message sends require explicit confirmation in the
+  API contract. Agent integrations must also obtain human approval.
+- State-changing actions run once. A failure after the action remains
+  uncertain until the phone is inspected.
+
+## Android boundary
+
+ADB access is powerful but finite. ContentSwarm can operate what Android
+exposes through accessibility, screenshots, app launch, input, and intents. It
+cannot read another app's private storage on an unrooted phone, bypass
+encryption or authentication, recover hidden WhatsApp message data, or capture
+`FLAG_SECURE` screens. This is visible UI automation, not a privilege bypass.
+
+## Key files
 
 | Path | Purpose |
 |---|---|
-| `contentswarm_cli.py` | Agent-native CLI (JSON out, exit codes) |
-| `phone_agent/api.py` | REST API blueprint (`/api/v1`), bearer-token auth |
-| `phone_agent/phone_pool.py` | Pool manager: `async_run`, `async_learn`, `async_replay`, batch |
-| `phone_agent/flows.py` | Flow record/replay engine, run reports, app discovery |
-| `phone_agent/bridge.py` | Semantic UI bridge: element taps, instant text, UI dumps (auto-fallback) |
-| `phone_agent/runs_index.py` | SQLite health index over run reports (`/flows/health`) |
-| `phone_agent/agent.py` | Vision-agent loop (screenshot → model → action) |
-| `phone_agent/actions/handler.py` | Action execution (tap/swipe/type/launch/…) |
-| `phone_agent/adb/` | Device I/O: screenshots, input, connection |
-| `phone_agent/social_automation.py` | Optional pipeline: discover → analyze → generate → post |
-| `dashboard/` | Web UI: monitoring, control, live screen streaming |
-| `run_server.py` | Server entry point (API + dashboard) |
-| `orphus/` | Skills, agents, fleet blueprint for the Orphus/Pi harness |
-| `deploy/` | systemd unit, installer, AI-server setup guide |
+| `contentswarm_cli.py` | JSON command-line client |
+| `phone_agent/api.py` | Authenticated REST routes |
+| `phone_agent/bridge.py` | Deterministic UI and communications kernel |
+| `phone_agent/phone_pool.py` | Phone registry, locks, and async tasks |
+| `phone_agent/flows.py` | Learn and replay engine |
+| `phone_agent/runs_index.py` | SQLite replay-health index |
+| `phone_agent/agent.py` | Vision-backed phone agent |
+| `phone_agent/social_automation.py` | Optional content pipeline |
+| `run_server.py` | API and dashboard entry point |
+| `orphus/` | Agent skills, operator, and fleet definitions |
+| `deploy/` | Systemd deployment assets |
+| `tests/` | Deterministic bridge and API contract tests |
 
-## Content generation
+## Operating modes
 
-External by design — bring your own generation API (e.g. Kie.ai, Veo3) and
-wire it into the pipeline's generate stage. ContentSwarm itself only handles
-the phones.
+| Mode | Model use | Typical command |
+|---|---:|---|
+| Inspect or direct action | none | `ui`, `tap`, `type`, `key`, `swipe` |
+| Messaging | none | `messages`, `compose`, `send` |
+| Known workflow | none | `replay` |
+| New reusable workflow | once | `learn` |
+| One-off open-ended task | per task | `run` |
+| Optional content pipeline | provider-dependent | pipeline API routes |
 
-## Vision model (learning only)
-
-The `learn` path needs an AutoGLM-compatible vision model at
-`PHONE_AGENT_BASE_URL` — hosted (z.ai, Novita, Parasail) or self-hosted
-(vLLM/SGLang on a local GPU). Replays never touch the model.
-
-## Security & process
-
-- `/api/v1` requires `Authorization: Bearer $CONTENTSWARM_API_TOKEN` when the
-  server sets that env var; production serves via eventlet, and the Werkzeug
-  dev fallback binds to localhost only
-- Every change to this repo goes through the review gate: CodeRabbit review,
-  then **GPT Sol as the final gate** — see [CLAUDE.md](CLAUDE.md)
-
-## Further reading
-
-- [README.md](README.md) — quick starts and feature overview
-- [orphus/README.md](orphus/README.md) — driving the fleet from Orphus/Pi, model routing
-- [deploy/AISERVER_SETUP.md](deploy/AISERVER_SETUP.md) — home-server install runbook
-- [PHONE_POOL_GUIDE.md](PHONE_POOL_GUIDE.md) — multi-phone management
-- [VIRAL_CONTENT_GUIDE.md](VIRAL_CONTENT_GUIDE.md) — optional content pipeline strategy
+For installation and command examples, read [README.md](README.md). For remote
+deployment, read [deploy/AISERVER_SETUP.md](deploy/AISERVER_SETUP.md).

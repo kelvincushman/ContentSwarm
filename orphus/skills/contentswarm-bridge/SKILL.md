@@ -20,19 +20,45 @@ contentswarm ui phone_01
 ```
 
 Returns `{"elements": [{"text", "id", "desc", "class", "bounds", "center",
-"clickable", "scrollable"}, ...]}`. Grep it instead of reading a screenshot:
+"clickable", "scrollable", "enabled"}, ...]}`. Grep it instead of reading a screenshot:
 
 ```bash
 contentswarm ui phone_01 | jq '.elements[] | select(.clickable)'
 contentswarm ui phone_01 | jq '.elements[] | select((.text // "") | test("Post"))'
 ```
 
+## Act through the allowlisted kernel
+
+```bash
+contentswarm tap phone_01 --text Continue --confirm
+contentswarm tap phone_01 --id com.example:id/save --confirm
+contentswarm type phone_01 "Caption text"
+contentswarm type phone_01 " appended" --append
+contentswarm key phone_01 BACK --confirm
+contentswarm swipe phone_01 500 1600 500 500 --duration-ms 300
+```
+
+Tap selectors are exact and must resolve to exactly one enabled clickable element. The API
+rejects ambiguous and missing targets. `key` accepts navigation and editing
+keys only, and every key event requires `--confirm`; treat `ENTER` and
+`DPAD_CENTER` as commit actions when a control is focused. Coordinates and
+swipe duration are bounded. There is no raw ADB
+shell route.
+
+Every tap requires `--confirm`, meaning the caller confirms the exact element
+it just sensed. For targets that commit external state—Send, Post, Delete,
+Login, Pay, Like, Follow, Share, and related controls—obtain approval from the
+user before supplying it. Inspect again after acting; do not blindly
+retry a state-changing action after a timeout or uncertain response.
+
 ## Decision order (cheapest first)
 
-1. **`ui`** - is the element/state you need in the tree? Usually yes.
-2. **`screenshot`** - only when the tree is thin (games, canvas, some
+1. **`ui` + direct action** - use structured state and one constrained action.
+2. **`replay`** - use a healthy learned flow for a repeatable job.
+3. **`screenshot`** - only when the tree is thin (games, canvas, some
    WebViews) or you need to see rendered content.
-3. **`run` (vision task)** - only for genuinely open-ended navigation.
+4. **`learn` or `run`** - use the model for a new reusable flow or genuinely
+   open-ended one-off navigation.
 
 ## How the bridge changes existing commands
 

@@ -44,6 +44,9 @@ Edit `/opt/contentswarm/phones_config.json` with each phone's
 
 ```bash
 sudo systemctl restart contentswarm
+export CONTENTSWARM_API_URL="http://127.0.0.1:5000/api/v1"
+export CONTENTSWARM_API_TOKEN="$(sudo sed -n 's/^CONTENTSWARM_API_TOKEN=//p' /etc/contentswarm/env)"
+contentswarm discover   # adds authorized ADB devices and persists phones_config.json
 contentswarm phones     # all enrolled phones with connection status
 ```
 
@@ -123,6 +126,45 @@ contentswarm learn phone_01 "Open the calculator and type 2+2" --name calc-demo 
 contentswarm replay phone_01 calc-demo --wait
 ```
 
+### Verify the deterministic phone kernel
+
+These commands do not require the vision model:
+
+```bash
+contentswarm ui phone_01
+contentswarm launch phone_01 WhatsApp
+contentswarm key phone_01 BACK --confirm
+contentswarm swipe phone_01 500 1600 500 500 --duration-ms 300
+```
+
+Verify message preparation without sending:
+
+```bash
+umask 077
+BODY_FILE=$(mktemp)
+TOKEN_FILE=$(mktemp)
+trap 'rm -f "$BODY_FILE" "$TOKEN_FILE"' EXIT
+printf '%s' 'ContentSwarm setup test — do not send' >"$BODY_FILE"
+contentswarm compose phone_01 sms +447700900123 \
+  --body-file "$BODY_FILE" --token-file "$TOKEN_FILE"
+contentswarm ui phone_01
+contentswarm key phone_01 BACK --confirm
+```
+
+Do not include `send --confirm` in unattended deployment smoke tests. A real
+send requires a person to approve the exact channel, recipient, and body.
+
+### Messaging and social-media requirements
+
+- Install and log into WhatsApp and each social app on the phone by hand.
+- Grant only the Android permissions each app needs.
+- Keep learned flows before Post, Send, Delete, Pay, Follow, Like, or Share;
+  commit with one separately approved semantic tap.
+- The server cannot read private app storage or bypass encrypted messaging.
+- Screens protected by `FLAG_SECURE` cannot provide screenshot evidence; use
+  the accessibility tree where available and require human verification when
+  it is not.
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -131,4 +173,9 @@ contentswarm replay phone_01 calc-demo --wait
 | Phone shows `connected: false` | `adb connect <ip>:5555` again; phones drop TCP ADB after reboot |
 | Vision task fails instantly | Model not reachable — check `PHONE_AGENT_BASE_URL`, `journalctl -u vllm` |
 | Text input does nothing | ADB Keyboard APK missing on the phone |
+| `adb: command not found` | Install Android Platform Tools (`android-tools` on Arch/Omarchy) |
+| Phone is `unauthorized` | Unlock it and accept the USB debugging fingerprint prompt |
+| `ui` returns no useful elements | App uses canvas/WebView or blocks accessibility; use screenshot + vision |
+| Send returns `expected body is not present` | Draft changed since approval; inspect and obtain fresh approval |
+| Send is unverified after a timeout | Inspect the conversation before any retry |
 | Dashboard unreachable remotely | Server firewall — allow TCP 5000 from your network |

@@ -53,7 +53,7 @@ def main() -> None:
     phone_manager = PhonePoolManager(
         model_config=model_config,
         agent_config=agent_config,
-        phones_config=phones_config if Path(phones_config).exists() else None,
+        phones_config=phones_config,
     )
     if not phone_manager.phones:
         print(f"⚠️  No phones loaded ({phones_config} missing or empty) - "

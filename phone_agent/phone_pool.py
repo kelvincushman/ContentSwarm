@@ -1,9 +1,12 @@
 """Phone Pool Manager for controlling multiple phones with easy switching."""
 
 import json
+import os
+import tempfile
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -85,10 +88,12 @@ class PhonePoolManager:
         self._executor = ThreadPoolExecutor(max_workers=max_parallel)
         self._phone_locks: Dict[str, threading.Lock] = {}
         self._locks_guard = threading.Lock()
+        self._discovery_lock = threading.RLock()
         self._tasks: Dict[str, TaskResult] = {}
         self._event_callback = event_callback
+        self.config_path: Optional[str] = phones_config
 
-        if phones_config:
+        if phones_config and Path(phones_config).exists():
             self.load_phones(phones_config)
 
     def load_phones(self, config_path: str) -> None:
@@ -98,6 +103,7 @@ class PhonePoolManager:
         Args:
             config_path: Path to JSON configuration file.
         """
+        self.config_path = config_path
         config_file = Path(config_path)
         if not config_file.exists():
             raise FileNotFoundError(f"Phone config file not found: {config_path}")
@@ -106,7 +112,11 @@ class PhonePoolManager:
             data = json.load(f)
 
         self.phones = {}
+        seen_devices = set()
         for phone_data in data.get("phones", []):
+            if phone_data["device_id"] in seen_devices:
+                raise ValueError(f"Duplicate phone device_id: {phone_data['device_id']}")
+            seen_devices.add(phone_data["device_id"])
             phone = PhoneInfo(
                 device_id=phone_data["device_id"],
                 name=phone_data["name"],
@@ -124,6 +134,7 @@ class PhonePoolManager:
         Args:
             config_path: Path to save JSON configuration.
         """
+        self.config_path = config_path
         data = {
             "phones": [
                 {
@@ -136,8 +147,24 @@ class PhonePoolManager:
             ]
         }
 
-        with open(config_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        target = Path(config_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w", encoding="utf-8", dir=target.parent,
+                prefix=f".{target.name}.", delete=False,
+            ) as handle:
+                temporary = Path(handle.name)
+                json.dump(data, handle, indent=2)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        except Exception:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+            raise
 
         print(f"✅ Saved {len(self.phones)} phones to {config_path}")
 
@@ -159,6 +186,8 @@ class PhonePoolManager:
         """
         if name in self.phones:
             raise ValueError(f"Phone '{name}' already exists in pool")
+        if any(phone.device_id == device_id for phone in self.phones.values()):
+            raise ValueError(f"ADB device '{device_id}' already exists in pool")
 
         phone = PhoneInfo(
             device_id=device_id,
@@ -248,16 +277,19 @@ class PhonePoolManager:
         Returns:
             Result message.
         """
-        if not self.current_agent:
+        if not self.current_agent or not self.current_phone:
             raise RuntimeError("No phone selected. Use select_phone() first.")
 
+        phone_name = self.current_phone
+        agent = self.current_agent
+
         print(f"\n{'='*60}")
-        print(f"📱 Running on: {self.current_phone}")
+        print(f"📱 Running on: {phone_name}")
         print(f"📋 Task: {task}")
         print(f"{'='*60}\n")
 
-        result = self.current_agent.run(task)
-        return result
+        with self.phone_operation(phone_name):
+            return agent.run(task)
 
     def quick_run(self, phone_name: str, task: str) -> str:
         """
@@ -270,8 +302,18 @@ class PhonePoolManager:
         Returns:
             Result message.
         """
-        self.select_phone(phone_name)
-        return self.run_task(task)
+        if phone_name not in self.phones:
+            raise ValueError(f"Phone '{phone_name}' not found. Available: {list(self.phones.keys())}")
+        phone = self.phones[phone_name]
+        agent_config = AgentConfig(
+            max_steps=self.base_agent_config.max_steps,
+            device_id=phone.device_id,
+            lang=self.base_agent_config.lang,
+            verbose=self.base_agent_config.verbose,
+        )
+        with self.phone_operation(phone_name):
+            agent = PhoneAgent(model_config=self.model_config, agent_config=agent_config)
+            return agent.run(task)
 
     def set_event_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Set callback for task lifecycle events."""
@@ -287,8 +329,20 @@ class PhonePoolManager:
 
     def _get_phone_lock(self, phone_name: str) -> threading.Lock:
         """Get or create a lock for a specific phone (thread-safe)."""
+        lock_key = self.phones.get(phone_name).device_id if phone_name in self.phones else phone_name
         with self._locks_guard:
-            return self._phone_locks.setdefault(phone_name, threading.Lock())
+            return self._phone_locks.setdefault(lock_key, threading.Lock())
+
+    @contextmanager
+    def phone_operation(self, phone_name: str):
+        """Reserve a phone for one direct or agent-driven operation."""
+        lock = self._get_phone_lock(phone_name)
+        if not lock.acquire(blocking=False):
+            raise RuntimeError(f"Phone '{phone_name}' is busy with another operation")
+        try:
+            yield
+        finally:
+            lock.release()
 
     def _run_task_on_phone(self, phone_name: str, task: str, task_id: str) -> str:
         """Run a task on a specific phone with locking. Used by async methods."""
@@ -635,26 +689,34 @@ class PhonePoolManager:
         Returns:
             Number of new devices added.
         """
-        devices = list_devices()
-        added = 0
+        with self._discovery_lock:
+            devices = [device for device in list_devices() if device.status == "device"]
+            added_names: List[str] = []
+            known_devices = {phone.device_id for phone in self.phones.values()}
 
-        for device in devices:
-            # Generate name from device ID
-            name = f"phone_{device.device_id.replace(':', '_').replace('.', '_')}"
+            for device in devices:
+                if device.device_id in known_devices:
+                    continue
+                name = f"phone_{device.device_id.replace(':', '_').replace('.', '_')}"
+                if name in self.phones:
+                    continue
+                self.add_phone(
+                    name=name,
+                    device_id=device.device_id,
+                    description=f"Auto-detected {device.connection_type.value} device"
+                )
+                added_names.append(name)
+                known_devices.add(device.device_id)
 
-            # Skip if already exists
-            if name in self.phones:
-                continue
+            if added_names and self.config_path:
+                try:
+                    self.save_phones(self.config_path)
+                except Exception:
+                    for name in added_names:
+                        self.phones.pop(name, None)
+                    raise
 
-            # Add device
-            self.add_phone(
-                name=name,
-                device_id=device.device_id,
-                description=f"Auto-detected {device.connection_type.value} device"
-            )
-            added += 1
-
-        return added
+            return len(added_names)
 
     def check_connections(self) -> Dict[str, bool]:
         """
