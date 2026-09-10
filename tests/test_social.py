@@ -172,7 +172,7 @@ def test_model_receives_no_service_secrets(monkeypatch):
 
 def test_calibrated_post_navigation_send_and_independent_finish(monkeypatch):
     import social_worker
-    indicator = dict(id="app:id/account", text="@owner", compose_id="app:id/open_composer")
+    indicator = dict(id="app:id/account", text="@owner", compose_id="app:id/open_composer", posted_id="app:id/published")
     review = dict(id="r", revision=3, kind="post", platform="x", phone="p", account="@owner", reply="Approved body")
     screens = iter([
         [{"id": "app:id/open_composer", "text": "Post"}],
@@ -193,3 +193,21 @@ def test_calibrated_post_navigation_send_and_independent_finish(monkeypatch):
     assert [body["text"] for _, body in calls if body.get("action") == "type"] == ["Approved body"]
     assert sum(body.get("id") == "app:id/send" for _, body in calls) == 1
     assert calls[-1][0] == "/reviews/r/complete"
+
+
+@pytest.mark.parametrize("wrong_editor", [True, False])
+def test_short_body_cannot_match_toolbar_or_unrelated_content(monkeypatch, wrong_editor):
+    import social_worker
+    indicator = dict(id="app:id/account", text="@owner", posted_id="app:id/published")
+    review = dict(id="r", revision=3, kind="post", platform="x", phone="p", account="@owner", reply="Post")
+    screens = iter([[indicator], [indicator, {"id":"editor", "class":"EditText", "text":"Post extra" if wrong_editor else "Post"}, {"id":"send", "text":"Post"}],
+                    [{"id":"toolbar", "class":"TextView", "text":"Post"}]])
+    actions = iter([{"action":"type"}, {"action":"send", "selector":{"id":"send"}}, {"action":"finish", "evidence":"I see Post"}])
+    monkeypatch.setattr(social_worker, "choose_action", lambda *args: (next(actions), 0.01))
+    calls=[]
+    class Client:
+        def get(self, path): return {"elements": next(screens)}
+        def post(self, path, data): calls.append((path,data))
+    with pytest.raises(ValueError, match="preconditions|delivery evidence"):
+        social_worker.delivery_loop(Client(), review, indicator)
+    assert not any(path.endswith("/complete") for path,_ in calls)

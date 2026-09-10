@@ -27,7 +27,7 @@ def main():
         connected = {p["name"] for p in client.get("/phones")["phones"] if p["connected"]}
         profiles = {a["id"]: a for a in client.get("/social/accounts")["accounts"]}
         due = [r for r in client.get("/reviews")["reviews"] if r["status"] == "approved" and r.get("kind") == "post" and r.get("publish_at", 0) <= time.time() and r["phone"] in connected
-               and profiles.get(r.get("account_id"), {}).get("delivery_indicator")]
+               and profiles.get(r.get("account_id"), {}).get("delivery_indicator", {}).get("posted_id")]
         per_phone = {}
         for review in reversed(due):
             per_phone.setdefault(review["phone"], review)
@@ -86,7 +86,7 @@ def deliver(client, review):
     if review.get("kind") != "post" or not review.get("account_id"):
         return
     profile = client.get(f"/social/accounts/{review['account_id']}/memory")["account"]
-    if not profile.get("delivery_indicator") or review["phone"] not in profile["phones"]:
+    if not profile.get("delivery_indicator", {}).get("posted_id") or review["phone"] not in profile["phones"]:
         return
     try:
         claimed = client.post(f"/reviews/{review['id']}/claim", {"revision": review["revision"]})
@@ -165,7 +165,9 @@ def delivery_loop(client, review, indicator):
         if name == "stop":
             break
         if name == "finish":
-            if not sent or review["reply"] not in visible or any(review["reply"] in str(e.get("text", "")) for e in ui["elements"] if "EditText" in str(e.get("class", ""))):
+            published = [e for e in ui["elements"] if indicator.get("posted_id") and e.get("id") == indicator["posted_id"]
+                         and e.get("text") == review["reply"] and "EditText" not in str(e.get("class", ""))]
+            if not sent or len(published) != 1:
                 raise ValueError("No independent delivery evidence")
             evidence = action.get("evidence")
             if not isinstance(evidence, str) or not evidence.strip():
@@ -191,7 +193,8 @@ def delivery_loop(client, review, indicator):
             if name == "tap" and not composer_entry and re.search(r"\b(send|post|publish|reply|delete|remove|like|follow|login|log in|pay|buy)\b", label, re.I):
                 raise ValueError("Commit controls require the send action")
             if name == "send":
-                if sent or not typed or not identity or review["reply"] not in visible or not re.search(r"\b(send|post|publish)\b", label, re.I):
+                editors = [e for e in ui["elements"] if "EditText" in str(e.get("class", "")) and e.get("text") == review["reply"]]
+                if sent or not typed or not identity or len(editors) != 1 or not re.search(r"\b(send|post|publish)\b", label, re.I):
                     raise ValueError("Final send preconditions not met")
                 sent = True  # Set before the request; a lost response never permits replay.
             client.post(route + "/action", dict(selector, action="tap", confirm=True))

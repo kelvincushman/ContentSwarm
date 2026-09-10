@@ -40,6 +40,14 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
     _tasks: Dict[str, Dict[str, Any]] = {}
     _prepared_messages: Dict[str, Dict[str, Any]] = {}
     _prepared_lock = threading.Lock()
+    from functools import lru_cache
+
+    @lru_cache(maxsize=8)
+    def cached_store(root, kind):
+        from pathlib import Path
+        from phone_agent.review_queue import ReviewQueue
+        from phone_agent.social import SocialStore
+        return (ReviewQueue if kind == "reviews" else SocialStore)(Path(root) / (kind + ".sqlite3"))
 
     # ── Auth ────────────────────────────────────────────────────────
 
@@ -61,13 +69,13 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         from phone_agent.review_queue import ReviewQueue
         from pathlib import Path
         root = os.environ.get("CONTENTSWARM_STATE_DIR", str(Path.home() / ".local/state/contentswarm"))
-        return ReviewQueue(Path(root) / "reviews.sqlite3")
+        return cached_store(root, "reviews")
 
     def social_store():
         from phone_agent.social import SocialStore
         from pathlib import Path
         root = os.environ.get("CONTENTSWARM_STATE_DIR", str(Path.home() / ".local/state/contentswarm"))
-        return SocialStore(Path(root) / "social.sqlite3")
+        return cached_store(root, "social")
 
     def authorize_phone_operation(phone):
         review_queue().authorize_phone(phone, request.headers.get("X-ContentSwarm-Review") if has_request_context() else None,
@@ -77,7 +85,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         state["phone_manager"].operation_authorizer = authorize_phone_operation
 
     def owner_required():
-        if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", ""), session.get("csrf", "!")):
+        if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", "").encode("utf-8", "surrogatepass"), session.get("csrf", "!").encode("utf-8", "surrogatepass")):
             return jsonify(error="This change requires the owner's console session"), 403
         return None
 
@@ -185,7 +193,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
     @api.post("/reviews/<item_id>/<action>")
     def review_action(item_id, action):
         if action in ("approve", "reject", "edit", "schedule", "cancel", "recover"):
-            if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", ""), session.get("csrf", "!")):
+            if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", "").encode("utf-8", "surrogatepass"), session.get("csrf", "!").encode("utf-8", "surrogatepass")):
                 return jsonify(error="Review decisions require the owner's console session and CSRF token"), 403
         data, error = _json_body()
         if error:

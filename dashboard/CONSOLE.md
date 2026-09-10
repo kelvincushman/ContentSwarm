@@ -46,6 +46,9 @@ duplicate claims. Executing/uncertain records cannot be automatically retried.
   original, reply and humanizer_version strings.
 - POST /api/v1/reviews/ID/ACTION takes revision and optional reply/evidence.
   Actions: approve, reject, edit, claim, complete, uncertain.
+  Owner actions also include schedule (revision + future at with UTC offset),
+  cancel (revision), and recover (revision + evidence). Delivery calls require
+  the private claim lease; see [SOCIAL.md](SOCIAL.md).
 - `contentswarm reviews`
 - `contentswarm review-add private-draft.json`
 - `contentswarm review-action ID claim --revision N`

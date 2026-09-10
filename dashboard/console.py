@@ -43,12 +43,12 @@ def install_console(app):
                 return jsonify(error="Cross-origin request refused"), 403
             token = os.environ.get("CONTENTSWARM_API_TOKEN", "")
             bearer = request.headers.get("Authorization", "").removeprefix("Bearer ")
-            if token and hmac.compare_digest(bearer, token):
+            if token and hmac.compare_digest(bearer.encode("utf-8", "surrogatepass"), token.encode("utf-8", "surrogatepass")):
                 return None
             if request.path == "/api/console/login":
                 return None
             if session.get("console"):
-                if request.method not in ("GET", "HEAD") and not hmac.compare_digest(request.headers.get("X-CSRF-Token", ""), session.get("csrf", "!")):
+                if request.method not in ("GET", "HEAD") and not hmac.compare_digest(request.headers.get("X-CSRF-Token", "").encode("utf-8", "surrogatepass"), session.get("csrf", "!").encode("utf-8", "surrogatepass")):
                     return jsonify(error="Invalid CSRF token"), 403
                 return None
             return jsonify(error="Sign in to ContentSwarm"), 401
@@ -58,7 +58,7 @@ def install_console(app):
         data = request.get_json(silent=True) or {}
         token = os.environ.get("CONTENTSWARM_CONSOLE_TOKEN", "")
         supplied = data.get("token") if isinstance(data, dict) else None
-        if not token or not isinstance(supplied, str) or not hmac.compare_digest(token, supplied):
+        if not token or not isinstance(supplied, str) or not hmac.compare_digest(token.encode("utf-8", "surrogatepass"), supplied.encode("utf-8", "surrogatepass")):
             return jsonify(error="Invalid console token or console login not configured"), 401
         session.clear()
         session.permanent = True

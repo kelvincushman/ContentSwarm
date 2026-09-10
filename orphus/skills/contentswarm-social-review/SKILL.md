@@ -21,7 +21,8 @@ embedded mode, preserve facts, and use approved owner rewrites from
 Humanizer 3.0.0 is vendored from blader/humanizer commit
 9862685f575c65a8247f90369951df1b3416e3d6 under its retained MIT license.
 
-Write a private JSON file with platform (`x`, `linkedin`, `facebook`), account,
+Write a private JSON file with platform (`x`, `linkedin`, `facebook`), account
+(the exact handle), account_id (the profile id from social accounts),
 phone, source_url, author, original, reply and humanizer_version (`3.0.0`). Run
 `contentswarm review-add FILE`. The version records your application of the skill,
 not an independent model check. The owner reviews the card in the console.

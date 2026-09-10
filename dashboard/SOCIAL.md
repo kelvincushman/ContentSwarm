@@ -58,6 +58,11 @@ source, enters the exact approved text, sends once, and inspects the result.
 If the navigation button opening the composer is itself labelled Post, calibrate
 its separate resource ID as `compose_id`. This permits that navigation before
 typing; never configure the final commit button as the composer entry.
+Also calibrate `posted_id`, the full resource ID of actual published content,
+not a toolbar label or editor. Automatic posting is disabled without it.
+Before sending, the editable composer's entire text must equal the approved
+body. Completion requires that exact body in one calibrated non-editor content
+element on a later screen. A short body matching a button label is insufficient.
 The model interprets accessibility trees; kernel primitives perform each action. This
 is a harness-guided path, not a fully learned deterministic posting flow.
 No general-purpose API can independently prove account identity or platform

@@ -218,7 +218,8 @@ account memory, draft budgets and delivery mode. `social_worker.py` calls the
 REST API and the authenticated Claude CLI. `CONTENTSWARM_KEYRING=1` loads only
 the agent credential from GNOME keyring on Omarchy; other hosts supply
 `CONTENTSWARM_API_TOKEN` in the worker environment. Override
-`CONTENTSWARM_API_URL` for servers not using Omarchy's port 5055.
+`CONTENTSWARM_API_URL` as needed: standalone social_worker.py defaults to
+http://127.0.0.1:5000/api/v1; the Omarchy timer installer overrides it to port 5055.
 `CONTENTSWARM_DELIVERY_ENABLED=1` enables approved-item delivery; its default is
 off. `CONTENTSWARM_BRAIN_MODEL`, `CONTENTSWARM_BRAIN_BIN`,
 `CONTENTSWARM_DRAFT_BUDGET` and `CONTENTSWARM_DELIVERY_BUDGET` configure the harness.

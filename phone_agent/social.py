@@ -118,6 +118,11 @@ class SocialStore:
             if ":id/" not in resource:
                 raise ValueError("Use the full resource id of the composer's account indicator")
             item["delivery_indicator"] = dict(id=resource, text=text(indicator, "text", 300))
+            if indicator.get("posted_id"):
+                posted = text(indicator, "posted_id", 300)
+                if ":id/" not in posted or posted == resource:
+                    raise ValueError("Use a separate full resource id for published post content")
+                item["delivery_indicator"]["posted_id"] = posted
             if indicator.get("compose_id"):
                 entry = text(indicator, "compose_id", 300)
                 if ":id/" not in entry or entry == resource:

@@ -495,7 +495,7 @@ def _socket_authorized():
         return False
     token = os.environ.get("CONTENTSWARM_API_TOKEN", "")
     return bool(session.get("console") or (token and hmac.compare_digest(
-        request.headers.get("Authorization", ""), "Bearer " + token)))
+        request.headers.get("Authorization", "").encode("utf-8", "surrogatepass"), ("Bearer " + token).encode("utf-8", "surrogatepass"))))
 
 
 from console import install_console, transport_allowed

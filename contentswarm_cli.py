@@ -369,8 +369,11 @@ def run_command(args, client: Client) -> None:
             else:
                 if not args.file:
                     raise ValueError("--file is required")
-                with open(args.file, encoding="utf-8") as handle:
-                    data = json.load(handle)
+                try:
+                    with open(args.file, encoding="utf-8") as handle:
+                        data = json.load(handle)
+                except OSError as exc:
+                    raise ValueError(f"Cannot read memory JSON: {exc}") from exc
                 output(client.post(route, data))
 
     elif args.command == "review-add":

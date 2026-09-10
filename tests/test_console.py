@@ -98,3 +98,16 @@ def test_transport_check_covers_socket_paths():
     for base, allowed in (("http://remote.example", False), ("https://remote.example", True), ("http://127.0.0.1:5055", True)):
         with app.test_request_context("/socket.io/", base_url=base):
             assert transport_allowed() is allowed
+
+
+def test_non_ascii_credentials_fail_without_server_errors(monkeypatch):
+    monkeypatch.setenv("CONTENTSWARM_API_TOKEN", "agent-token")
+    app = Flask(__name__)
+    install_console(app)
+    app.register_blueprint(create_api_blueprint({}), url_prefix="/api/v1")
+    client = app.test_client()
+    for token in ("clé", "\ud800", ["not", "text"]):
+        assert client.post("/api/console/login", json={"token": token}).status_code == 401
+    assert client.get("/api/v1/phones", headers={"Authorization": "Bearer clé"}).status_code == 401
+    client.post("/api/console/login", json={"token": "owner-token"})
+    assert client.post("/api/v1/social/accounts", json={}, headers={"X-CSRF-Token": "clé"}).status_code == 403
