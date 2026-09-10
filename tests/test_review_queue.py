@@ -23,7 +23,7 @@ def test_revision_binds_approval_and_claim_is_single_use(queue):
         queue.update(item["id"], "claim", dict(revision=claim["revision"]))
     with pytest.raises(ValueError):
         queue.update(item["id"], "complete", dict(revision=claim["revision"]))
-    done = queue.update(item["id"], "complete", dict(revision=claim["revision"], evidence="Visible reply at https://x.com/test/status/2"))
+    done = queue.update(item["id"], "complete", dict(revision=claim["revision"], lease_token=claim["lease_token"], evidence="Visible reply at https://x.com/test/status/2"))
     assert done["status"] == "verified"
     assert ReviewQueue(queue.filename).list()[0] == done
 
@@ -34,7 +34,7 @@ def test_rejection_cannot_be_claimed_and_uncertain_cannot_retry(queue):
     with pytest.raises(ValueError): queue.update(item["id"],"claim",dict(revision=item["revision"]))
     item=queue.update(item["id"],"approve",dict(revision=item["revision"]))
     item=queue.update(item["id"],"claim",dict(revision=item["revision"]))
-    item=queue.update(item["id"],"uncertain",dict(revision=item["revision"],evidence="Connection lost after tap"))
+    item=queue.update(item["id"],"uncertain",dict(revision=item["revision"],lease_token=item["lease_token"],evidence="Connection lost after tap"))
     with pytest.raises(ValueError): queue.update(item["id"],"claim",dict(revision=item["revision"]))
 
 

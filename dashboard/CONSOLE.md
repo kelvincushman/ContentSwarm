@@ -31,10 +31,12 @@ and queues drafts. Cards show the account, source author/message/link and reply.
 Thumbs-up approves that revision. Thumbs-down rejects and opens an editor;
 saving a rewrite returns it to pending review. Rewrite history supplies examples.
 
-Approval does not publish. An external agent claims the approved record,
-delivers the unchanged reply and reports evidence. Statuses distinguish pending,
-rejected, approved, executing, verified and uncertain. No automatic collector or
-delivery worker is bundled. SQLite transactions prevent stale approval and
+Approval makes a draft eligible for delivery at its publish time, or immediately
+when no time is set. An optional, default-off worker delivers original posts
+after account calibration. Replies still need the external agent to claim the
+record, deliver unchanged text and report evidence. There is no automatic reply
+collector. Statuses distinguish pending, rejected, approved, executing, verified,
+uncertain and cancelled. SQLite transactions prevent stale approval and
 duplicate claims. Executing/uncertain records cannot be automatically retried.
 
 ## API and CLI
@@ -55,3 +57,9 @@ Private data lives in `$CONTENTSWARM_STATE_DIR/reviews.sqlite3`, defaulting to
 model. Humanizer version is the drafting agent's attestation of skill use.
 Legacy dashboard routes and Socket.IO now require authentication too. Browser
 mutations require CSRF tokens; agents retain bearer headers. Wildcard CORS is gone.
+# Accounts and scheduling
+
+The **Accounts & schedules** tab manages account souls, scoped sourced memory,
+assigned phones and recurring draft briefs. The review tab handles posts as well
+as replies, publish times, cancellation and editing approved text. Read
+[SOCIAL.md](SOCIAL.md) for worker installation and publication behavior.

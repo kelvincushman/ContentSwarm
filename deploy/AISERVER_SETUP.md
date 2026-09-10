@@ -211,3 +211,15 @@ send requires a person to approve the exact channel, recipient, and body.
 | Send returns `expected body is not present` | Draft changed since approval; inspect and obtain fresh approval |
 | Send is unverified after a timeout | Inspect the conversation before any retry |
 | Dashboard unreachable remotely | Server firewall — allow TCP 5000 from your network |
+# Social worker deployment
+
+See [dashboard/SOCIAL.md](../dashboard/SOCIAL.md) for the optional user timer,
+account memory, draft budgets and delivery mode. `social_worker.py` calls the
+REST API and the authenticated Claude CLI. `CONTENTSWARM_KEYRING=1` loads only
+the agent credential from GNOME keyring on Omarchy; other hosts supply
+`CONTENTSWARM_API_TOKEN` in the worker environment. Override
+`CONTENTSWARM_API_URL` for servers not using Omarchy's port 5055.
+`CONTENTSWARM_DELIVERY_ENABLED=1` enables approved-item delivery; its default is
+off. `CONTENTSWARM_BRAIN_MODEL`, `CONTENTSWARM_BRAIN_BIN`,
+`CONTENTSWARM_DRAFT_BUDGET` and `CONTENTSWARM_DELIVERY_BUDGET` configure the harness.
+The worker/server share state through HTTP, not direct database access.

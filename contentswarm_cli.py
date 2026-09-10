@@ -50,6 +50,10 @@ class Client:
         self.headers = {}
         if token:
             self.headers["Authorization"] = f"Bearer {token}"
+        if os.environ.get("CONTENTSWARM_REVIEW_ID"):
+            self.headers["X-ContentSwarm-Review"] = os.environ["CONTENTSWARM_REVIEW_ID"]
+        if os.environ.get("CONTENTSWARM_LEASE_TOKEN"):
+            self.headers["X-ContentSwarm-Lease"] = os.environ["CONTENTSWARM_LEASE_TOKEN"]
 
     def get(self, path: str, raw: bool = False):
         resp = requests.get(
@@ -150,6 +154,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("phones", help="List phones and connection status")
     sub.add_parser("discover", help="Discover authorized ADB devices and persist them")
     sub.add_parser("reviews", help="List durable social reply reviews")
+    p = sub.add_parser("social", help="Account context and deterministic draft job queue")
+    p.add_argument("action", choices=("accounts", "schedules", "jobs", "context", "remember", "tick"))
+    p.add_argument("--account")
+    p.add_argument("--file", help="JSON containing text, source and optional thread")
+    p.add_argument("--query", default="")
     p = sub.add_parser("review-add", help="Queue a Humanizer-reviewed draft from a JSON file")
     p.add_argument("file")
     p = sub.add_parser("review-action", help="Claim or report an approved reply; decisions happen in the GUI")
@@ -344,6 +353,25 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "reviews":
         output(client.get("/reviews"))
+
+    elif args.command == "social":
+        from urllib.parse import quote
+        if args.action in ("accounts", "schedules", "jobs"):
+            output(client.get("/social/" + args.action))
+        elif args.action == "tick":
+            output(client.post("/social/tick"))
+        else:
+            if not args.account:
+                raise ValueError("--account is required")
+            route = "/social/accounts/" + quote(args.account, safe="") + "/memory"
+            if args.action == "context":
+                output(client.get(route + "?q=" + quote(args.query, safe="")))
+            else:
+                if not args.file:
+                    raise ValueError("--file is required")
+                with open(args.file, encoding="utf-8") as handle:
+                    data = json.load(handle)
+                output(client.post(route, data))
 
     elif args.command == "review-add":
         try:

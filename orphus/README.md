@@ -165,3 +165,11 @@ The operator sees only what normal ADB, accessibility, screenshots, and Android
 intents expose. It cannot bypass app sandboxes, end-to-end encryption,
 authentication, captchas, or protected screenshots. A user may need to unlock
 the phone, grant a permission, or complete a login directly on the device.
+# Account context and scheduled social work
+
+Use `contentswarm social accounts`, `social context --account ID --query WORDS`,
+`social remember --account ID --file FILE`, `social schedules`, `social jobs`
+and `social tick`. All use the REST boundary. Account identity and recurrence
+are edited by the owner in the console; agents append untrusted observations.
+Read [the social guide](../dashboard/SOCIAL.md) and the
+`contentswarm-social-review` skill before drafting or delivering.

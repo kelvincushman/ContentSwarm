@@ -3,9 +3,17 @@
 ## Mobile console
 
 The server opens a workspace for tasks, phone preview, app controls, learned
-flows and reply review for X, LinkedIn and Facebook. Compare the source with a
-Humanizer-edited draft, approve it, or reject and rewrite. Approved replies wait
-for an external agent to claim and deliver them.
+flows and post/reply review for X, LinkedIn and Facebook. Each social account has
+an editable voice, sourced knowledge, conversation context and assigned phones.
+Prepare drafts on demand or on editable minute/hour/calendar repeats, then
+approve their exact text or rewrite it. Set publish times before approval.
+
+Omarchy's native systemd timers wake the draft worker. AI handles language and
+screen interpretation; the kernel stores schedules, claims work and performs
+phone actions. Optional delivery workers handle separate phones concurrently,
+reserve each phone for a whole send and never retry an uncertain publication.
+Automatic delivery is off by default. See the [social manager guide](dashboard/SOCIAL.md)
+for setup, timezone behavior, memory boundaries and known limitations.
 
 Sign in at the server root with its separate owner console token. Read the
 [console guide](dashboard/CONSOLE.md) for setup and delivery limits.
