@@ -224,3 +224,12 @@ Verification stays inside the nearest post subtree with reply/repost/like contro
 identity or timestamps in neighbouring screen regions cannot prove publication.
 The adapter does not press Home: X may expose that label without a clickable
 control when the navigation bar is clipped.
+
+Live validation on the connected Samsung (11 September 2026) reached the X
+composer, verified the exact signed-in handle and Unicode text, then intercepted
+the final send and cleared the draft. Publication was not exercised. The observed
+feed exposed display names without handles, so that feed alone cannot satisfy
+the publication proof. A reliable detail-view verification path still needs
+on-device validation before enabling automatic delivery on this app version.
+LinkedIn exposes its personal identity in the navigation drawer but not in the
+composer; a platform-specific identity path remains to be implemented there.
