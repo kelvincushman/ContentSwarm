@@ -401,3 +401,8 @@ Supply the original message, author and link; the worker uses that account's sou
 knowledge and thread history, applies Humanizer, and queues the response for your
 approval. Draft now or use an editable schedule. See [the social guide](dashboard/SOCIAL.md#contextual-reply-drafts)
 for the API fields and current phone-delivery limits.
+
+Android semantic taps also recognize a unique enabled label inside an enabled
+clickable ancestor. The kernel uses XML parentage from the pinned ADB bridge;
+it does not guess from overlapping rectangles. It taps the label's own position
+and rejects ambiguous labels, disabled ancestors and invalid bounds.

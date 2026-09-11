@@ -224,3 +224,9 @@ http://127.0.0.1:5000/api/v1; the Omarchy timer installer overrides it to port 5
 off. `CONTENTSWARM_BRAIN_MODEL`, `CONTENTSWARM_BRAIN_BIN`,
 `CONTENTSWARM_DRAFT_BUDGET` and `CONTENTSWARM_DELIVERY_BUDGET` configure the harness.
 The worker/server share state through HTTP, not direct database access.
+
+The pinned adb-agent-bridge dependency preserves XML parent indices so the kernel
+can recognize labels inside buttons. Upgrade the pinned dependency along with
+ContentSwarm (`pip install -r requirements.txt` in its environment), then restart
+the service. Older bridge versions keep direct-control taps working but cannot
+resolve non-clickable child labels. Do not install an unpinned bridge as a workaround.

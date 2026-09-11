@@ -7,12 +7,12 @@ from phone_agent import bridge
 
 def element(
     *, text="", id="", desc="", cls="android.widget.Button",
-    bounds=(0, 0, 100, 100), clickable=True, enabled=True,
+    bounds=(0, 0, 100, 100), clickable=True, enabled=True, parent_index=None,
 ):
     return SimpleNamespace(
         text=text, id=id, desc=desc, cls=cls, bounds=bounds,
         center=((bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2),
-        clickable=clickable, scrollable=False, enabled=enabled,
+        clickable=clickable, scrollable=False, enabled=enabled, parent_index=parent_index,
     )
 
 
@@ -200,3 +200,35 @@ def test_exact_tap_selector_cannot_expand_to_send(use_bridge):
     with pytest.raises(LookupError, match="no enabled"):
         bridge.semantic_action("serial", "tap", text="s")
     assert fake.calls == []
+
+
+def test_tap_label_inside_actual_clickable_parent(use_bridge):
+    parent = element(bounds=(0, 0, 200, 200))
+    label = element(desc="Post", bounds=(10, 10, 30, 30), clickable=False, parent_index=0)
+    fake = use_bridge(FakeBridge([[parent, label]]))
+    result = bridge.semantic_action("serial", "tap", desc="Post")
+    assert result["target"] == [20, 20]
+    assert fake.calls == [("tap", label)]  # Tap the selected label, not another point in its parent.
+
+
+@pytest.mark.parametrize("parent_enabled,label_enabled,parent_index,bounds", [
+    (False, True, 0, (10, 10, 30, 30)),
+    (True, False, 0, (10, 10, 30, 30)),
+    (True, True, None, (10, 10, 30, 30)),  # Overlap is not ancestry.
+    (True, True, 1, (10, 10, 30, 30)),  # Self-cycle.
+    (True, True, -1, (10, 10, 30, 30)),
+    (True, True, 0, (210, 210, 230, 230)),  # Label outside its parent.
+    (True, True, 0, (0, 0, 0, 0)),
+])
+def test_tap_rejects_unproven_or_disabled_parent(use_bridge, parent_enabled, label_enabled, parent_index, bounds):
+    fake = use_bridge(FakeBridge([[element(enabled=parent_enabled), element(desc="Post", enabled=label_enabled, clickable=False, parent_index=parent_index, bounds=bounds)]]))
+    with pytest.raises(LookupError):
+        bridge.semantic_action("serial", "tap", desc="Post")
+    assert not fake.calls
+
+
+def test_two_actionable_child_labels_remain_ambiguous(use_bridge):
+    fake = use_bridge(FakeBridge([[element(), element(desc="Post", clickable=False, parent_index=0), element(desc="Post", clickable=False, parent_index=0)]]))
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        bridge.semantic_action("serial", "tap", desc="Post")
+    assert not fake.calls
