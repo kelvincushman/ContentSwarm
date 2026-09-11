@@ -56,7 +56,7 @@ flows, inspect recorded steps, and stop on unexpected screens.
 ## Owner-queued reply drafting
 
 The console can queue reply drafts now or on a schedule. Owner-only
-`POST /api/v1/social/jobs` and `/social/schedules` accept `kind: "reply"`,
+`POST /api/v1/social/jobs` and `/api/v1/social/schedules` accept `kind: "reply"`,
 `source_url`, `author`, and `original`, alongside the account and brief. The
 worker retrieves thread context and applies Humanizer before creating a pending
 review. A repeated schedule uses the same source on each occurrence; it does not
