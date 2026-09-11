@@ -1,7 +1,7 @@
 # ContentSwarm for Orphus and Pi
 
 Use the [social review skill](skills/contentswarm-social-review/SKILL.md) for
-X, LinkedIn and Facebook replies. It includes Humanizer 3.0.0 and documents
+X, LinkedIn, Facebook and Instagram replies. It includes Humanizer 3.0.0 and documents
 `reviews`, `review-add`, and `review-action` for the human-reviewed handoff.
 
 Orphus or Pi is the brain; ContentSwarm is the Android execution layer. Agents
@@ -203,3 +203,5 @@ the exact focused Android package, or null during missing focus. It never report
 an underlying activity as the focused app. X verification prefers metadata from
 the native Android share preview and returns without choosing a recipient; image
 reading is a fallback only when metadata is absent, never when it mismatches.
+
+Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.

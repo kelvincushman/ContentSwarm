@@ -282,3 +282,8 @@ live validation before enabling automatic delivery.
 `current` / GET `/phones/PHONE/current_app` now also returns `package` (null when
 no window is focused). Detection uses `mCurrentFocus`, never the underlying
 `mFocusedApp`, so a chooser or dialog cannot be mistaken for the app behind it.
+
+Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
+
+See [app mapping](APP_MAPPING.md) for the controls observed on the connected
+phone and the remaining verification for each app.
