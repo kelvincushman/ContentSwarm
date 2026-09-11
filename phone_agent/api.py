@@ -493,6 +493,20 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             },
         )
 
+    @api.route("/phones/<phone_name>/clock", methods=["GET"])
+    def phone_clock(phone_name: str):
+        """Read the device clock with its UTC offset, without changing it."""
+        pm = _get_phone_manager()
+        if not pm:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+        if phone_name not in pm.phones:
+            return jsonify({"error": "Phone not found"}), 404
+        from phone_agent.bridge import device_clock
+        try:
+            return jsonify(device_clock(pm.phones[phone_name].device_id))
+        except Exception:
+            return jsonify({"error": "Phone clock unavailable"}), 503
+
     @api.route("/phones/<phone_name>/ui", methods=["GET"])
     def phone_ui(phone_name: str):
         """Dump the phone's current UI element tree (semantic addressing).

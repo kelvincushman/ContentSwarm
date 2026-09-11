@@ -43,3 +43,57 @@ def test_ambiguous_screenshot_remains_an_observation(monkeypatch):
 def test_invalid_image_never_reaches_model(monkeypatch):
     monkeypatch.setattr('social_vision.subprocess.run',lambda *a,**k:pytest.fail('No model call'))
     with pytest.raises(ValueError):read_post(b'not an image')
+
+from social_vision import match_x_observation, x_detail_timestamp, verify_x_detail
+
+STAMP='19:30 • 11 Sept 26'
+BEFORE='2026-09-11T19:29:59+01:00'
+AFTER='2026-09-11T19:30:50+01:00'
+CURRENT=dict(OBS,timestamp=STAMP)
+DETAIL=[dict(desc=d,text='',**{'class':'View'}) for d in ('Back','Post options','Reply','Repost','Like')]+[dict(text='Post'),dict(text=STAMP+' • 4 Views')]
+
+
+def test_visual_match_preserves_unicode_and_checks_actual_device_time():
+    assert match_x_observation(CURRENT,STAMP,'@owner','Exact 😅 #AI',BEFORE,AFTER)
+    for changes in ({'body':'Exact & #AI'},{'body':'Exact 😅 #Al'},{'handle':'@other'},{'single_post':False},{'timestamp':'19:29 • 11 Sept 26'}):
+        assert not match_x_observation(dict(CURRENT,**changes),STAMP,'@owner','Exact 😅 #AI',BEFORE,AFTER)
+    for second in (0,1,20,59):
+        assert not match_x_observation(CURRENT,STAMP,'@owner','Exact 😅 #AI',f'2026-09-11T19:30:{second:02d}+01:00','2026-09-11T19:31:01+01:00')
+    assert not match_x_observation(CURRENT,STAMP,'@owner','Exact 😅 #AI',BEFORE,'2026-09-11T19:30:50+02:00')
+    assert not match_x_observation(CURRENT,STAMP,'@owner','Exact 😅 #AI',BEFORE,'2026-09-11T19:40:00+01:00')
+
+
+def test_detail_timestamp_rejects_multiple_posts_and_composers():
+    assert x_detail_timestamp(DETAIL)==STAMP
+    empty_reply=dict(id='post-detail-reply-text-field',text='',**{'class':'EditText'})
+    assert x_detail_timestamp(DETAIL+[empty_reply])==STAMP
+    with pytest.raises(ValueError):x_detail_timestamp(DETAIL+[dict(empty_reply,text='Draft reply')])
+    for extra in ([dict(desc='Reply')],[dict(text=STAMP+' • 8 Views')],[dict(**{'class':'EditText'})]):
+        with pytest.raises(ValueError):x_detail_timestamp(DETAIL+extra)
+
+
+def test_visual_detail_uses_one_navigation_and_blind_read(monkeypatch):
+    calls=[]
+    class Client:
+        def post(self,route,data):calls.append((route,data))
+        def get(self,route,**kwargs):
+            if route.endswith('/clock'):return {'iso':AFTER}
+            return SimpleNamespace(content=PNG)
+    def reader(image):
+        assert image==PNG
+        return CURRENT
+    monkeypatch.setattr('social_vision.read_post',reader)
+    screens=iter([[dict(text='Exact 😅 #AI')],DETAIL,DETAIL])
+    evidence=verify_x_detail(Client(),'/phones/p','@owner','Exact 😅 #AI',BEFORE,lambda:next(screens))
+    assert len(calls)==1 and calls[0][1]==dict(action='tap',text='Exact 😅 #AI',confirm=True)
+    assert 'SHA256' in evidence
+
+
+def test_old_post_rejected_before_model_call(monkeypatch):
+    class Client:
+        def post(self,*args):pass
+        def get(self,route,**kwargs):return {'iso':AFTER} if route.endswith('/clock') else SimpleNamespace(content=PNG)
+    monkeypatch.setattr('social_vision.read_post',lambda *a:pytest.fail('Stale content needs no model'))
+    stale=[dict(e,text=e.get('text','').replace('11 Sept','10 Sept')) for e in DETAIL]
+    screens=iter([[dict(text='Exact 😅 #AI')],stale,stale])
+    with pytest.raises(ValueError,match='outside'):verify_x_detail(Client(),'/phones/p','@owner','Exact 😅 #AI',BEFORE,lambda:next(screens))

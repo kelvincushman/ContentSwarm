@@ -457,3 +457,13 @@ def send_composed_message(
         "verified": cleared,
         "verification": "composer-cleared" if cleared else "composer-clear-not-observed",
     }
+
+
+def device_clock(device_id=None):
+    """Read the selected phone's clock and UTC offset using a fixed command."""
+    from datetime import datetime
+    bridge = _require_bridge(device_id)
+    with device_lock(device_id):
+        value = bridge.device.shell("date +%Y-%m-%dT%H:%M:%S%z").strip()
+    parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S%z")
+    return {"iso": parsed.isoformat(), "epoch": parsed.timestamp()}

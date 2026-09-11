@@ -36,9 +36,12 @@ def composer(body="", handle="@owner"):
 
 class Client:
     def __init__(self, screens=None, lost_send=False):
-        self.screens=list(screens or [FEED,composer(),composer("Approved text"),post()])
-        self.calls=[];self.lost_send=lost_send;self.post_taps=0
+        self.screens=list(screens or [FEED,composer(),composer("Approved text"),composer("Approved text"),post()])
+        self.clock_reads=0;self.calls=[];self.lost_send=lost_send;self.post_taps=0
     def get(self, route):
+        if route.endswith('/clock'):
+            self.clock_reads+=1
+            return dict(iso='2026-09-11T19:29:59+01:00' if self.clock_reads==1 else '2026-09-11T19:30:00+01:00')
         if route.endswith('/current_app'):return dict(current_app="Twitter")
         return dict(elements=self.screens.pop(0) if len(self.screens)>1 else self.screens[0])
     def post(self, route, data):
@@ -72,8 +75,8 @@ def test_existing_drafts_wrong_accounts_and_changed_bodies_prevent_send(screens)
 
 def test_unproven_post_is_not_completed(monkeypatch):
     monkeypatch.setattr('social_delivery.time.sleep',lambda _:None)
-    client=Client([FEED,composer(),composer('Approved text'),post(age='11 Jun')])
-    with pytest.raises(ValueError,match='No fresh'):x_post(client,REVIEW)
+    client=Client([FEED,composer(),composer('Approved text'),composer('Approved text'),post(age='11 Jun')])
+    with pytest.raises(ValueError):x_post(client,REVIEW)
     assert client.post_taps==2
     assert not any(route.endswith('/complete') for route,_ in client.calls)
 
@@ -131,3 +134,28 @@ def test_proof_does_not_borrow_header_from_screen_siblings(foreign_handle):
 def test_proof_rejects_foreign_handle_after_body_in_same_post():
     elements = post() + [node("@other")]
     assert not x_published(elements, "@owner", "Approved text", 2)
+
+
+def test_next_minute_checks_offset_and_clock_regression(monkeypatch):
+    from social_delivery import next_device_minute
+    monkeypatch.setattr('social_delivery.time.sleep',lambda _:None)
+    class Clock:
+        def __init__(self,values):self.values=iter(values)
+        def get(self,_):return {'iso':next(self.values)}
+    base='2026-09-11T19:29:59+01:00'
+    assert next_device_minute(Clock([base,'2026-09-11T19:30:00+01:00']),'/p')==base
+    for value in ('2026-09-11T19:29:58+01:00','2026-09-11T19:30:00+02:00','2026-09-11T19:40:00+01:00'):
+        with pytest.raises(ValueError):next_device_minute(Clock([base,value]),'/p')
+
+
+def test_composer_changed_during_minute_wait_prevents_send():
+    client=Client([FEED,composer(),composer('Approved text'),composer('Changed')])
+    with pytest.raises(ValueError,match='while waiting'):x_post(client,REVIEW)
+    assert client.post_taps==1
+
+
+def test_minute_wait_deadline_prevents_send(monkeypatch):
+    from social_delivery import next_device_minute
+    times=iter([0,66])
+    monkeypatch.setattr('social_delivery.time.monotonic',lambda:next(times))
+    with pytest.raises(ValueError,match='did not advance'):next_device_minute(Client(),'/p')

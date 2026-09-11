@@ -69,3 +69,73 @@ def read_post(png):
         if value is not None and (not isinstance(value, str) or len(value) > limit):
             raise ValueError("Invalid screenshot field")
     return observation
+
+
+def x_detail_timestamp(elements):
+    """Extract one timestamp only from an unambiguous X post-detail surface."""
+    import re
+    labels = [e.get("desc", "") for e in elements]
+    if (any("EditText" in e.get("class", "")
+                and (e.get("id") != "post-detail-reply-text-field" or e.get("text") != "")
+                for e in elements)
+            or sum(e.get("text") == "Post" for e in elements) != 1
+            or any(labels.count(label) != 1 for label in ("Back", "Post options", "Reply", "Repost"))
+            or sum(labels.count(label) for label in ("Like", "Undo Like")) != 1):
+        raise ValueError("Not an unambiguous X post detail")
+    stamps = []
+    for e in elements:
+        match = re.fullmatch(r"(\d{2}:\d{2} [•·] \d{2} [A-Za-z]{3,4} \d{2}) [•·] [\d,.KM]+ Views", e.get("text", ""))
+        if match:
+            stamps.append(match[1])
+    if len(stamps) != 1:
+        raise ValueError("No unique publication timestamp")
+    return stamps[0]
+
+
+def match_x_observation(observation, ui_stamp, handle, body, started, captured):
+    """Compare independent observations against the unfloored device-clock baseline."""
+    from datetime import datetime
+    import re
+    before, after = datetime.fromisoformat(started), datetime.fromisoformat(captured)
+    if (before.utcoffset() is None or after.utcoffset() != before.utcoffset()
+            or not 0 <= (after-before).total_seconds() <= 300):
+        return False
+    if (observation.get("single_post") is not True or observation.get("handle") != handle
+            or not isinstance(observation.get("body"), str)
+            or " ".join(observation["body"].split()) != " ".join(body.split())
+            or observation.get("timestamp") != ui_stamp):
+        return False
+    match = re.fullmatch(r"(\d{2}):(\d{2}) [•·] (\d{2}) ([A-Za-z]{3,4}) (\d{2})", ui_stamp)
+    if not match:
+        return False
+    months = dict(zip("jan feb mar apr may jun jul aug sep oct nov dec".split(), range(1,13)))
+    try:
+        hour, minute, day, month, year = match.groups()
+        publication = datetime(2000+int(year), months[month.lower()[:3]], int(day), int(hour), int(minute), tzinfo=before.tzinfo)
+    except (KeyError, ValueError):
+        return False
+    return before < publication <= after
+
+
+def verify_x_detail(client, route, handle, body, started, sense):
+    """Navigate once to visible matching content; read its image without send access."""
+    ui = sense()
+    matches = [e for e in ui if e.get("text") == body and "EditText" not in e.get("class", "")]
+    if len(matches) != 1 or any("EditText" in e.get("class", "") for e in ui):
+        raise ValueError("No unique posted text to inspect")
+    client.post(route + "/action", {"action": "tap", "text": body, "confirm": True})
+    ui = sense()
+    stamp = x_detail_timestamp(ui)
+    screenshot = client.get(route + "/screenshot", raw=True).content
+    after = sense()
+    if after != ui:
+        raise ValueError("Post detail changed during capture")
+    captured = client.get(route + "/clock")["iso"]
+    if not match_x_observation(dict(single_post=True, handle=handle, body=body, timestamp=stamp),
+                               stamp, handle, body, started, captured):
+        raise ValueError("Publication timestamp is outside the send window")
+    observation = read_post(screenshot)  # Never pass the expected account or body.
+    if not match_x_observation(observation, stamp, handle, body, started, captured):
+        raise ValueError("Screenshot account, content or freshness did not match")
+    import hashlib
+    return "Visual transcription matched approved account/text; independent UI timestamp matched device clock window. Screenshot SHA256 " + hashlib.sha256(screenshot).hexdigest()

@@ -73,3 +73,11 @@ For original text posts, the worker uses deterministic navigation, exact account
 and body checks, one commit attempt and fresh-post evidence. Do not bypass an
 uncertain result, existing composer or unsupported screen. Automatic replies
 and media still need a separate verified workflow.
+
+For device-local time, use `contentswarm clock PHONE` (GET
+`/api/v1/phones/PHONE/clock`): returns ISO time with UTC offset and epoch.
+X's experimental publication fallback uses blind tool-free screenshot reading
+when accessibility omits post content. The kernel checks exact account/text
+(whitespace wrapping folded) and matches the visible timestamp against device
+time. It never retries Send; uncertain outcomes require inspection. New-post
+publication has not yet been validated live; keep automatic delivery disabled.

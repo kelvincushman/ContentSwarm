@@ -189,3 +189,11 @@ for an X profile. The timer then uses deterministic phone calls for approved
 original text posts, retaining review leases and the global delivery opt-in.
 This does not extend automatic delivery to replies or media. See
 [the supported X screens and verification](../dashboard/SOCIAL.md#x-accessibility-adapter).
+
+For device-local time, use `contentswarm clock PHONE` (GET
+`/api/v1/phones/PHONE/clock`): returns ISO time with UTC offset and epoch.
+X's experimental publication fallback uses blind tool-free screenshot reading
+when accessibility omits post content. The kernel checks exact account/text
+(whitespace wrapping folded) and matches the visible timestamp against device
+time. It never retries Send; uncertain outcomes require inspection. New-post
+publication has not yet been validated live; keep automatic delivery disabled.

@@ -246,4 +246,7 @@ Validate the exact English X layout on each assigned phone. See
 The development screenshot reader uses `CONTENTSWARM_BRAIN_BIN` and
 `CONTENTSWARM_BRAIN_MODEL`, with `CONTENTSWARM_VISION_BUDGET` defaulting to 0.15
 USD per invocation. It sends a PNG to the authenticated model CLI without tools
-or expected post text. It is not currently called by the delivery worker.
+or expected post text. The experimental X delivery fallback invokes it once only when a matching
+post-detail screen and fresh UI timestamp are present. Keep automatic delivery
+disabled until actual publication is validated on your app version. The phone
+clock endpoint accounts for its UTC offset; the laptop timezone is not used.

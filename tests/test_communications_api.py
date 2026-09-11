@@ -195,3 +195,14 @@ def test_new_compose_invalidates_previous_prepared_token(client, monkeypatch):
         },
     )
     assert response.status_code == 409
+
+
+def test_phone_clock_uses_requested_device_and_handles_failure(client,monkeypatch):
+    def clock(device):
+        assert device=='serial-1'
+        return dict(iso='2026-09-11T20:15:00+01:00',epoch=1789154100)
+    monkeypatch.setattr(bridge,'device_clock',clock)
+    assert client.get('/api/v1/phones/primary/clock').status_code==200
+    assert client.get('/api/v1/phones/missing/clock').status_code==404
+    monkeypatch.setattr(bridge,'device_clock',lambda _:(_ for _ in ()).throw(RuntimeError('internal')))
+    assert client.get('/api/v1/phones/primary/clock').status_code==503
