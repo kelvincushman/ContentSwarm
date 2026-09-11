@@ -232,3 +232,15 @@ def test_two_actionable_child_labels_remain_ambiguous(use_bridge):
     with pytest.raises(RuntimeError, match="ambiguous"):
         bridge.semantic_action("serial", "tap", desc="Post")
     assert not fake.calls
+
+
+def test_installed_bridge_parser_supports_child_label_taps(use_bridge):
+    from adb_agent_bridge.ui import parse
+    elements = parse('''<hierarchy><node bounds="[0,0][100,100]" enabled="true" clickable="true">
+        <node bounds="[10,10][30,30]" enabled="true" content-desc="Open composer"/>
+    </node></hierarchy>''')
+    assert elements[1].parent_index == 0
+    fake = use_bridge(FakeBridge([elements]))
+    result = bridge.semantic_action("serial", "tap", desc="Open composer")
+    assert result["target"] == [20, 20]
+    assert fake.calls == [("tap", elements[1])]

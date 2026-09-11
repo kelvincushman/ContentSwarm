@@ -230,3 +230,9 @@ can recognize labels inside buttons. Upgrade the pinned dependency along with
 ContentSwarm (`pip install -r requirements.txt` in its environment), then restart
 the service. Older bridge versions keep direct-control taps working but cannot
 resolve non-clickable child labels. Do not install an unpinned bridge as a workaround.
+
+Use bridge 0.2.1 from the pinned revision. Earlier source checkouts could contain
+the correct parser while their wheel silently packaged stale tracked `build/lib`
+files. The corrected release removes those generated copies. The test suite now
+checks the installed parser and semantic child tap together, so a stale wheel
+fails validation rather than reaching the phone test.

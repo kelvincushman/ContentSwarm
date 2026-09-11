@@ -406,3 +406,7 @@ Android semantic taps also recognize a unique enabled label inside an enabled
 clickable ancestor. The kernel uses XML parentage from the pinned ADB bridge;
 it does not guess from overlapping rectangles. It taps the label's own position
 and rejects ambiguous labels, disabled ancestors and invalid bounds.
+
+The bridge pin includes the 0.2.1 packaging fix: installed wheels now contain the
+same parser as the source checkout. Tests exercise the installed dependency's
+parent metadata together with the kernel tap path.
