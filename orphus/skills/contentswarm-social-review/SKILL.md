@@ -67,3 +67,9 @@ Child labels inside clickable buttons are supported by the phone kernel using
 actual XML ancestry. Keep using exact semantic selectors. `parent_index` in a
 UI response is valid only within that response; never reuse it after an action.
 This navigation support does not replace account/source checks or approval.
+
+An owner may select `delivery_adapter: "x-accessibility-v1"` on an X account.
+For original text posts, the worker uses deterministic navigation, exact account
+and body checks, one commit attempt and fresh-post evidence. Do not bypass an
+uncertain result, existing composer or unsupported screen. Automatic replies
+and media still need a separate verified workflow.
