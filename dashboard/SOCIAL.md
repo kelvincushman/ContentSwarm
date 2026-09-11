@@ -182,3 +182,13 @@ link on the selected account's platform. Schedule edits copy the new source only
 into future jobs, cancelling queued work as before; running jobs retain their
 original target. Automatic phone reply delivery still needs a source-verifying
 platform adapter. A pending or approved draft is not proof that it was sent.
+
+### Labels inside buttons
+
+Some X and Facebook controls expose their name on a non-clickable child. The
+phone kernel now accepts a unique semantic match when its XML ancestry proves
+an enabled clickable control containing that label. It taps the label's center,
+not a guessed screen position or another point inside the parent. Duplicate
+matches, disabled ancestors and invalid/out-of-parent bounds are rejected.
+This improves navigation but does not by itself verify an account, conversation,
+approval or successful publication.

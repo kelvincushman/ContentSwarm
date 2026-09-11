@@ -178,3 +178,8 @@ Owner-created social jobs and schedules support `kind: "reply"` with `source_url
 `author`, and `original`. These fields survive scheduling and model drafting into
 the pending review; the model cannot replace the recipient/source metadata.
 See [contextual reply drafts](../dashboard/SOCIAL.md#contextual-reply-drafts).
+
+Semantic phone taps support labels nested inside enabled clickable controls.
+The API's UI elements expose dump-local `parent_index` values from the ADB bridge.
+Use semantic selectors as before; do not convert parent indices into cached
+coordinates, infer parents from overlap, or treat a tap result as delivery proof.

@@ -102,6 +102,7 @@ def ui_elements(device_id: str | None = None) -> List[Dict[str, Any]]:
             "bounds": list(e.bounds),
             "center": list(e.center),
             "clickable": e.clickable,
+            "parent_index": getattr(e, "parent_index", None),
             "scrollable": e.scrollable,
             "enabled": e.enabled,
         }
@@ -214,6 +215,30 @@ def _matches(element: Any, text: str | None, id: str | None, desc: str | None) -
     return True
 
 
+def _has_clickable_control(elements, index):
+    """Require actual enabled XML ancestry, never inferred rectangle overlap."""
+    label = elements[index]
+    left, top, right, bottom = label.bounds
+    if right <= left or bottom <= top:
+        return False
+    actionable = False
+    while True:
+        node = elements[index]
+        if not node.enabled:
+            return False
+        if node.clickable:
+            x1, y1, x2, y2 = node.bounds
+            if not (x1 <= left < right <= x2 and y1 <= top < bottom <= y2):
+                return False
+            actionable = True
+        parent = getattr(node, "parent_index", None)
+        if parent is None:
+            return actionable
+        if type(parent) is not int or not 0 <= parent < index:
+            return False
+        index = parent
+
+
 def semantic_action(device_id: str | None, action: str, **params: Any) -> Dict[str, Any]:
     """Perform one allowlisted Android action with no model or raw shell access."""
     bridge = _require_bridge(device_id)
@@ -225,10 +250,11 @@ def semantic_action(device_id: str | None, action: str, **params: Any) -> Dict[s
                 raise ValueError("tap requires text, id, or desc")
             if any(not isinstance(value, str) or not value.strip() for value in selectors.values()):
                 raise ValueError("tap selectors must be non-empty strings")
+            elements = bridge.ui()
             matches = [
-                element for element in bridge.ui()
+                element for index, element in enumerate(elements)
                 if _matches(element, selectors.get("text"), selectors.get("id"), selectors.get("desc"))
-                and element.clickable and element.enabled
+                and _has_clickable_control(elements, index)
             ]
             if not matches:
                 raise LookupError("no enabled clickable element matched")
