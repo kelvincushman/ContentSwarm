@@ -77,7 +77,7 @@ information is needed rather than filling gaps. No tools, sending, or posting.
             raise ValueError("Draft model did not return a completed result")
         review = client.post("/reviews", dict(account_id=account["id"], platform=account["platform"],
                     account=account["handle"], phone=available[0], reply=parsed["result"],
-                    **dict({"source_url": {"x": "https://x.com/", "linkedin": "https://www.linkedin.com/", "facebook": "https://www.facebook.com/"}[account["platform"]], "kind": "post"}, **target),
+                    **dict({"source_url": {"x": "https://x.com/", "linkedin": "https://www.linkedin.com/", "facebook": "https://www.facebook.com/", "instagram": "https://www.instagram.com/"}[account["platform"]], "kind": "post"}, **target),
                     humanizer_version="3.0.0"))
         client.post(f"/social/jobs/{job['id']}/finish", {"result": {"review_id": review["id"]}})
     except Exception as exc:
@@ -156,9 +156,11 @@ composer text or a successful tap is not delivery evidence. Stop on ambiguity.
 
 def delivery_loop(client, review, indicator):
     """The model has no tools or credentials; the kernel limits actions and text."""
+    if review["platform"] == "instagram":
+        raise ValueError("Instagram delivery requires a verified media/comment adapter")
     from urllib.parse import quote
     route = "/phones/" + quote(review["phone"], safe="")
-    client.post(route + "/app", {"app": {"x": "X", "linkedin": "LinkedIn", "facebook": "Facebook"}[review["platform"]]})
+    client.post(route + "/app", {"app": {"x": "X", "linkedin": "LinkedIn", "facebook": "Facebook", "instagram": "Instagram"}[review["platform"]]})
     if review.get("kind") != "post":
         raise ValueError("Automatic reply delivery needs a platform-specific source adapter")
     sent, typed = False, False
