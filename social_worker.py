@@ -86,6 +86,8 @@ information is needed rather than filling gaps. No tools, sending, or posting.
 
 
 def delivery_ready(profile):
+    if profile.get("platform") == "instagram":
+        return False
     return bool(profile.get("delivery_adapter") == "x-accessibility-v1" or profile.get("delivery_indicator", {}).get("posted_id"))
 
 

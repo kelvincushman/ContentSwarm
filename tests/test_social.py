@@ -305,3 +305,16 @@ def test_instagram_delivery_cannot_use_text_only_loop():
             raise AssertionError('Must reject before any phone action')
     with pytest.raises(ValueError, match='media/comment adapter'):
         delivery_loop(NoPhoneCalls(), dict(platform='instagram'), {})
+
+
+def test_instagram_legacy_calibration_never_claims_review():
+    from social_worker import deliver, delivery_ready
+    profile = dict(platform='instagram', phones=['p'], delivery_indicator=dict(posted_id='app:id/content'))
+    assert not delivery_ready(profile)
+    class ReadOnlyClient:
+        def get(self, route):
+            assert route == '/social/accounts/ig/memory'
+            return dict(account=profile)
+        def post(self, *args, **kwargs):
+            raise AssertionError('Unsupported delivery must not claim or act')
+    deliver(ReadOnlyClient(), dict(kind='post', account_id='ig', phone='p'))
