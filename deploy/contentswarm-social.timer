@@ -1,0 +1,11 @@
+[Unit]
+Description=Wake ContentSwarm draft scheduling once per minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+AccuracySec=1s
+Unit=contentswarm-social.service
+
+[Install]
+WantedBy=timers.target

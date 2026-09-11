@@ -7,15 +7,17 @@ as REST + WebSocket endpoints that an external agent harness (Orphus via the
 
 import base64
 import hashlib
+import hmac
 import os
 import re
 import secrets
 import threading
 import time
 import uuid
+import json
 from typing import Any, Dict, Optional
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify, request, session, has_request_context
 
 
 _PREPARED_TTL_SECONDS = 300
@@ -38,6 +40,14 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
     _tasks: Dict[str, Dict[str, Any]] = {}
     _prepared_messages: Dict[str, Dict[str, Any]] = {}
     _prepared_lock = threading.Lock()
+    from functools import lru_cache
+
+    @lru_cache(maxsize=8)
+    def cached_store(root, kind):
+        from pathlib import Path
+        from phone_agent.review_queue import ReviewQueue
+        from phone_agent.social import SocialStore
+        return (ReviewQueue if kind == "reviews" else SocialStore)(Path(root) / (kind + ".sqlite3"))
 
     # ── Auth ────────────────────────────────────────────────────────
 
@@ -48,9 +58,175 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         if not token:
             return None
         auth_header = request.headers.get("Authorization", "")
-        if auth_header == f"Bearer {token}":
+        if hmac.compare_digest(auth_header.encode("utf-8", "surrogatepass"), f"Bearer {token}".encode("utf-8", "surrogatepass")):
+            return None
+        # Browser sessions are authenticated and CSRF-checked by console.py.
+        if session.get("console"):
             return None
         return jsonify({"error": "Unauthorized"}), 401
+
+    def review_queue():
+        from phone_agent.review_queue import ReviewQueue
+        from pathlib import Path
+        root = os.environ.get("CONTENTSWARM_STATE_DIR", str(Path.home() / ".local/state/contentswarm"))
+        return cached_store(root, "reviews")
+
+    def social_store():
+        from phone_agent.social import SocialStore
+        from pathlib import Path
+        root = os.environ.get("CONTENTSWARM_STATE_DIR", str(Path.home() / ".local/state/contentswarm"))
+        return cached_store(root, "social")
+
+    def authorize_phone_operation(phone):
+        review_queue().authorize_phone(phone, request.headers.get("X-ContentSwarm-Review") if has_request_context() else None,
+                                       request.headers.get("X-ContentSwarm-Lease") if has_request_context() else None)
+
+    if state.get("phone_manager"):
+        state["phone_manager"].operation_authorizer = authorize_phone_operation
+
+    def owner_required():
+        if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", "").encode("utf-8", "surrogatepass"), session.get("csrf", "!").encode("utf-8", "surrogatepass")):
+            return jsonify(error="This change requires the owner's console session"), 403
+        return None
+
+    @api.route("/social/<collection>", methods=["GET", "POST"])
+    def social_collection(collection):
+        if collection not in ("accounts", "schedules", "jobs"):
+            return jsonify(error="Unknown collection"), 404
+        store = social_store()
+        if request.method == "GET":
+            return jsonify({collection: store.list(collection)})
+        error = owner_required()
+        if error:
+            return error
+        data, error = _json_body()
+        if error:
+            return error
+        try:
+            if collection == "accounts":
+                return jsonify(store.account(data)), 201
+            if collection == "schedules":
+                return jsonify(store.schedule(data)), 201
+            return jsonify(store.enqueue(data.get("account_id"), data.get("prompt"))), 201
+        except (ValueError, LookupError) as exc:
+            return jsonify(error=str(exc)), 400
+
+    @api.route("/social/accounts/<account_id>/memory", methods=["GET", "POST"])
+    def social_memory(account_id):
+        store = social_store()
+        try:
+            if request.method == "GET":
+                context = store.context(account_id, request.args.get("q", ""), request.args.get("thread", ""))
+                context["reviews"] = []
+                remaining = 12000
+                for r in review_queue().list():
+                    if r.get("account_id") != account_id:
+                        continue
+                    excerpt = {k: r[k] for k in ("id", "status", "source_url", "original", "reply", "updated_at") if k in r}
+                    size = len(json.dumps(excerpt))
+                    if size <= remaining:
+                        context["reviews"].append(excerpt)
+                        remaining -= size
+                return jsonify(context)
+            data, error = _json_body()
+            if error:
+                return error
+            # Only the owner can mark knowledge trusted; captured speech/replies are data.
+            trusted = bool(session.get("console") and not owner_required())
+            return jsonify(store.remember(account_id, data, trusted)), 201
+        except (ValueError, LookupError) as exc:
+            return jsonify(error=str(exc)), 400
+
+    @api.post("/social/schedules/<item_id>/pause")
+    def social_pause(item_id):
+        error = owner_required()
+        if error:
+            return error
+        data, error = _json_body()
+        if error:
+            return error
+        try:
+            return jsonify(social_store().pause(item_id, data.get("revision")))
+        except (ValueError, LookupError) as exc:
+            return jsonify(error=str(exc)), 409
+
+    @api.post("/social/tick")
+    def social_tick():
+        return jsonify(jobs=social_store().tick())
+
+    @api.post("/social/claim")
+    def social_claim():
+        return jsonify(job=social_store().claim())
+
+    @api.post("/social/jobs/<item_id>/finish")
+    def social_finish(item_id):
+        data, error = _json_body()
+        if error:
+            return error
+        try:
+            return jsonify(social_store().finish(item_id, data.get("result"), data.get("error")))
+        except (ValueError, LookupError) as exc:
+            return jsonify(error=str(exc)), 409
+
+    @api.route("/reviews", methods=["GET", "POST"])
+    def reviews():
+        if request.method == "GET":
+            return jsonify(reviews=review_queue().list())
+        data, error = _json_body()
+        if error:
+            return error
+        _, error = _phone_device(data.get("phone", "")) if isinstance(data.get("phone"), str) else (None, (jsonify(error="phone required"), 400))
+        if error:
+            return error
+        if data.get("account_id"):
+            try:
+                account = social_store().get("accounts", data["account_id"])
+                if data.get("platform") != account["platform"] or data.get("account") != account["handle"] or data.get("phone") not in account["phones"]:
+                    return jsonify(error="Draft does not match its account profile and phone assignment"), 400
+            except LookupError as exc:
+                return jsonify(error=str(exc)), 400
+        try:
+            return jsonify(review_queue().create(data)), 201
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+
+    @api.post("/reviews/<item_id>/<action>")
+    def review_action(item_id, action):
+        if action in ("approve", "reject", "edit", "schedule", "cancel", "recover"):
+            if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", "").encode("utf-8", "surrogatepass"), session.get("csrf", "!").encode("utf-8", "surrogatepass")):
+                return jsonify(error="Review decisions require the owner's console session and CSRF token"), 403
+        data, error = _json_body()
+        if error:
+            return error
+        if action in ("complete", "uncertain"):
+            data["lease_token"] = request.headers.get("X-ContentSwarm-Lease", "")
+        try:
+            if action == "recover" and hasattr(state.get("phone_manager"), "_get_phone_lock"):
+                item = next((r for r in review_queue().list() if r["id"] == item_id), None)
+                if not item:
+                    raise LookupError("review not found")
+                lock = state["phone_manager"]._get_phone_lock(item["phone"])
+                if not lock.acquire(blocking=False):
+                    raise RuntimeError("Phone still performing an operation; wait before recovering")
+                try:
+                    return jsonify(review_queue().update(item_id, action, data))
+                finally:
+                    lock.release()
+            if action in ("claim", "complete", "uncertain") and hasattr(state.get("phone_manager"), "phone_operation"):
+                item = next((r for r in review_queue().list() if r["id"] == item_id), None)
+                if not item:
+                    raise LookupError("review not found")
+                if action != "claim" and request.headers.get("X-ContentSwarm-Review") != item_id:
+                    return jsonify(error="Delivery result requires its X-ContentSwarm-Review header"), 409
+                with state["phone_manager"].phone_operation(item["phone"]):
+                    return jsonify(review_queue().update(item_id, action, data))
+            return jsonify(review_queue().update(item_id, action, data))
+        except LookupError as exc:
+            return jsonify(error=str(exc)), 404
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 409
+        except RuntimeError as exc:
+            return jsonify(error=str(exc)), 409
 
     def _get_phone_manager():
         return state.get("phone_manager")

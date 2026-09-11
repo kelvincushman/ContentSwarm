@@ -7,10 +7,13 @@ dashboard (web UI + /api/v1 REST API) so an external agent harness such as
 Orphus can drive the phone fleet.
 
 Environment variables:
-    CONTENTSWARM_HOST          Bind address (default: 0.0.0.0)
+    CONTENTSWARM_HOST          Loopback bind address (default: 127.0.0.1)
     CONTENTSWARM_PORT          Port (default: 5000)
     CONTENTSWARM_PHONES_CONFIG Path to phones config JSON (default: phones_config.json)
-    CONTENTSWARM_API_TOKEN     If set, /api/v1 requires this bearer token
+    CONTENTSWARM_API_TOKEN     Required agent bearer token
+    CONTENTSWARM_CONSOLE_TOKEN Separate owner login secret; never supply to agents
+    CONTENTSWARM_COOKIE_SECURE Secure session cookies (default: 1; 0 only for loopback HTTP)
+    CONTENTSWARM_TRUST_PROXY   Set 1 behind one local HTTPS reverse proxy
     PHONE_AGENT_BASE_URL       Vision model API URL (default: http://localhost:8000/v1)
     PHONE_AGENT_MODEL          Vision model name (default: autoglm-phone-9b)
     PHONE_AGENT_API_KEY        Vision model API key (default: EMPTY)
@@ -35,7 +38,7 @@ from app import init_dashboard  # noqa: E402
 
 
 def main() -> None:
-    host = os.environ.get("CONTENTSWARM_HOST", "0.0.0.0")
+    host = os.environ.get("CONTENTSWARM_HOST", "127.0.0.1")
     port = int(os.environ.get("CONTENTSWARM_PORT", "5000"))
     phones_config = os.environ.get("CONTENTSWARM_PHONES_CONFIG", "phones_config.json")
 
@@ -61,10 +64,7 @@ def main() -> None:
 
     automation = SocialMediaAutomation(phone_manager)
 
-    if os.environ.get("CONTENTSWARM_API_TOKEN"):
-        print("🔒 API token auth enabled for /api/v1")
-    else:
-        print("⚠️  CONTENTSWARM_API_TOKEN not set - /api/v1 is unauthenticated")
+    print("🔒 Token authentication enabled; browser sessions require login")
 
     init_dashboard(
         phone_manager=phone_manager,

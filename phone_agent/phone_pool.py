@@ -340,9 +340,15 @@ class PhonePoolManager:
         if not lock.acquire(blocking=False):
             raise RuntimeError(f"Phone '{phone_name}' is busy with another operation")
         try:
+            self._authorize_operation(phone_name)
             yield
         finally:
             lock.release()
+
+    def _authorize_operation(self, phone_name):
+        authorizer = getattr(self, "operation_authorizer", None)
+        if authorizer:
+            authorizer(phone_name)
 
     def _run_task_on_phone(self, phone_name: str, task: str, task_id: str) -> str:
         """Run a task on a specific phone with locking. Used by async methods."""
@@ -356,6 +362,7 @@ class PhonePoolManager:
             if not lock.acquire(timeout=0):
                 raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
             acquired = True
+            self._authorize_operation(phone_name)
             phone = self.phones[phone_name]
             task_result = self._tasks.get(task_id)
             if task_result:
@@ -474,6 +481,7 @@ class PhonePoolManager:
             if not lock.acquire(timeout=0):
                 raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
             acquired = True
+            self._authorize_operation(phone_name)
             phone = self.phones[phone_name]
             task_result = self._tasks.get(task_id)
             if task_result:
@@ -580,6 +588,7 @@ class PhonePoolManager:
             if not lock.acquire(timeout=0):
                 raise RuntimeError(f"Phone '{phone_name}' is busy with another task")
             acquired = True
+            self._authorize_operation(phone_name)
             phone = self.phones[phone_name]
             task_result = self._tasks.get(task_id)
             if task_result:

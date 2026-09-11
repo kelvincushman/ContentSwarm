@@ -1,5 +1,9 @@
 # ContentSwarm for Orphus and Pi
 
+Use the [social review skill](skills/contentswarm-social-review/SKILL.md) for
+X, LinkedIn and Facebook replies. It includes Humanizer 3.0.0 and documents
+`reviews`, `review-add`, and `review-action` for the human-reviewed handoff.
+
 Orphus or Pi is the brain; ContentSwarm is the Android execution layer. Agents
 use the `contentswarm` JSON CLI, which talks to the authenticated REST API.
 They never import ContentSwarm modules or invoke raw ADB.
@@ -34,12 +38,14 @@ From the ContentSwarm checkout:
 ```bash
 ./orphus/install.sh
 python -m pip install -e .
-export CONTENTSWARM_API_URL="http://<server>:5000/api/v1"
+export CONTENTSWARM_API_URL="https://<server>/api/v1"
 export CONTENTSWARM_API_TOKEN="<server token>"
 contentswarm status
 ```
 
-The installer defaults to `~/.orphus/agent`. Plain Pi uses the same artifacts:
+Use HTTPS for remote API access. HTTP is only for a loopback endpoint, including
+the local end of an encrypted tunnel. The installer defaults to `~/.orphus/agent`.
+Plain Pi uses the same artifacts:
 
 ```bash
 ORPHUS_CODING_AGENT_DIR="$HOME/.pi/agent" ./orphus/install.sh
@@ -159,3 +165,11 @@ The operator sees only what normal ADB, accessibility, screenshots, and Android
 intents expose. It cannot bypass app sandboxes, end-to-end encryption,
 authentication, captchas, or protected screenshots. A user may need to unlock
 the phone, grant a permission, or complete a login directly on the device.
+# Account context and scheduled social work
+
+Use `contentswarm social accounts`, `social context --account ID --query WORDS`,
+`social remember --account ID --file FILE`, `social schedules`, `social jobs`
+and `social tick`. All use the REST boundary. Account identity and recurrence
+are edited by the owner in the console; agents append untrusted observations.
+Read [the social guide](../dashboard/SOCIAL.md) and the
+`contentswarm-social-review` skill before drafting or delivering.

@@ -1,5 +1,35 @@
 # AI Server Setup
 
+The mobile console now requires its separate `CONTENTSWARM_CONSOLE_TOKEN` for sign-in, including
+legacy dashboard routes and Socket.IO. Agents keep sending bearer headers;
+browser sessions last eight hours and expire on restart. Set
+`CONTENTSWARM_STATE_DIR` to a private writable directory for the durable reply
+queue (default `~/.local/state/contentswarm`). Use HTTPS for remote browser access.
+New installs generate both credentials. Existing installs must add a distinct
+random `CONTENTSWARM_CONSOLE_TOKEN` to the private service environment before
+using the GUI. Only the API token belongs in an agent environment. Review
+decisions require an owner console session and CSRF token.
+See [console setup](../dashboard/CONSOLE.md).
+Server startup now fails without `CONTENTSWARM_API_TOKEN`. Browser cookies are
+Secure by default; terminate HTTPS at a reverse proxy for remote use. Only a
+loopback-bound local HTTP service may set `CONTENTSWARM_COOKIE_SECURE=0`.
+
+Existing installations must change `CONTENTSWARM_HOST=0.0.0.0` to
+`CONTENTSWARM_HOST=127.0.0.1` in `/etc/contentswarm/env`. For remote access, put
+an HTTPS reverse proxy on the same server and set `CONTENTSWARM_TRUST_PROXY=1`.
+For example, Caddy with a domain pointing at this server:
+
+```caddyfile
+contentswarm.example.com {
+    reverse_proxy 127.0.0.1:5000
+}
+```
+
+[Caddy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) terminates HTTPS and sets the forwarded scheme; keep Secure cookies
+enabled (the default). Alternatively, use an SSH tunnel to the loopback service
+and `CONTENTSWARM_COOKIE_SECURE=0` for the local HTTP browser endpoint. The
+installer prepares the service; configure the proxy or tunnel before remote use.
+
 How to run ContentSwarm on your home AI server so Orphus (running there or on
 any machine that can reach it — e.g. over your LAN, or remotely via Netbird)
 can drive the phone fleet.
@@ -96,19 +126,21 @@ sudo systemctl enable --now vllm
 
 ## 4. Point Orphus at the server
 
-On the machine running Orphus (the server itself, or any machine that can
-reach it — a Netbird peer address works the same as a LAN IP):
+On the machine running Orphus, use the HTTPS proxy address configured above.
+For direct local use or an SSH tunnel, use its loopback HTTP endpoint instead.
 
 ```bash
 ./orphus/install.sh                      # installs skills/agent/fleet into ~/.orphus/agent/
 pip install -e /path/to/ContentSwarm     # provides the contentswarm CLI
 
-export CONTENTSWARM_API_URL="http://<server-ip>:5000/api/v1"
+export CONTENTSWARM_API_URL="https://<server-domain>/api/v1"
 export CONTENTSWARM_API_TOKEN="<token from /etc/contentswarm/env>"
 contentswarm status                      # smoke test
 ```
 
-Put the two exports in the shell profile of whatever user runs Orphus.
+Use these exports only in the current shell session. For persistent agent
+services, load the token from a keyring or an owner-only service environment
+file; do not copy the literal secret into a shared or unprotected shell profile.
 See `orphus/README.md` for using the `phone-operator` agent and the
 `contentswarm` fleet.
 
@@ -179,3 +211,16 @@ send requires a person to approve the exact channel, recipient, and body.
 | Send returns `expected body is not present` | Draft changed since approval; inspect and obtain fresh approval |
 | Send is unverified after a timeout | Inspect the conversation before any retry |
 | Dashboard unreachable remotely | Server firewall — allow TCP 5000 from your network |
+# Social worker deployment
+
+See [dashboard/SOCIAL.md](../dashboard/SOCIAL.md) for the optional user timer,
+account memory, draft budgets and delivery mode. `social_worker.py` calls the
+REST API and the authenticated Claude CLI. `CONTENTSWARM_KEYRING=1` loads only
+the agent credential from GNOME keyring on Omarchy; other hosts supply
+`CONTENTSWARM_API_TOKEN` in the worker environment. Override
+`CONTENTSWARM_API_URL` as needed: standalone social_worker.py defaults to
+http://127.0.0.1:5000/api/v1; the Omarchy timer installer overrides it to port 5055.
+`CONTENTSWARM_DELIVERY_ENABLED=1` enables approved-item delivery; its default is
+off. `CONTENTSWARM_BRAIN_MODEL`, `CONTENTSWARM_BRAIN_BIN`,
+`CONTENTSWARM_DRAFT_BUDGET` and `CONTENTSWARM_DELIVERY_BUDGET` configure the harness.
+The worker/server share state through HTTP, not direct database access.
