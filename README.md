@@ -311,7 +311,8 @@ The server exposes these routes below `/api/v1`:
 | `POST` | `/phones/discover` | Scan authorized ADB devices and persist new phones |
 | `GET` | `/phones/<phone>` | One phone |
 | `POST` | `/phones/<phone>/app` | Launch a registered app |
-| `GET` | `/phones/<phone>/current_app` | Foreground package |
+| `GET` | `/phones/<phone>/current_app` | Foreground app name and package |
+| `GET` | `/phones/<phone>/clock` | Device time with UTC offset and epoch |
 | `GET` | `/phones/<phone>/installed` | Third-party packages |
 | `GET` | `/phones/<phone>/ui` | Accessibility elements |
 | `GET` | `/phones/<phone>/screenshot` | PNG screenshot |

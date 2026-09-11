@@ -51,13 +51,16 @@ def read_x_preview(client, route):
             return None
         tap(text="Share via…")
         foreground = focused({"android", "com.android.intentresolver"})
-        for _ in range(3):
+        import time
+        for attempt in range(3):
             elements = ui()
             if package() != foreground:
                 raise ValueError("Chooser focus changed during observation")
             observation = preview_data(elements)
             if observation is not None:
                 return observation
+            if attempt < 2:
+                time.sleep(0.2)
         return None
     finally:
         foreground = package()
