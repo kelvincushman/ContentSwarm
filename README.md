@@ -395,3 +395,9 @@ The exact contributor and agent rules are in [CLAUDE.md](CLAUDE.md).
 - [Communications skill](orphus/skills/contentswarm-communications/SKILL.md)
 - [Social content pipeline](VIRAL_CONTENT_GUIDE.md)
 - [adb-agent-bridge](https://github.com/kelvincushman/adb-agent-bridge)
+
+Reply drafting is available in **Accounts & schedules → Reply to a conversation**.
+Supply the original message, author and link; the worker uses that account's soul,
+knowledge and thread history, applies Humanizer, and queues the response for your
+approval. Draft now or use an editable schedule. See [the social guide](dashboard/SOCIAL.md#contextual-reply-drafts)
+for the API fields and current phone-delivery limits.

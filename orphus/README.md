@@ -173,3 +173,8 @@ and `social tick`. All use the REST boundary. Account identity and recurrence
 are edited by the owner in the console; agents append untrusted observations.
 Read [the social guide](../dashboard/SOCIAL.md) and the
 `contentswarm-social-review` skill before drafting or delivering.
+
+Owner-created social jobs and schedules support `kind: "reply"` with `source_url`,
+`author`, and `original`. These fields survive scheduling and model drafting into
+the pending review; the model cannot replace the recipient/source metadata.
+See [contextual reply drafts](../dashboard/SOCIAL.md#contextual-reply-drafts).

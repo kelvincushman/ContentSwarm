@@ -134,7 +134,7 @@ console session. The agent token cannot create its own publishing authority.
 |---|---|
 | GET/POST `/social/accounts` | List / owner create or edit (id + revision) |
 | GET/POST `/social/accounts/<id>/memory` | Scoped context / append sourced knowledge or observation |
-| GET/POST `/social/schedules` | List / owner create or edit with `account_id`, `prompt`, `spec` |
+| GET/POST `/api/v1/social/schedules` | List / owner create or edit with `account_id`, `prompt`, `spec` |
 | POST `/social/schedules/<id>/pause` | Owner pause with revision |
 | GET/POST `/social/jobs` | List / owner enqueue draft with account_id and prompt |
 | POST `/social/tick` | Enqueue due occurrences, no model calls |
@@ -163,3 +163,22 @@ fields; `author` and `original` have post defaults. Replies should include
 
 The social store and review queue live under `CONTENTSWARM_STATE_DIR`, default
 `~/.local/state/contentswarm`, with private SQLite files. Back them up together.
+
+### Contextual reply drafts
+
+In **Accounts & schedules**, select the account, choose **Reply to a
+conversation**, and enter its link, author and original message. Add your brief
+and choose Draft now or a schedule. Each job retains that source, retrieves
+account-scoped knowledge with the conversation link as its thread key, and applies
+the full Humanizer skill. Its result enters Post & reply review with the original
+message alongside the proposed response. Approve or rewrite there; drafting never
+sends a message. Repeated reply schedules prepare a fresh draft of the same target
+for review on each occurrence; they do not collect new replies automatically.
+
+The owner-only `POST /api/v1/social/jobs` and `/api/v1/social/schedules` accept
+`kind: "reply"` with required `source_url`, `author`, and `original` fields.
+Omitting `kind` retains original-post behavior. The source must be a non-root HTTPS
+link on the selected account's platform. Schedule edits copy the new source only
+into future jobs, cancelling queued work as before; running jobs retain their
+original target. Automatic phone reply delivery still needs a source-verifying
+platform adapter. A pending or approved draft is not proof that it was sent.

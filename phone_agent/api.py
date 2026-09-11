@@ -107,7 +107,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
                 return jsonify(store.account(data)), 201
             if collection == "schedules":
                 return jsonify(store.schedule(data)), 201
-            return jsonify(store.enqueue(data.get("account_id"), data.get("prompt"))), 201
+            return jsonify(store.enqueue(data.get("account_id"), data.get("prompt"), data)), 201
         except (ValueError, LookupError) as exc:
             return jsonify(error=str(exc)), 400
 
@@ -119,7 +119,11 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
                 context = store.context(account_id, request.args.get("q", ""), request.args.get("thread", ""))
                 context["reviews"] = []
                 remaining = 12000
-                for r in review_queue().list():
+                reviews = review_queue().list()
+                thread = request.args.get("thread", "")
+                if thread:
+                    reviews.sort(key=lambda r: r.get("source_url") == thread, reverse=True)
+                for r in reviews:
                     if r.get("account_id") != account_id:
                         continue
                     excerpt = {k: r[k] for k in ("id", "status", "source_url", "original", "reply", "updated_at") if k in r}

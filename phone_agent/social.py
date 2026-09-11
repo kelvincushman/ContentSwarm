@@ -182,12 +182,13 @@ class SocialStore:
             raise ValueError("Choose a future date")
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            self.get("accounts", account_id, db)
+            account = self.get("accounts", account_id, db)
+            target = self.draft_target(data, account["platform"])
             old = self.get("schedules", data["id"], db) if data.get("id") else None
             if old and data.get("revision") != old["revision"]:
                 raise ValueError("Schedule changed; refresh first")
             item = dict(id=old["id"] if old else uuid.uuid4().hex, revision=old["revision"] + 1 if old else 1,
-                        account_id=account_id, prompt=prompt, spec=spec, next_at=due, enabled=True)
+                        account_id=account_id, prompt=prompt, spec=spec, next_at=due, enabled=True, **target)
             # Editing cancels only work which has not started.
             if old:
                 for job in self.list("jobs", db):
@@ -209,14 +210,29 @@ class SocialStore:
                     self.save(db, "jobs", job)
             return self.save(db, "schedules", item)
 
-    def enqueue(self, account_id, prompt):
-        with self.connect() as db:
-            self.get("accounts", account_id, db)
-            return self._job(db, account_id, text({"prompt": prompt}, "prompt"))
+    def draft_target(self, data, platform):
+        kind = data.get("kind", "post")
+        if kind not in ("post", "reply"):
+            raise ValueError("kind must be post or reply")
+        target = dict(kind=kind)
+        if kind == "reply":
+            from urllib.parse import urlparse
+            target.update({key: text(data, key) for key in ("source_url", "author", "original")})
+            url = urlparse(target["source_url"])
+            hosts = {"x": {"x.com", "www.x.com", "twitter.com"}, "linkedin": {"linkedin.com", "www.linkedin.com"}, "facebook": {"facebook.com", "www.facebook.com", "m.facebook.com"}}
+            if url.scheme != "https" or url.hostname not in hosts[platform] or url.username or url.path in ("", "/"):
+                raise ValueError("Reply source_url must link to a conversation on the account's platform")
+        return target
 
-    def _job(self, db, account_id, prompt, schedule_id=None):
+    def enqueue(self, account_id, prompt, target=None):
+        with self.connect() as db:
+            account = self.get("accounts", account_id, db)
+            target = self.draft_target(target or {}, account["platform"])
+            return self._job(db, account_id, text({"prompt": prompt}, "prompt"), target=target)
+
+    def _job(self, db, account_id, prompt, schedule_id=None, target=None):
         return self.save(db, "jobs", dict(id=uuid.uuid4().hex, account_id=account_id, prompt=prompt,
-                         schedule_id=schedule_id, status="queued", at=time.time()))
+                         schedule_id=schedule_id, status="queued", at=time.time(), **(target or {"kind": "post"})))
 
     def tick(self, now=None):
         now = time.time() if now is None else now
@@ -229,7 +245,7 @@ class SocialStore:
                 # Coalesce backlog: never generate a burst after suspend or an outage.
                 busy = any(j.get("schedule_id") == item["id"] and j["status"] in ("queued", "running") for j in self.list("jobs", db))
                 if not busy:
-                    created.append(self._job(db, item["account_id"], item["prompt"], item["id"]))
+                    created.append(self._job(db, item["account_id"], item["prompt"], item["id"], {k: item[k] for k in ("kind", "source_url", "author", "original") if k in item}))
                 item["next_at"] = next_time(item["spec"], now)
                 item["enabled"] = item["next_at"] is not None
                 self.save(db, "schedules", item)
