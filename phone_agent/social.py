@@ -128,6 +128,9 @@ class SocialStore:
                 if ":id/" not in entry or entry == resource:
                     raise ValueError("Use the full resource id of the separate composer-entry button")
                 item["delivery_indicator"]["compose_id"] = entry
+            controls = [item["delivery_indicator"][key] for key in ("id", "compose_id", "posted_id") if key in item["delivery_indicator"]]
+            if len(controls) != len(set(controls)):
+                raise ValueError("Account, composer entry and published-content resource IDs must be distinct")
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             old = self.get("accounts", data["id"], db) if data.get("id") else None

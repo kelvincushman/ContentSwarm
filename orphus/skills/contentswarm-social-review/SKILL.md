@@ -23,7 +23,9 @@ Humanizer 3.0.0 is vendored from blader/humanizer commit
 
 Write a private JSON file with platform (`x`, `linkedin`, `facebook`), account
 (the exact handle), account_id (the profile id from social accounts),
-phone, source_url, author, original, reply and humanizer_version (`3.0.0`). Run
+kind (`post` for original posts, `reply` for replies), phone, source_url,
+author, original, reply and humanizer_version (`3.0.0`). Original posts must
+explicitly set kind to `post` to be considered by the automatic worker. Run
 `contentswarm review-add FILE`. The version records your application of the skill,
 not an independent model check. The owner reviews the card in the console.
 Never invoke approve endpoints yourself or simulate approval clicks.

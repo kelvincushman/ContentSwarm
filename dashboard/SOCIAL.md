@@ -60,6 +60,7 @@ its separate resource ID as `compose_id`. This permits that navigation before
 typing; never configure the final commit button as the composer entry.
 Also calibrate `posted_id`, the full resource ID of actual published content,
 not a toolbar label or editor. Automatic posting is disabled without it.
+Account, composer-entry and published-content IDs must be distinct after trimming.
 Before sending, the editable composer's entire text must equal the approved
 body. Completion requires that exact body in one calibrated non-editor content
 element on a later screen. A short body matching a button label is insufficient.

@@ -32,6 +32,15 @@ def test_account_scope_and_immutable_identity(tmp_path):
         store.account(dict(a, handle="@changed"))
 
 
+def test_calibration_controls_are_distinct_after_normalization(tmp_path):
+    store = SocialStore(tmp_path / "social.db")
+    data = dict(name="A", platform="x", handle="@a", soul="Plain", phones=[])
+    with pytest.raises(ValueError, match="distinct"):
+        store.account(dict(data, delivery_indicator=dict(id="app:id/account", text="@a", compose_id=" app:id/control ", posted_id="app:id/control")))
+    saved = store.account(dict(data, delivery_indicator=dict(id=" app:id/account ", text="@a", compose_id="app:id/open", posted_id="app:id/content")))
+    assert saved["delivery_indicator"]["id"] == "app:id/account"
+
+
 def test_tick_is_atomic_coalesces_and_edit_cancels_unstarted(tmp_path):
     store = SocialStore(tmp_path / "social.db")
     a = store.account(dict(name="A", platform="x", handle="@a", soul="Plain", phones=["p"]))
