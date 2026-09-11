@@ -220,3 +220,66 @@ def test_short_body_cannot_match_toolbar_or_unrelated_content(monkeypatch, wrong
     with pytest.raises(ValueError, match="preconditions|delivery evidence"):
         social_worker.delivery_loop(Client(), review, indicator)
     assert not any(path.endswith("/complete") for path,_ in calls)
+
+
+def test_reply_jobs_keep_source_through_schedule_edit_and_claim(tmp_path):
+    store = SocialStore(tmp_path / "social.db")
+    account = store.account(dict(name="A", platform="x", handle="@a", soul="Plain", phones=["p"]))
+    target = dict(kind="reply", source_url="https://x.com/reader/status/123", author="Reader", original="Does it run locally?")
+    job = store.enqueue(account["id"], "Explain the local part", target)
+    assert all(job[k] == v for k, v in target.items())
+    assert store.claim()["source_url"] == target["source_url"]
+    schedule = store.schedule(dict(account_id=account["id"], prompt="Draft a response", spec=dict(kind="interval", minutes=60), **target), now=0)
+    first = store.tick(3601)[0]
+    updated = store.schedule(dict(schedule, original="Does it run offline?"), now=3602)
+    assert store.get("jobs", first["id"])["status"] == "cancelled"
+    next_job = store.tick(updated["next_at"])[0]
+    assert next_job["original"] == "Does it run offline?"
+    assert next_job["kind"] == "reply"
+    assert store.get("jobs", job["id"])["original"] == target["original"]
+    for changes in ({"kind": "send"}, {"source_url": "https://facebook.com/a/posts/1"}, {"source_url": "https://x.com/"}, {"author": ""}, {"original": ""}):
+        with pytest.raises(ValueError):
+            store.enqueue(account["id"], "Respond", dict(target, **changes))
+
+
+def test_worker_reply_uses_thread_context_humanizer_and_approval_queue(monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from pathlib import Path
+    import social_worker
+    account = dict(id="account", platform="x", handle="@owner", phones=["offline", "online"])
+    target = dict(kind="reply", author="Reader", original="What does it do?", source_url="https://x.com/reader/status/123")
+    job = dict(id="job", account_id="account", prompt="Explain the project", **target)
+    calls = []
+    class FakeClient:
+        def __init__(self, *args): pass
+        def get(self, route):
+            calls.append(route)
+            if route == "/phones":
+                return {"phones": [dict(name="offline", connected=False), dict(name="online", connected=True)]}
+            assert "thread=https%3A%2F%2Fx.com%2Freader%2Fstatus%2F123" in route
+            return dict(account=account, memories=[dict(text="A local tool", trusted=True)])
+        def post(self, route, data=None):
+            calls.append((route, data))
+            if route == "/social/claim": return {"job": job}
+            if route == "/reviews": return {"id": "review", "status": "pending"}
+            return {}
+    def model(command, **kwargs):
+        payload = json.loads(kwargs["input"])
+        assert payload["target"] == target
+        assert payload["context"]["account"] == account
+        system = Path(command[command.index("--system-prompt-file") + 1]).read_text()
+        assert "target.original" in system and "Humanizer" in system
+        assert "CONTENTSWARM_API_TOKEN" not in kwargs["env"]
+        return SimpleNamespace(returncode=0, stdout=json.dumps({"result": "It runs the phone controls locally."}))
+    monkeypatch.setattr(social_worker, "Client", FakeClient)
+    monkeypatch.setattr(social_worker.subprocess, "run", model)
+    monkeypatch.setenv("CONTENTSWARM_API_TOKEN", "secret")
+    monkeypatch.delenv("CONTENTSWARM_DELIVERY_ENABLED", raising=False)
+    social_worker.main()
+    review = next(data for route, data in (c for c in calls if isinstance(c, tuple)) if route == "/reviews")
+    assert all(review[k] == v for k, v in target.items())
+    assert review["phone"] == "online"
+    assert review["humanizer_version"] == "3.0.0"
+    assert calls[-1] == ("/social/jobs/job/finish", {"result": {"review_id": "review"}})
+    assert not any("/approve" in str(c) or "/action" in str(c) for c in calls)

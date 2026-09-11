@@ -52,3 +52,13 @@ attempt owner recovery endpoints yourself or expose lease tokens in prose/logs.
 
 Learn navigation up to the composer. Exclude final Send/Post taps from reusable
 flows, inspect recorded steps, and stop on unexpected screens.
+
+## Owner-queued reply drafting
+
+The console can queue reply drafts now or on a schedule. Owner-only
+`POST /api/v1/social/jobs` and `/social/schedules` accept `kind: "reply"`,
+`source_url`, `author`, and `original`, alongside the account and brief. The
+worker retrieves thread context and applies Humanizer before creating a pending
+review. A repeated schedule uses the same source on each occurrence; it does not
+collect new conversations. Automatic reply delivery remains a separate,
+source-verifying agent task. Never treat draft creation as delivery or approval.

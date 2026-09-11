@@ -163,3 +163,22 @@ fields; `author` and `original` have post defaults. Replies should include
 
 The social store and review queue live under `CONTENTSWARM_STATE_DIR`, default
 `~/.local/state/contentswarm`, with private SQLite files. Back them up together.
+
+### Contextual reply drafts
+
+In **Accounts & schedules**, select the account, choose **Reply to a
+conversation**, and enter its link, author and original message. Add your brief
+and choose Draft now or a schedule. Each job retains that source, retrieves
+account-scoped knowledge with the conversation link as its thread key, and applies
+the full Humanizer skill. Its result enters Post & reply review with the original
+message alongside the proposed response. Approve or rewrite there; drafting never
+sends a message. Repeated reply schedules prepare a fresh draft of the same target
+for review on each occurrence; they do not collect new replies automatically.
+
+The owner-only `POST /api/v1/social/jobs` and `/social/schedules` accept
+`kind: "reply"` with required `source_url`, `author`, and `original` fields.
+Omitting `kind` retains original-post behavior. The source must be a non-root HTTPS
+link on the selected account's platform. Schedule edits copy the new source only
+into future jobs, cancelling queued work as before; running jobs retain their
+original target. Automatic phone reply delivery still needs a source-verifying
+platform adapter. A pending or approved draft is not proof that it was sent.
