@@ -262,3 +262,23 @@ repeated. The existing-post phone test checks stale rejection, not new publishin
 `contentswarm clock PHONE` / `GET /api/v1/phones/PHONE/clock` returns the selected
 phone's ISO clock (including UTC offset) and epoch. The endpoint runs a fixed
 read-only date command; callers cannot supply shell text or alter the clock.
+
+### Native share-preview verification
+
+On Samsung, Android's share preview exposes X's author handle and full body even
+when the post detail omits them from accessibility. The verifier now opens Share
+then Share via…, checks that Android's native chooser owns focus, and reads only
+metadata nested inside `android:id/content_preview_container`. Suggested-contact
+labels are excluded. It retries observations while metadata loads, then returns
+to X without selecting a recipient, copying a link or sending anything.
+
+An exact native author/body match uses the same independent detail timestamp and
+device-clock window, avoiding a model call. Missing metadata falls back to image
+reading after restoring and checking the detail screen. Mismatched metadata fails;
+it is not overridden by a model. The connected-phone test matched the existing
+post's emoji/hashtags and restored the detail screen. New publication still needs
+live validation before enabling automatic delivery.
+
+`current` / GET `/phones/PHONE/current_app` now also returns `package` (null when
+no window is focused). Detection uses `mCurrentFocus`, never the underlying
+`mFocusedApp`, so a chooser or dialog cannot be mistaken for the app behind it.

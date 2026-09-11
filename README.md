@@ -311,7 +311,8 @@ The server exposes these routes below `/api/v1`:
 | `POST` | `/phones/discover` | Scan authorized ADB devices and persist new phones |
 | `GET` | `/phones/<phone>` | One phone |
 | `POST` | `/phones/<phone>/app` | Launch a registered app |
-| `GET` | `/phones/<phone>/current_app` | Foreground package |
+| `GET` | `/phones/<phone>/current_app` | Foreground app name and package |
+| `GET` | `/phones/<phone>/clock` | Device time with UTC offset and epoch |
 | `GET` | `/phones/<phone>/installed` | Third-party packages |
 | `GET` | `/phones/<phone>/ui` | Accessibility elements |
 | `GET` | `/phones/<phone>/screenshot` | PNG screenshot |
@@ -423,3 +424,8 @@ post text from accessibility data. The tool-free reader produces blind observati
 compares these with approved text and a fresh device-clock/UI timestamp before
 completing delivery. Actual new-post publishing still needs live validation.
 `contentswarm clock PHONE` reads the device time and UTC offset without a model.
+
+On supported Samsung layouts, experimental X verification first reads author/body
+from Android's native share preview, avoiding a model call. It does not select a
+recipient or use the clipboard. Screenshot interpretation remains a fallback.
+The current-app API includes the exact focused package alongside the friendly name.

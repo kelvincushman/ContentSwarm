@@ -250,3 +250,8 @@ or expected post text. The experimental X delivery fallback invokes it once only
 post-detail screen and fresh UI timestamp are present. Keep automatic delivery
 disabled until actual publication is validated on your app version. The phone
 clock endpoint accounts for its UTC offset; the laptop timezone is not used.
+
+Supported Samsung native share-preview verification needs no new dependency and
+avoids the screenshot model when its author/body metadata matches. App/OS layout
+changes fail or use the existing image fallback; keep delivery disabled until
+new-post verification is exercised on the installed app version.

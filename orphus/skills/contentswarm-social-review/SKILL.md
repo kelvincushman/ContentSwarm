@@ -81,3 +81,9 @@ when accessibility omits post content. The kernel checks exact account/text
 (whitespace wrapping folded) and matches the visible timestamp against device
 time. It never retries Send; uncertain outcomes require inspection. New-post
 publication has not yet been validated live; keep automatic delivery disabled.
+
+Inspect the `package` returned by `contentswarm current PHONE` when distinguishing
+X from Android's native chooser. Missing focus is unknown, not evidence of the
+underlying app. The X verifier can read structured native preview author/body
+without selecting contacts or copying links; it restores the detail and checks
+the same independent publication timestamp. It avoids a model on exact matches.
