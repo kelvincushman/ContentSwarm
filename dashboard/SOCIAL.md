@@ -229,7 +229,36 @@ Live validation on the connected Samsung (11 September 2026) reached the X
 composer, verified the exact signed-in handle and Unicode text, then intercepted
 the final send and cleared the draft. Publication was not exercised. The observed
 feed exposed display names without handles, so that feed alone cannot satisfy
-the publication proof. A reliable detail-view verification path still needs
-on-device validation before enabling automatic delivery on this app version.
+the publication proof. The experimental fallback opens the unique matching post detail and compares a
+blind screenshot transcription with the approved account/text and an independent
+UI timestamp. Actual new-post publication still needs live validation before
+enabling automatic delivery on this app version.
 LinkedIn exposes its personal identity in the navigation drawer but not in the
 composer; a platform-specific identity path remains to be implemented there.
+
+### Screenshot interpretation work
+
+`social_vision.read_post` is a tool-free image transcription component for
+screens whose accessibility trees omit visible post text. It receives only the
+screenshot, without the expected handle or approved body, and returns untrusted
+handle/body/timestamp observations. It removes ContentSwarm credentials from the
+model environment and exposes no phone actions or model tools. A local Samsung
+screenshot test recovered the existing post's emoji and hashtags that OCR misread.
+The X worker invokes it only after semantic publication proof fails and a unique
+matching body can be opened. It requires one post-detail surface with reply,
+repost and like controls. It captures a screenshot between identical UI dumps,
+checks the publication timestamp against the phone clock before calling the
+model, then compares the blind transcription with the approved account/text and
+that independently read timestamp. Whitespace wrapping is folded; emoji,
+hashtags and all other characters must match exactly. Because X timestamps show minutes, delivery records the device clock then
+waits for a strictly later minute before rechecking the exact composer and
+making its sole Post tap. This adds up to 60 seconds before posting (65-second
+poll deadline, plus API transport timeouts). Clock regression or offset changes
+abort delivery. Publication must fall after the unfloored baseline, with capture
+within five minutes and an unchanged UTC offset. Older same-minute posts fail. Ambiguous, stale or changed screens remain uncertain. Screenshot-based
+reading can be mistaken and is not independent platform confirmation. No send is
+repeated. The existing-post phone test checks stale rejection, not new publishing.
+
+`contentswarm clock PHONE` / `GET /api/v1/phones/PHONE/clock` returns the selected
+phone's ISO clock (including UTC offset) and epoch. The endpoint runs a fixed
+read-only date command; callers cannot supply shell text or alter the clock.

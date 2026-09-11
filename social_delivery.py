@@ -70,6 +70,27 @@ def x_published(elements, handle, body, seconds_since_send):
     return len(proofs) == 1
 
 
+def next_device_minute(client, route):
+    """Wait at most 65 seconds for a later device minute; never alter its clock."""
+    from datetime import datetime
+    baseline = client.get(route + "/clock")["iso"]
+    first = previous = datetime.fromisoformat(baseline)
+    if first.utcoffset() is None:
+        raise ValueError("Phone clock requires a UTC offset")
+    deadline = time.monotonic() + 65
+    while time.monotonic() < deadline:
+        current = datetime.fromisoformat(client.get(route + "/clock")["iso"])
+        if time.monotonic() >= deadline:
+            raise ValueError("Phone clock minute wait expired")
+        if current.utcoffset() != first.utcoffset() or not previous <= current or (current-first).total_seconds() > 65:
+            raise ValueError("Phone clock changed unexpectedly")
+        if current.replace(second=0, microsecond=0) > first:
+            return baseline
+        previous = current
+        time.sleep(1)
+    raise ValueError("Phone clock minute did not advance")
+
+
 def x_post(client, review):
     """Publish an already leased original post once, or leave it uncertain."""
     if review.get("kind") != "post" or review.get("platform") != "x":
@@ -104,6 +125,12 @@ def x_post(client, review):
     if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text") != body:
         raise ValueError("Final account/body check failed")
     one(ui, desc="Post")
+    started = next_device_minute(client, route)
+    ui = sense()
+    fields = editors(ui)
+    if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text") != body:
+        raise ValueError("Composer changed while waiting for timestamp boundary")
+    one(ui, desc="Post")
     sent_at = time.monotonic()
     tap(desc="Post")  # Exactly one commit request. Exceptions never replay it.
     for attempt in range(5):
@@ -113,4 +140,6 @@ def x_post(client, review):
             return
         if attempt < 4:
             time.sleep(1)
-    raise ValueError("No fresh published post evidence; inspect before retrying")
+    from social_vision import verify_x_detail
+    evidence = verify_x_detail(client, route, handle, body, started, sense)
+    client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": evidence})

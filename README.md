@@ -417,3 +417,9 @@ and looks for a fresh published-post subtree. It does not call a model for
 navigation. See [the X adapter guide](dashboard/SOCIAL.md#x-accessibility-adapter)
 for setup and supported screens. Phone deployment testing is required before
 relying on it; a pending or uncertain review is never a delivery confirmation.
+
+Screenshot interpretation is in development for app screens that omit visible
+post text from accessibility data. The tool-free reader produces blind observations. The experimental X fallback
+compares these with approved text and a fresh device-clock/UI timestamp before
+completing delivery. Actual new-post publishing still needs live validation.
+`contentswarm clock PHONE` reads the device time and UTC offset without a model.

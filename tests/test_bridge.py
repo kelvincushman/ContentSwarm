@@ -244,3 +244,13 @@ def test_installed_bridge_parser_supports_child_label_taps(use_bridge):
     result = bridge.semantic_action("serial", "tap", desc="Open composer")
     assert result["target"] == [20, 20]
     assert fake.calls == [("tap", elements[1])]
+
+
+def test_device_clock_keeps_device_offset_and_uses_fixed_command(use_bridge):
+    calls=[]
+    fake=FakeBridge()
+    fake.device=SimpleNamespace(shell=lambda command:(calls.append(command) or '2026-09-11T20:15:00+0100\n'))
+    use_bridge(fake)
+    result=bridge.device_clock('serial')
+    assert result['iso']=='2026-09-11T20:15:00+01:00'
+    assert calls==['date +%Y-%m-%dT%H:%M:%S%z']

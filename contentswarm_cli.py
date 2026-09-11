@@ -197,6 +197,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("tasks", help="List all tracked tasks")
     sub.add_parser("apps", help="List apps that can be launched by name")
 
+    p = sub.add_parser("clock", help="Read the phone clock and UTC offset")
+    p.add_argument("phone")
+
     p = sub.add_parser("launch", help="Launch an app on a phone directly (no LLM)")
     p.add_argument("phone")
     p.add_argument("app")
@@ -398,6 +401,9 @@ def run_command(args, client: Client) -> None:
 
     elif args.command == "launch":
         output(client.post(f"/phones/{args.phone}/app", {"app": args.app}))
+
+    elif args.command == "clock":
+        output(client.get(f"/phones/{args.phone}/clock"))
 
     elif args.command == "current":
         output(client.get(f"/phones/{args.phone}/current_app"))
