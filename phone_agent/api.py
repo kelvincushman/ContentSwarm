@@ -58,7 +58,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         if not token:
             return None
         auth_header = request.headers.get("Authorization", "")
-        if auth_header == f"Bearer {token}":
+        if hmac.compare_digest(auth_header.encode("utf-8", "surrogatepass"), f"Bearer {token}".encode("utf-8", "surrogatepass")):
             return None
         # Browser sessions are authenticated and CSRF-checked by console.py.
         if session.get("console"):

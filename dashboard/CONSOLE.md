@@ -6,6 +6,8 @@ HttpOnly, SameSite session. Agent API credentials cannot sign in or approve,
 reject or edit reviews. Keep the console credential out of agent environments.
 Without it, the CLI/API remain available but console login is disabled. Startup
 rejects using the same secret for the agent and console.
+Both the standalone API blueprint and console compare credentials in constant
+time as UTF-8 bytes; malformed non-ASCII input is rejected without a server error.
 The token is not retained in browser storage. Server restarts invalidate sessions.
 Use HTTPS remotely and keep the Omarchy service bound to localhost.
 Startup requires a nonempty token; the old tokenless server mode is removed.

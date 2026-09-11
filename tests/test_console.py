@@ -111,3 +111,12 @@ def test_non_ascii_credentials_fail_without_server_errors(monkeypatch):
     assert client.get("/api/v1/phones", headers={"Authorization": "Bearer clé"}).status_code == 401
     client.post("/api/console/login", json={"token": "owner-token"})
     assert client.post("/api/v1/social/accounts", json={}, headers={"X-CSRF-Token": "clé"}).status_code == 403
+
+
+def test_standalone_blueprint_bearer_authentication(monkeypatch):
+    monkeypatch.setenv("CONTENTSWARM_API_TOKEN", "clé")
+    app = Flask(__name__)
+    app.register_blueprint(create_api_blueprint({}), url_prefix="/api/v1")
+    client = app.test_client()
+    assert client.get("/api/v1/phones", headers={"Authorization":"Bearer incorrect"}).status_code == 401
+    assert client.get("/api/v1/phones", headers={"Authorization":"Bearer clé"}).status_code == 503
