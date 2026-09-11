@@ -106,6 +106,14 @@ class SocialStore:
         item = {key: text(data, key) for key in ("name", "platform", "handle", "soul")}
         if item["platform"] not in ("x", "linkedin", "facebook"):
             raise ValueError("Unsupported platform")
+        adapter = data.get("delivery_adapter")
+        if adapter not in (None, "", "x-accessibility-v1"):
+            raise ValueError("Unknown delivery adapter")
+        if adapter:
+            import re
+            if item["platform"] != "x" or not re.fullmatch(r"@[A-Za-z0-9_]{1,15}", item["handle"]):
+                raise ValueError("X delivery requires an exact X @handle")
+            item["delivery_adapter"] = adapter
         phones = data.get("phones", [])
         if not isinstance(phones, list) or len(phones) > 20 or any(not isinstance(p, str) or not p or len(p) > 200 for p in phones):
             raise ValueError("phones must be a list of up to 20 device names")
@@ -134,6 +142,8 @@ class SocialStore:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             old = self.get("accounts", data["id"], db) if data.get("id") else None
+            if old and "delivery_adapter" not in data and old.get("delivery_adapter"):
+                item["delivery_adapter"] = old["delivery_adapter"]
             if old and "delivery_indicator" not in data and old.get("delivery_indicator"):
                 item["delivery_indicator"] = old["delivery_indicator"]
             if old and data.get("revision") != old["revision"]:

@@ -236,3 +236,9 @@ the correct parser while their wheel silently packaged stale tracked `build/lib`
 files. The corrected release removes those generated copies. The test suite now
 checks the installed parser and semantic child tap together, so a stale wheel
 fails validation rather than reaching the phone test.
+
+The optional X accessibility adapter needs the corrected pinned ADB bridge and
+`CONTENTSWARM_DELIVERY_ENABLED=1`, plus an owner-selected adapter on the account.
+It makes no delivery-model calls; drafting still uses the configured brain.
+Validate the exact English X layout on each assigned phone. See
+[the social guide](../dashboard/SOCIAL.md#x-accessibility-adapter) before enabling.

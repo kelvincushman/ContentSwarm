@@ -410,3 +410,10 @@ and rejects ambiguous labels, disabled ancestors and invalid bounds.
 The bridge pin includes the 0.2.1 packaging fix: installed wheels now contain the
 same parser as the source checkout. Tests exercise the installed dependency's
 parent metadata together with the kernel tap path.
+
+X profiles can select a deterministic accessibility adapter for original text
+posts. It checks the account and exact approved body, makes one commit attempt,
+and looks for a fresh published-post subtree. It does not call a model for
+navigation. See [the X adapter guide](dashboard/SOCIAL.md#x-accessibility-adapter)
+for setup and supported screens. Phone deployment testing is required before
+relying on it; a pending or uncertain review is never a delivery confirmation.

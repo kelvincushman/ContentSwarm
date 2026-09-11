@@ -27,7 +27,7 @@ def main():
         connected = {p["name"] for p in client.get("/phones")["phones"] if p["connected"]}
         profiles = {a["id"]: a for a in client.get("/social/accounts")["accounts"]}
         due = [r for r in client.get("/reviews")["reviews"] if r["status"] == "approved" and r.get("kind") == "post" and r.get("publish_at", 0) <= time.time() and r["phone"] in connected
-               and profiles.get(r.get("account_id"), {}).get("delivery_indicator", {}).get("posted_id")]
+               and delivery_ready(profiles.get(r.get("account_id"), {}))]
         per_phone = {}
         for review in reversed(due):
             per_phone.setdefault(review["phone"], review)
@@ -85,13 +85,17 @@ information is needed rather than filling gaps. No tools, sending, or posting.
         client.post(f"/social/jobs/{job['id']}/finish", {"error": str(exc)[:500]})
 
 
+def delivery_ready(profile):
+    return bool(profile.get("delivery_adapter") == "x-accessibility-v1" or profile.get("delivery_indicator", {}).get("posted_id"))
+
+
 def deliver(client, review):
     """Claim exactly once; a failed/ambiguous attempt always needs inspection."""
     from contentswarm_cli import ApiError
     if review.get("kind") != "post" or not review.get("account_id"):
         return
     profile = client.get(f"/social/accounts/{review['account_id']}/memory")["account"]
-    if not profile.get("delivery_indicator", {}).get("posted_id") or review["phone"] not in profile["phones"]:
+    if not delivery_ready(profile) or review["phone"] not in profile["phones"]:
         return
     try:
         claimed = client.post(f"/reviews/{review['id']}/claim", {"revision": review["revision"]})
@@ -101,7 +105,11 @@ def deliver(client, review):
     delivery.headers["X-ContentSwarm-Review"] = review["id"]
     delivery.headers["X-ContentSwarm-Lease"] = claimed.pop("lease_token")
     try:
-        delivery_loop(delivery, claimed, profile["delivery_indicator"])
+        if profile.get("delivery_adapter") == "x-accessibility-v1":
+            from social_delivery import x_post
+            x_post(delivery, claimed)
+        else:
+            delivery_loop(delivery, claimed, profile["delivery_indicator"])
     except Exception:
         pass  # The terminal transition below records ambiguity without leaking output.
     finally:

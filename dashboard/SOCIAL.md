@@ -43,8 +43,9 @@ Set a publish time on the draft **before** approving it. Without one, approval
 makes it eligible immediately. Changing time preserves approval; changing text
 clears the time and requires approval again. Cancel is available until claimed.
 
-Automatic **original-post** delivery is optional and off by default. It also
-requires the owner to calibrate a composer account indicator in the console:
+Automatic **original-post** delivery is optional and off by default. X can use
+the dedicated accessibility adapter described below. For the generic driver,
+the owner calibrates a composer account indicator in the console:
 the full resource ID and exact account label of a trusted app control, never
 post text or a mention. Test that control on each assigned phone. If an app
 does not expose a reliable indicator, use agent-assisted delivery instead.
@@ -192,3 +193,34 @@ not a guessed screen position or another point inside the parent. Duplicate
 matches, disabled ancestors and invalid/out-of-parent bounds are rejected.
 This improves navigation but does not by itself verify an account, conversation,
 approval or successful publication.
+
+### X accessibility adapter
+
+For an X profile with an exact `@handle`, choose **X accessibility controls** as
+its delivery method and save the account check. This adapter handles original
+text posts using deterministic API calls, without a model interpreting each
+screen. It uses the existing review lease and global delivery opt-in.
+
+The adapter requires the app's main navigation and opens its global composer,
+checks the exact account switcher label, inserts only approved text, and checks
+account and editor again before its single final Post tap. Existing composers
+are left untouched. It will not switch accounts or navigate arbitrary pages.
+A lost response or unexpected screen leaves the review uncertain through the
+worker's existing recovery path.
+
+Completion requires the exact body in one fresh post subtree with its author
+handle before the body and reply/repost/like controls. Old timestamps, editors,
+multiple matching posts and quoted or mixed-account subtrees cannot supply
+that proof. Layout or language changes may prevent verification; inspect an
+uncertain result instead of retrying. This adapter does not yet handle replies,
+attachments, long posts, other languages or app screens lacking those controls.
+Resource-ID calibration remains available for other original-post workflows.
+
+Owner account configuration accepts `delivery_adapter: "x-accessibility-v1"`;
+only X profiles with valid handles may use it. Omitting the field while editing
+preserves the selection; sending an empty string disables the adapter.
+
+Verification stays inside the nearest post subtree with reply/repost/like controls;
+identity or timestamps in neighbouring screen regions cannot prove publication.
+The adapter does not press Home: X may expose that label without a clickable
+control when the navigation bar is clipped.

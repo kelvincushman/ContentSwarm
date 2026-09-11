@@ -183,3 +183,9 @@ Semantic phone taps support labels nested inside enabled clickable controls.
 The API's UI elements expose dump-local `parent_index` values from the ADB bridge.
 Use semantic selectors as before; do not convert parent indices into cached
 coordinates, infer parents from overlap, or treat a tap result as delivery proof.
+
+Owner account configuration can select `delivery_adapter: "x-accessibility-v1"`
+for an X profile. The timer then uses deterministic phone calls for approved
+original text posts, retaining review leases and the global delivery opt-in.
+This does not extend automatic delivery to replies or media. See
+[the supported X screens and verification](../dashboard/SOCIAL.md#x-accessibility-adapter).
