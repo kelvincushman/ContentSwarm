@@ -423,3 +423,8 @@ post text from accessibility data. The tool-free reader produces blind observati
 compares these with approved text and a fresh device-clock/UI timestamp before
 completing delivery. Actual new-post publishing still needs live validation.
 `contentswarm clock PHONE` reads the device time and UTC offset without a model.
+
+On supported Samsung layouts, experimental X verification first reads author/body
+from Android's native share preview, avoiding a model call. It does not select a
+recipient or use the clipboard. Screenshot interpretation remains a fallback.
+The current-app API includes the exact focused package alongside the friendly name.

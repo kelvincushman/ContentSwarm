@@ -703,15 +703,15 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         if phone_name not in pm.phones:
             return jsonify({"error": f"Phone '{phone_name}' not found"}), 404
 
-        from phone_agent.adb import get_current_app
+        from phone_agent.adb.device import get_foreground
 
         device_id = pm.phones[phone_name].device_id
         try:
-            current = get_current_app(device_id)
+            current = get_foreground(device_id)
         except Exception as e:
             return jsonify({"error": f"Failed to read current app: {e}"}), 500
 
-        return jsonify({"phone": phone_name, "current_app": current})
+        return jsonify({"phone": phone_name, **current})
 
     @api.route("/phones/<phone_name>/installed", methods=["GET"])
     def phone_installed_apps(phone_name: str):

@@ -83,7 +83,8 @@ def test_visual_detail_uses_one_navigation_and_blind_read(monkeypatch):
         assert image==PNG
         return CURRENT
     monkeypatch.setattr('social_vision.read_post',reader)
-    screens=iter([[dict(text='Exact 😅 #AI')],DETAIL,DETAIL])
+    monkeypatch.setattr('social_native.read_x_preview',lambda *args:None)
+    screens=iter([[dict(text='Exact 😅 #AI')],DETAIL,DETAIL,DETAIL])
     evidence=verify_x_detail(Client(),'/phones/p','@owner','Exact 😅 #AI',BEFORE,lambda:next(screens))
     assert len(calls)==1 and calls[0][1]==dict(action='tap',text='Exact 😅 #AI',confirm=True)
     assert 'SHA256' in evidence
@@ -97,3 +98,18 @@ def test_old_post_rejected_before_model_call(monkeypatch):
     stale=[dict(e,text=e.get('text','').replace('11 Sept','10 Sept')) for e in DETAIL]
     screens=iter([[dict(text='Exact 😅 #AI')],stale,stale])
     with pytest.raises(ValueError,match='outside'):verify_x_detail(Client(),'/phones/p','@owner','Exact 😅 #AI',BEFORE,lambda:next(screens))
+
+
+def test_native_preview_avoids_model_and_rejects_mismatch(monkeypatch):
+    class Client:
+        def post(self,*args):pass
+        def get(self,route,**kwargs):
+            assert route.endswith('/clock'),'No screenshot for structured preview'
+            return {'iso':AFTER}
+    monkeypatch.setattr('social_vision.read_post',lambda *a:pytest.fail('No model for native preview'))
+    for handle in ('@owner','@other'):
+        monkeypatch.setattr('social_native.read_x_preview',lambda *args:dict(handle=handle,body='Exact 😅 #AI',single_post=True))
+        screens=iter([[dict(text='Exact 😅 #AI')],DETAIL,DETAIL])
+        if handle=='@owner':assert 'Native Android' in verify_x_detail(Client(),'/phones/p',handle,'Exact 😅 #AI',BEFORE,lambda:next(screens))
+        else:
+            with pytest.raises(ValueError,match='did not match'):verify_x_detail(Client(),'/phones/p','@owner','Exact 😅 #AI',BEFORE,lambda:next(screens))

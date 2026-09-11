@@ -8,31 +8,28 @@ from typing import List, Optional, Tuple
 from phone_agent.config.apps import APP_PACKAGES
 
 
+def parse_foreground(output: str) -> dict:
+    """Use the focused window, never an underlying mFocusedApp activity."""
+    import re
+    for line in output.splitlines():
+        if "mCurrentFocus=" in line:
+            match = re.search(r"\bu\d+ ([A-Za-z0-9_.]+)/[A-Za-z0-9_.$]+", line)
+            package = match[1] if match else None
+            name = next((name for name, value in APP_PACKAGES.items() if value == package), "System Home")
+            return {"current_app": name, "package": package}
+    return {"current_app": "System Home", "package": None}
+
+
+def get_foreground(device_id: str | None = None) -> dict:
+    """Read foreground app name and exact Android package from one window dump."""
+    result = subprocess.run(_get_adb_prefix(device_id) + ["shell", "dumpsys", "window"],
+                            capture_output=True, text=True, timeout=10, check=True)
+    return parse_foreground(result.stdout)
+
+
 def get_current_app(device_id: str | None = None) -> str:
-    """
-    Get the currently focused app name.
-
-    Args:
-        device_id: Optional ADB device ID for multi-device setups.
-
-    Returns:
-        The app name if recognized, otherwise "System Home".
-    """
-    adb_prefix = _get_adb_prefix(device_id)
-
-    result = subprocess.run(
-        adb_prefix + ["shell", "dumpsys", "window"], capture_output=True, text=True
-    )
-    output = result.stdout
-
-    # Parse window focus info
-    for line in output.split("\n"):
-        if "mCurrentFocus" in line or "mFocusedApp" in line:
-            for app_name, package in APP_PACKAGES.items():
-                if package in line:
-                    return app_name
-
-    return "System Home"
+    """Return the recognized focused app name, or System Home for unknown apps."""
+    return get_foreground(device_id)["current_app"]
 
 
 def tap(x: int, y: int, device_id: str | None = None, delay: float = 1.0) -> None:

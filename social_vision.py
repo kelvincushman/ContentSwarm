@@ -126,6 +126,20 @@ def verify_x_detail(client, route, handle, body, started, sense):
     client.post(route + "/action", {"action": "tap", "text": body, "confirm": True})
     ui = sense()
     stamp = x_detail_timestamp(ui)
+    captured = client.get(route + "/clock")["iso"]
+    if not match_x_observation(dict(single_post=True, handle=handle, body=body, timestamp=stamp),
+                               stamp, handle, body, started, captured):
+        raise ValueError("Publication timestamp is outside the send window")
+    from social_native import read_x_preview
+    observation = read_x_preview(client, route)
+    ui = sense()
+    if x_detail_timestamp(ui) != stamp:
+        raise ValueError("Post detail changed after share preview")
+    if observation is not None:
+        captured = client.get(route + "/clock")["iso"]
+        if not match_x_observation(dict(observation, timestamp=stamp), stamp, handle, body, started, captured):
+            raise ValueError("Native preview account or content did not match")
+        return "Native Android share preview matched approved account/text; independent X detail timestamp matched device clock window."
     screenshot = client.get(route + "/screenshot", raw=True).content
     after = sense()
     if after != ui:

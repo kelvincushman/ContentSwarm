@@ -197,3 +197,9 @@ when accessibility omits post content. The kernel checks exact account/text
 (whitespace wrapping folded) and matches the visible timestamp against device
 time. It never retries Send; uncertain outcomes require inspection. New-post
 publication has not yet been validated live; keep automatic delivery disabled.
+
+`contentswarm current PHONE` / GET `/phones/PHONE/current_app` includes `package`:
+the exact focused Android package, or null during missing focus. It never reports
+an underlying activity as the focused app. X verification prefers metadata from
+the native Android share preview and returns without choosing a recipient; image
+reading is a fallback only when metadata is absent, never when it mismatches.
