@@ -417,3 +417,7 @@ and looks for a fresh published-post subtree. It does not call a model for
 navigation. See [the X adapter guide](dashboard/SOCIAL.md#x-accessibility-adapter)
 for setup and supported screens. Phone deployment testing is required before
 relying on it; a pending or uncertain review is never a delivery confirmation.
+
+Screenshot interpretation is in development for app screens that omit visible
+post text from accessibility data. The tool-free reader produces observations,
+not delivery decisions; automatic publication verification is not yet wired to it.

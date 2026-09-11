@@ -233,3 +233,14 @@ the publication proof. A reliable detail-view verification path still needs
 on-device validation before enabling automatic delivery on this app version.
 LinkedIn exposes its personal identity in the navigation drawer but not in the
 composer; a platform-specific identity path remains to be implemented there.
+
+### Screenshot interpretation work
+
+`social_vision.read_post` is a tool-free image transcription component for
+screens whose accessibility trees omit visible post text. It receives only the
+screenshot, without the expected handle or approved body, and returns untrusted
+handle/body/timestamp observations. It removes ContentSwarm credentials from the
+model environment and exposes no phone actions or model tools. A local Samsung
+screenshot test recovered the existing post's emoji and hashtags that OCR misread.
+It is not yet connected to delivery: source selection, exact-content comparison
+and publication freshness must be checked by the kernel before any completion.
