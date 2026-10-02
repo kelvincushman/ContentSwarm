@@ -104,7 +104,7 @@ class SocialStore:
 
     def account(self, data):
         item = {key: text(data, key) for key in ("name", "platform", "handle", "soul")}
-        if item["platform"] not in ("x", "linkedin", "facebook"):
+        if item["platform"] not in ("x", "linkedin", "facebook", "instagram"):
             raise ValueError("Unsupported platform")
         adapter = data.get("delivery_adapter")
         if adapter not in (None, "", "x-accessibility-v1"):
@@ -229,7 +229,7 @@ class SocialStore:
             from urllib.parse import urlparse
             target.update({key: text(data, key) for key in ("source_url", "author", "original")})
             url = urlparse(target["source_url"])
-            hosts = {"x": {"x.com", "www.x.com", "twitter.com"}, "linkedin": {"linkedin.com", "www.linkedin.com"}, "facebook": {"facebook.com", "www.facebook.com", "m.facebook.com"}}
+            hosts = {"x": {"x.com", "www.x.com", "twitter.com"}, "linkedin": {"linkedin.com", "www.linkedin.com"}, "facebook": {"facebook.com", "www.facebook.com", "m.facebook.com"}, "instagram": {"instagram.com", "www.instagram.com"}}
             if url.scheme != "https" or url.hostname not in hosts[platform] or url.username or url.path in ("", "/"):
                 raise ValueError("Reply source_url must link to a conversation on the account's platform")
         return target

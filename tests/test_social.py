@@ -283,3 +283,38 @@ def test_worker_reply_uses_thread_context_humanizer_and_approval_queue(monkeypat
     assert review["humanizer_version"] == "3.0.0"
     assert calls[-1] == ("/social/jobs/job/finish", {"result": {"review_id": "review"}})
     assert not any("/approve" in str(c) or "/action" in str(c) for c in calls)
+
+
+def test_instagram_scoped_context_and_scheduled_reply(tmp_path):
+    store = SocialStore(tmp_path / 'social.db')
+    account = store.account(dict(name='IG', platform='instagram', handle='@brand', soul='Practical', phones=['p']))
+    target = dict(kind='reply', source_url='https://www.instagram.com/p/observed/', author='Reader', original='How does it work?')
+    schedule = store.schedule(dict(account_id=account['id'], prompt='Explain', spec=dict(kind='interval', minutes=60), **target), now=0)
+    job = store.tick(schedule['next_at'])[0]
+    assert job['source_url'] == target['source_url']
+    store.remember(account['id'], dict(text='Brand knowledge', source='note:owner'), True)
+    assert store.context(account['id'])['memories'][0]['text'] == 'Brand knowledge'
+    with pytest.raises(ValueError):
+        store.enqueue(account['id'], 'Reply', dict(target, source_url='https://www.instagram.com.evil.test/p/a'))
+
+
+def test_instagram_delivery_cannot_use_text_only_loop():
+    from social_worker import delivery_loop
+    class NoPhoneCalls:
+        def post(self, *args, **kwargs):
+            raise AssertionError('Must reject before any phone action')
+    with pytest.raises(ValueError, match='media/comment adapter'):
+        delivery_loop(NoPhoneCalls(), dict(platform='instagram'), {})
+
+
+def test_instagram_legacy_calibration_never_claims_review():
+    from social_worker import deliver, delivery_ready
+    profile = dict(platform='instagram', phones=['p'], delivery_indicator=dict(posted_id='app:id/content'))
+    assert not delivery_ready(profile)
+    class ReadOnlyClient:
+        def get(self, route):
+            assert route == '/social/accounts/ig/memory'
+            return dict(account=profile)
+        def post(self, *args, **kwargs):
+            raise AssertionError('Unsupported delivery must not claim or act')
+    deliver(ReadOnlyClient(), dict(kind='post', account_id='ig', phone='p'))

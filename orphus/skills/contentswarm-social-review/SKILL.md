@@ -1,6 +1,6 @@
 ---
 name: contentswarm-social-review
-description: Collect X, LinkedIn and Facebook conversations, humanize reply drafts, and submit them for human review before phone delivery.
+description: Collect X, LinkedIn, Facebook and Instagram conversations, humanize reply drafts, and submit them for human review before phone delivery.
 ---
 
 # Social reply review
@@ -21,7 +21,7 @@ embedded mode, preserve facts, and use approved owner rewrites from
 Humanizer 3.0.0 is vendored from blader/humanizer commit
 9862685f575c65a8247f90369951df1b3416e3d6 under its retained MIT license.
 
-Write a private JSON file with platform (`x`, `linkedin`, `facebook`), account
+Write a private JSON file with platform (`x`, `linkedin`, `facebook`, `instagram`), account
 (the exact handle), account_id (the profile id from social accounts),
 kind (`post` for original posts, `reply` for replies), phone, source_url,
 author, original, reply and humanizer_version (`3.0.0`). Original posts must
@@ -87,3 +87,5 @@ X from Android's native chooser. Missing focus is unknown, not evidence of the
 underlying app. The X verifier can read structured native preview author/body
 without selecting contacts or copying links; it restores the detail and checks
 the same independent publication timestamp. It avoids a model on exact matches.
+
+Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.

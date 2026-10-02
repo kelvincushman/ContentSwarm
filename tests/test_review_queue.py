@@ -43,3 +43,12 @@ def test_requires_humanizer_provenance_and_platform_link(queue):
     with pytest.raises(ValueError):queue.create(data)
     data=draft();data["source_url"]="javascript:alert(1)"
     with pytest.raises(ValueError):queue.create(data)
+
+
+def test_instagram_review_requires_its_own_source(queue):
+    item = dict(draft(), platform='instagram', source_url='https://www.instagram.com/p/observed/')
+    saved = queue.create(item)
+    assert saved['status'] == 'pending'
+    for source in ('https://x.com/test/status/1', 'https://instagram.com.evil.test/p/a', 'http://instagram.com/p/a'):
+        with pytest.raises(ValueError):
+            queue.create(dict(item, source_url=source))

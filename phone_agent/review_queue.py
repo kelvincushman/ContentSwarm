@@ -59,10 +59,10 @@ class ReviewQueue:
         for key in required:
             if not isinstance(data.get(key), str) or not data[key].strip() or len(data[key]) > 8000:
                 raise ValueError(f"{key} must be non-empty text up to 8000 characters")
-        if data["platform"] not in ("x", "linkedin", "facebook"):
-            raise ValueError("platform must be x, linkedin, or facebook")
+        if data["platform"] not in ("x", "linkedin", "facebook", "instagram"):
+            raise ValueError("platform must be x, linkedin, facebook, or instagram")
         from urllib.parse import urlparse
-        hosts = {"x": {"x.com", "www.x.com", "twitter.com"}, "linkedin": {"linkedin.com", "www.linkedin.com"}, "facebook": {"facebook.com", "www.facebook.com", "m.facebook.com"}}
+        hosts = {"x": {"x.com", "www.x.com", "twitter.com"}, "linkedin": {"linkedin.com", "www.linkedin.com"}, "facebook": {"facebook.com", "www.facebook.com", "m.facebook.com"}, "instagram": {"instagram.com", "www.instagram.com"}}
         url = urlparse(data["source_url"])
         if url.scheme != "https" or url.hostname not in hosts[data["platform"]] or url.username:
             raise ValueError("source_url must be an HTTPS link on the selected platform")

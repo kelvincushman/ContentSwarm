@@ -3,7 +3,7 @@
 ## Mobile console
 
 The server opens a workspace for tasks, phone preview, app controls, learned
-flows and post/reply review for X, LinkedIn and Facebook. Each social account has
+flows and post/reply review for X, LinkedIn, Facebook and Instagram. Each social account has
 an editable voice, sourced knowledge, conversation context and assigned phones.
 Prepare drafts on demand or on editable minute/hour/calendar repeats, then
 approve their exact text or rewrite it. Set publish times before approval.
@@ -429,3 +429,5 @@ On supported Samsung layouts, experimental X verification first reads author/bod
 from Android's native share preview, avoiding a model call. It does not select a
 recipient or use the clipboard. Screenshot interpretation remains a fallback.
 The current-app API includes the exact focused package alongside the friendly name.
+
+Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
