@@ -238,7 +238,10 @@ def x_reply(client, review):
         if editors(ui):
             raise NotSent("An X composer or reply field is open; left untouched")
         one(ui, desc="Show navigation drawer")
-        tap(desc="Notifications tab")
+        # X reopens where it was left; on Notifications the selected tab can't
+        # be pressed, so only go there when its filters aren't showing.
+        if not any(e.get("desc") == "Mentions" for e in ui):
+            tap(desc="Notifications tab")
         tap(desc="Mentions")
         for page in range(4):
             ui = sense()
@@ -358,6 +361,12 @@ def linkedin_post(client, review):
     for attempt in range(8):
         time.sleep(2)
         ui = sense()
+        # After posting, LinkedIn may cover the feed with a paid "boost your
+        # post" offer. Decline it ("Not now"), never the offer itself.
+        texts = [e.get("text", "") for e in ui]
+        if "Your post was successful" in texts and "Not now" in texts:
+            tap(text="Not now")
+            continue
         if linkedin_published(ui, name, body):
             client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": f"Posted to Anyone as {name} (checked in the profile menu first). Verified the exact approved text in one feed post naming {name}, outside the composer."})
             return

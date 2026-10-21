@@ -245,3 +245,23 @@ def test_reply_proof_needs_the_right_profile():
         x_reply(client, REPLY)
     assert any(d.get("url") == "https://x.com/owner" for _, d in client.calls)
     assert not any(route.endswith("/complete") for route, _ in client.calls)
+
+
+def test_reply_starts_from_notifications_when_x_was_left_there():
+    on_mentions = MENTIONS  # Has the drawer and the Mentions filter already.
+    client = Client([on_mentions, on_mentions, reply_composer(), reply_composer(BODY), reply_composer(BODY), my_reply()])
+    x_reply(client, REPLY)
+    assert not client.taps(desc="Notifications tab")
+    assert client.calls[-1][0] == "/reviews/r/complete"
+
+
+def test_linkedin_declines_the_boost_offer_then_proves_the_post():
+    upsell = [node(parent=None), node("Your post was successful"), node("View post"),
+              node("Boost your post with £35 credit"), node("Try Premium and boost"), node("Not now")]
+    client = li_client(after=None)
+    client.screens = [FEED, MENU, FEED, li_composer(), li_composer("Shipping notes."), upsell, li_feed_post()]
+    linkedin_post(client, POST)
+    assert client.taps(text="Not now")
+    assert not client.taps(text="Try Premium and boost")
+    assert len(client.taps(text="Post")) == 1
+    assert client.calls[-1][0] == "/reviews/p/complete"
