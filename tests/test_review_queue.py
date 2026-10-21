@@ -52,3 +52,22 @@ def test_instagram_review_requires_its_own_source(queue):
     for source in ('https://x.com/test/status/1', 'https://instagram.com.evil.test/p/a', 'http://instagram.com/p/a'):
         with pytest.raises(ValueError):
             queue.create(dict(item, source_url=source))
+
+
+def test_owner_settles_an_uncertain_delivery(tmp_path):
+    from phone_agent.review_queue import ReviewQueue
+    queue = ReviewQueue(tmp_path / "reviews.sqlite3")
+    def uncertain():
+        item = queue.create(dict(platform="x", account="@a", phone="p", source_url="https://x.com/", kind="post", reply="Hi", humanizer_version="1"))
+        item = queue.update(item["id"], "approve", dict(revision=item["revision"]))
+        lease = queue.update(item["id"], "claim", dict(revision=item["revision"]))
+        return queue.update(item["id"], "uncertain", dict(revision=lease["revision"], lease_token=lease["lease_token"], evidence="No proof"))
+    item = uncertain()
+    done = queue.update(item["id"], "confirm", dict(revision=item["revision"]))
+    assert done["status"] == "verified" and "owner checked" in done["evidence"]
+    item = uncertain()
+    again = queue.update(item["id"], "retry", dict(revision=item["revision"]))
+    assert again["status"] == "approved" and "evidence" not in again
+    import pytest
+    with pytest.raises(ValueError):
+        queue.update(again["id"], "confirm", dict(revision=again["revision"]))

@@ -144,6 +144,14 @@ def x_post(client, review):
             return
         if attempt < 4:
             time.sleep(1)
+    # X goes back to the home feed, which shows display names, not handles; the
+    # profile shows the handle and a fresh time on each of the account's posts.
+    try:
+        if x_profile_proof(client, route, sense, tap, handle, body, sent_at):
+            client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": "Verified exact approved text in one fresh post of the account on its X profile, outside the composer, with reply/repost/like controls."})
+            return
+    except Exception:
+        pass  # Navigation failed; the screenshot check below still applies.
     from social_vision import verify_x_detail
     evidence = verify_x_detail(client, route, handle, body, started, sense)
     client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": evidence})
@@ -168,6 +176,22 @@ def _swipe_up(client, route, elements):
     x = (left + right) // 2
     client.post(route + "/action", dict(action="swipe", x1=x, y1=top + (bottom - top) * 3 // 4,
                                         x2=x, y2=top + (bottom - top) // 4, duration_ms=400))
+
+
+def x_profile_proof(client, route, sense, tap, handle, body, sent_at, tab=None):
+    """Open the account's profile (optionally one tab) and look for one fresh
+    post of the handle with the exact text, over up to three pages."""
+    tap(desc="Show navigation drawer")
+    tap(text="Profile")
+    if tab:
+        tap(text=tab)
+    for page in range(3):
+        ui = sense()
+        if x_published(ui, handle, body, time.monotonic() - sent_at):
+            return True
+        if page < 2:
+            _swipe_up(client, route, ui)
+    return False
 
 
 def x_reply_composer(elements, handle, author, original):
@@ -231,16 +255,9 @@ def x_reply(client, review):
     sent_at = time.monotonic()
     tap(desc="Reply")  # Exactly one commit request. Exceptions never replay it.
     time.sleep(2)
-    tap(desc="Show navigation drawer")
-    tap(text="Profile")
-    tap(text="Replies")
-    for page in range(3):
-        ui = sense()
-        if x_published(ui, handle, body, time.monotonic() - sent_at):
-            client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": f"Replied to {author}. Verified the exact approved text in one fresh post of {handle} on its Replies tab, outside any composer, with reply/repost/like controls."})
-            return
-        if page < 2:
-            _swipe_up(client, route, ui)
+    if x_profile_proof(client, route, sense, tap, handle, body, sent_at, tab="Replies"):
+        client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": f"Replied to {author}. Verified the exact approved text in one fresh post of {handle} on its Replies tab, outside any composer, with reply/repost/like controls."})
+        return
     raise ValueError("Reply was sent but not found fresh on the Replies tab")
 
 

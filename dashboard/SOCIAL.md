@@ -234,6 +234,20 @@ blind screenshot transcription with the approved account/text and an independent
 UI timestamp. Actual new-post publication still needs live validation before
 enabling automatic delivery on this app version.
 
+### Settling an uncertain delivery
+
+An uncertain review means the worker can't prove what happened; it is never
+resent on its own. The owner checks the phone, then settles it from the
+console session (owner-only, CSRF like approval): `POST /reviews/ID/confirm`
+records that it is published (status `verified`), and `POST /reviews/ID/retry`
+records that it is not, returning it to `approved` so the next worker run sends
+it again. Both need the current `revision` and apply only to `uncertain` items.
+
+After an X post, X returns to the home feed, which shows display names but not
+handles. When the feed can't prove the post, the worker opens the profile (the
+drawer, then Profile) and looks for one fresh post of the handle with the exact
+text, before the screenshot check. Found on the first live post, 21 October 2026.
+
 ### X reply adapter
 
 With `x-accessibility-v1`, approved `kind: "reply"` reviews are delivered too.

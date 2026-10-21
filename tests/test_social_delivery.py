@@ -159,3 +159,15 @@ def test_minute_wait_deadline_prevents_send(monkeypatch):
     times=iter([0,66])
     monkeypatch.setattr('social_delivery.time.monotonic',lambda:next(times))
     with pytest.raises(ValueError,match='did not advance'):next_device_minute(Client(),'/p')
+
+
+def test_post_proved_on_profile_when_feed_shows_names_only(monkeypatch):
+    # The live first post (21 Oct 2026): back on the feed X showed display names,
+    # not handles, so the proof needs the profile.
+    monkeypatch.setattr('social_delivery.time.sleep',lambda _:None)
+    feed_without_handle=[node(parent=None),node('Owner Name'),node('now'),node('Approved text'),node(desc='Reply'),node(desc='Repost'),node(desc='Like')]
+    client=Client([FEED,composer(),composer('Approved text'),composer('Approved text')]+[feed_without_handle]*5+[post(age='now')])
+    x_post(client,REVIEW)
+    assert client.post_taps==2
+    assert any(d.get('text')=='Profile' for _,d in client.calls)
+    assert client.calls[-1][0]=='/reviews/review/complete'

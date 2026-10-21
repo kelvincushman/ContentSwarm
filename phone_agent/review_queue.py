@@ -139,6 +139,20 @@ class ReviewQueue:
                     raise ValueError("Verification evidence is required")
                 item["evidence"] = evidence
                 item["status"] = "verified" if action == "complete" else "uncertain"
+            elif action in ("confirm", "retry"):
+                # The owner checked an uncertain delivery on the phone himself:
+                # confirm records that it is published; retry that it is not, so
+                # the approved text may be sent again.
+                if before != "uncertain":
+                    raise ValueError("Only an uncertain delivery can be confirmed or retried")
+                if action == "confirm":
+                    item["status"] = "verified"
+                    item["evidence"] = "The owner checked: it is published."
+                else:
+                    item["status"] = "approved"
+                    item["history"].append({"uncertain": item.get("evidence", ""), "at": time.time()})
+                    item.pop("evidence", None)
+                item.pop("lease_hash", None)
             else:
                 raise ValueError("Unknown review action")
             item["revision"] += 1
