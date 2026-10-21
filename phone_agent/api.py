@@ -196,7 +196,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
     @api.post("/reviews/<item_id>/<action>")
     def review_action(item_id, action):
-        if action in ("approve", "reject", "edit", "schedule", "cancel", "recover"):
+        if action in ("approve", "reject", "edit", "schedule", "cancel", "recover", "confirm", "retry"):
             if not session.get("console") or not hmac.compare_digest(request.headers.get("X-CSRF-Token", "").encode("utf-8", "surrogatepass"), session.get("csrf", "!").encode("utf-8", "surrogatepass")):
                 return jsonify(error="Review decisions require the owner's console session and CSRF token"), 403
         data, error = _json_body()

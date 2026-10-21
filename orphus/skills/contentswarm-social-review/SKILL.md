@@ -49,6 +49,8 @@ Crashed workers leave items executing for inspection. An optional timer-driven
 worker can deliver approved items; it is off by default. See dashboard/SOCIAL.md.
 The owner can inspect and revoke a stuck delivery through the console; never
 attempt owner recovery endpoints yourself or expose lease tokens in prose/logs.
+Settling an uncertain delivery (`confirm` that it is published, or `retry`) is
+the owner's call after checking the phone; never do it yourself.
 
 Learn navigation up to the composer. Exclude final Send/Post taps from reusable
 flows, inspect recorded steps, and stop on unexpected screens.
