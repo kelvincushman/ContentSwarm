@@ -259,7 +259,7 @@ def test_device_clock_keeps_device_offset_and_uses_fixed_command(use_bridge):
 def _feed():
     """Two posts, each with its own Reply control, in one list."""
     return [
-        element(clickable=False, bounds=(0, 0, 1000, 1000)),
+        element(clickable=False, bounds=(0, 0, 1000, 1000)),  # The list.
         element(bounds=(0, 0, 1000, 400), parent_index=0),
         element(text="First post", clickable=False, bounds=(10, 10, 900, 100), parent_index=1),
         element(desc="Reply", clickable=False, bounds=(10, 200, 60, 250), parent_index=1),
@@ -286,13 +286,14 @@ def test_tap_within_needs_one_exact_anchor(use_bridge, within):
     assert not fake.calls
 
 
-def test_tap_within_reaches_wider_only_when_nearer_has_no_match(use_bridge):
+def test_tap_within_never_borrows_a_neighbours_control(use_bridge):
     screen = _feed()
+    screen[0].scrollable = True  # The list holding the posts, as X exposes it.
     screen[3].desc = "Like"  # The first post has no Reply of its own.
     fake = use_bridge(FakeBridge([screen]))
-    # The nearest subtree holding a Reply is then the whole list. Callers must
-    # check the screen the tap opens, as the delivery adapters do before typing.
-    bridge.semantic_action("serial", "tap", desc="Reply", within="First post")
+    with pytest.raises(LookupError):
+        bridge.semantic_action("serial", "tap", desc="Reply", within="First post")
+    bridge.semantic_action("serial", "tap", desc="Reply", within="Second post")
     assert fake.calls == [("tap", screen[6])]
 
 

@@ -258,13 +258,17 @@ def _nearest_to(elements, within, indexes):
     Lets a caller pick, say, the Reply control of one post in a list of posts
     by naming that post's exact text. The anchor must be unique, and the first
     ancestor holding any match decides: one match is the target, several are
-    ambiguous. Never widens to a further ancestor after finding a match.
+    ambiguous. Never widens to a further ancestor after finding a match, and
+    never reaches a scrollable ancestor: that is the list holding the posts, so
+    a post without the control can't borrow a neighbour's.
     """
     anchors = [i for i, element in enumerate(elements) if element.text == within]
     if len(anchors) != 1:
         raise LookupError("within must match exactly one element's text")
     chains = {index: set(_ancestry(elements, index)) for index in indexes}
     for ancestor in _ancestry(elements, anchors[0]):
+        if getattr(elements[ancestor], "scrollable", False):
+            return []
         inside = [index for index in indexes if ancestor in chains[index]]
         if inside:
             return inside

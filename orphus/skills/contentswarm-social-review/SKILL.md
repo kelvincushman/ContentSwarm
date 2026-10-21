@@ -61,7 +61,8 @@ The console can queue reply drafts now or on a schedule. Owner-only
 worker retrieves thread context and applies Humanizer before creating a pending
 review. A repeated schedule uses the same source on each occurrence; it does not
 collect new conversations. Automatic reply delivery remains a separate,
-source-verifying agent task. Never treat draft creation as delivery or approval.
+source-verifying agent task for accounts without
+`delivery_adapter: "x-accessibility-v1"`. Never treat draft creation as delivery or approval.
 
 Child labels inside clickable buttons are supported by the phone kernel using
 actual XML ancestry. Keep using exact semantic selectors. `parent_index` in a

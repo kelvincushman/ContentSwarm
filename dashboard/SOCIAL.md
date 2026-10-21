@@ -278,8 +278,9 @@ typing and discarding a test word; the feed proof needs a first live post.
 `POST /phones/PHONE/action` taps accept `within`: the exact text of one element.
 Matches are then limited to the smallest subtree around that element holding
 any match; one is tapped, several are ambiguous, and a missing or repeated
-anchor is refused. When the nearest post lacks the control, a wider subtree may
-supply one, so callers must check the screen the tap opens, as the adapters do.
+anchor is refused. The search never reaches a scrollable ancestor (the list
+holding the posts), so a post without the control can't borrow a neighbour's.
+Adapters still check the screen the tap opens before typing.
 
 ### Screenshot interpretation work
 

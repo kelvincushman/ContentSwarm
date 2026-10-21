@@ -192,11 +192,11 @@ def x_reply(client, review):
         raise NotSent("X replies need exact @handles for the account and the author")
     route = "/phones/" + quote(review["phone"], safe="")
     sense, tap = _x(client, route)
-    client.post(route + "/app", {"app": "X"})
-    ui = sense()
-    if editors(ui):
-        raise NotSent("An X composer or reply field is open; left untouched")
     try:
+        client.post(route + "/app", {"app": "X"})
+        ui = sense()
+        if editors(ui):
+            raise NotSent("An X composer or reply field is open; left untouched")
         one(ui, desc="Show navigation drawer")
         tap(desc="Notifications tab")
         tap(desc="Mentions")
@@ -289,8 +289,8 @@ def linkedin_post(client, review):
     name, body = review["account"].strip(), review["reply"]
     route = "/phones/" + quote(review["phone"], safe="")
     sense, tap = _linkedin(client, route)
-    client.post(route + "/app", {"app": "LinkedIn"})
     try:
+        client.post(route + "/app", {"app": "LinkedIn"})
         ui = sense()
         if editors(ui):
             raise NotSent("A LinkedIn editor is open; left untouched")

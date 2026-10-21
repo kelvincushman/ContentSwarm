@@ -226,3 +226,11 @@ def test_worker_picks_the_adapter_by_kind_and_reports_stops_honestly(monkeypatch
     social_worker.deliver(ClaimClient(), review)
     assert recorded[0][0] == "/reviews/r/uncertain"
     assert recorded[0][1]["evidence"].startswith("Stopped before sending; nothing was posted.")
+
+
+def test_x_not_in_front_is_reported_as_not_sent():
+    client = Client([HOME], app="Chrome", package="com.android.chrome")
+    with pytest.raises(NotSent):
+        x_reply(client, REPLY)
+    with pytest.raises(NotSent):
+        linkedin_post(Client([FEED], app="Chrome", package="com.android.chrome"), POST)
