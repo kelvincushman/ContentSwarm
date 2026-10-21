@@ -26,8 +26,8 @@ def main():
     if os.environ.get("CONTENTSWARM_DELIVERY_ENABLED") == "1":
         connected = {p["name"] for p in client.get("/phones")["phones"] if p["connected"]}
         profiles = {a["id"]: a for a in client.get("/social/accounts")["accounts"]}
-        due = [r for r in client.get("/reviews")["reviews"] if r["status"] == "approved" and r.get("kind") == "post" and r.get("publish_at", 0) <= time.time() and r["phone"] in connected
-               and delivery_ready(profiles.get(r.get("account_id"), {}))]
+        due = [r for r in client.get("/reviews")["reviews"] if r["status"] == "approved" and r.get("publish_at", 0) <= time.time() and r["phone"] in connected
+               and delivery_ready(profiles.get(r.get("account_id"), {}), r.get("kind"))]
         per_phone = {}
         for review in reversed(due):
             per_phone.setdefault(review["phone"], review)
@@ -85,19 +85,29 @@ information is needed rather than filling gaps. No tools, sending, or posting.
         client.post(f"/social/jobs/{job['id']}/finish", {"error": str(exc)[:500]})
 
 
-def delivery_ready(profile):
+# Deterministic adapters by (account adapter, review kind).
+ADAPTERS = {
+    ("x-accessibility-v1", "post"): "x_post",
+    ("x-accessibility-v1", "reply"): "x_reply",
+    ("linkedin-accessibility-v1", "post"): "linkedin_post",
+}
+
+
+def delivery_ready(profile, kind="post"):
     if profile.get("platform") == "instagram":
         return False
-    return bool(profile.get("delivery_adapter") == "x-accessibility-v1" or profile.get("delivery_indicator", {}).get("posted_id"))
+    if profile.get("delivery_adapter"):
+        return (profile["delivery_adapter"], kind) in ADAPTERS
+    return kind == "post" and bool(profile.get("delivery_indicator", {}).get("posted_id"))
 
 
 def deliver(client, review):
     """Claim exactly once; a failed/ambiguous attempt always needs inspection."""
     from contentswarm_cli import ApiError
-    if review.get("kind") != "post" or not review.get("account_id"):
+    if not review.get("account_id"):
         return
     profile = client.get(f"/social/accounts/{review['account_id']}/memory")["account"]
-    if not delivery_ready(profile) or review["phone"] not in profile["phones"]:
+    if not delivery_ready(profile, review.get("kind")) or review["phone"] not in profile["phones"]:
         return
     try:
         claimed = client.post(f"/reviews/{review['id']}/claim", {"revision": review["revision"]})
@@ -106,18 +116,22 @@ def deliver(client, review):
     delivery = Client(client.api_url, client.headers["Authorization"].removeprefix("Bearer "))
     delivery.headers["X-ContentSwarm-Review"] = review["id"]
     delivery.headers["X-ContentSwarm-Lease"] = claimed.pop("lease_token")
+    import social_delivery
+    evidence = "Worker ended without verified delivery. Inspect the phone and source before any further send."
     try:
-        if profile.get("delivery_adapter") == "x-accessibility-v1":
-            from social_delivery import x_post
-            x_post(delivery, claimed)
+        if profile.get("delivery_adapter"):
+            getattr(social_delivery, ADAPTERS[(profile["delivery_adapter"], review.get("kind"))])(delivery, claimed)
         else:
             delivery_loop(delivery, claimed, profile["delivery_indicator"])
+    except social_delivery.NotSent as exc:
+        # Adapters raise this only before their single commit tap.
+        evidence = f"Stopped before sending; nothing was posted. {exc}"[:8000]
     except Exception:
         pass  # The terminal transition below records ambiguity without leaking output.
     finally:
         current = next(r for r in delivery.get("/reviews")["reviews"] if r["id"] == review["id"])
         if current["status"] == "executing":
-            delivery.post(f"/reviews/{review['id']}/uncertain", {"revision": current["revision"], "evidence": "Worker ended without verified delivery. Inspect the phone and source before any further send."})
+            delivery.post(f"/reviews/{review['id']}/uncertain", {"revision": current["revision"], "evidence": evidence})
 
 
 def model_environment():

@@ -239,6 +239,42 @@ def _has_clickable_control(elements, index):
         index = parent
 
 
+def _ancestry(elements, index):
+    """Indexes from an element up to the root, following only real XML parents."""
+    chain = [index]
+    while True:
+        parent = getattr(elements[index], "parent_index", None)
+        if parent is None:
+            return chain
+        if type(parent) is not int or not 0 <= parent < index:
+            raise RuntimeError("UI tree has an invalid parent")
+        chain.append(parent)
+        index = parent
+
+
+def _nearest_to(elements, within, indexes):
+    """Keep the matches inside the smallest subtree around one exact anchor text.
+
+    Lets a caller pick, say, the Reply control of one post in a list of posts
+    by naming that post's exact text. The anchor must be unique, and the first
+    ancestor holding any match decides: one match is the target, several are
+    ambiguous. Never widens to a further ancestor after finding a match, and
+    never reaches a scrollable ancestor: that is the list holding the posts, so
+    a post without the control can't borrow a neighbour's.
+    """
+    anchors = [i for i, element in enumerate(elements) if element.text == within]
+    if len(anchors) != 1:
+        raise LookupError("within must match exactly one element's text")
+    chains = {index: set(_ancestry(elements, index)) for index in indexes}
+    for ancestor in _ancestry(elements, anchors[0]):
+        if getattr(elements[ancestor], "scrollable", False):
+            return []
+        inside = [index for index in indexes if ancestor in chains[index]]
+        if inside:
+            return inside
+    return []
+
+
 def semantic_action(device_id: str | None, action: str, **params: Any) -> Dict[str, Any]:
     """Perform one allowlisted Android action with no model or raw shell access."""
     bridge = _require_bridge(device_id)
@@ -250,12 +286,18 @@ def semantic_action(device_id: str | None, action: str, **params: Any) -> Dict[s
                 raise ValueError("tap requires text, id, or desc")
             if any(not isinstance(value, str) or not value.strip() for value in selectors.values()):
                 raise ValueError("tap selectors must be non-empty strings")
+            within = params.get("within")
+            if within is not None and (not isinstance(within, str) or not within.strip()):
+                raise ValueError("within must be the exact text of one element")
             elements = bridge.ui()
-            matches = [
-                element for index, element in enumerate(elements)
+            indexes = [
+                index for index, element in enumerate(elements)
                 if _matches(element, selectors.get("text"), selectors.get("id"), selectors.get("desc"))
                 and _has_clickable_control(elements, index)
             ]
+            if within is not None:
+                indexes = _nearest_to(elements, within, indexes)
+            matches = [elements[index] for index in indexes]
             if not matches:
                 raise LookupError("no enabled clickable element matched")
             if len(matches) > 1:

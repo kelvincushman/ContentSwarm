@@ -107,12 +107,18 @@ class SocialStore:
         if item["platform"] not in ("x", "linkedin", "facebook", "instagram"):
             raise ValueError("Unsupported platform")
         adapter = data.get("delivery_adapter")
-        if adapter not in (None, "", "x-accessibility-v1"):
+        if adapter not in (None, "", "x-accessibility-v1", "linkedin-accessibility-v1"):
             raise ValueError("Unknown delivery adapter")
-        if adapter:
+        if adapter == "x-accessibility-v1":
             import re
             if item["platform"] != "x" or not re.fullmatch(r"@[A-Za-z0-9_]{1,15}", item["handle"]):
                 raise ValueError("X delivery requires an exact X @handle")
+        if adapter == "linkedin-accessibility-v1":
+            # LinkedIn shows no handle; the member name in its profile menu is
+            # the identity, so the handle must be that exact name.
+            if item["platform"] != "linkedin" or item["handle"].startswith("@") or item["handle"] != item["handle"].strip() or len(item["handle"]) > 100:
+                raise ValueError("LinkedIn delivery requires the handle to be the exact member name the app shows")
+        if adapter:
             item["delivery_adapter"] = adapter
         phones = data.get("phones", [])
         if not isinstance(phones, list) or len(phones) > 20 or any(not isinstance(p, str) or not p or len(p) > 200 for p in phones):

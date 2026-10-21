@@ -254,3 +254,53 @@ def test_device_clock_keeps_device_offset_and_uses_fixed_command(use_bridge):
     result=bridge.device_clock('serial')
     assert result['iso']=='2026-09-11T20:15:00+01:00'
     assert calls==['date +%Y-%m-%dT%H:%M:%S%z']
+
+
+def _feed():
+    """Two posts, each with its own Reply control, in one list."""
+    return [
+        element(clickable=False, bounds=(0, 0, 1000, 1000)),  # The list.
+        element(bounds=(0, 0, 1000, 400), parent_index=0),
+        element(text="First post", clickable=False, bounds=(10, 10, 900, 100), parent_index=1),
+        element(desc="Reply", clickable=False, bounds=(10, 200, 60, 250), parent_index=1),
+        element(bounds=(0, 500, 1000, 900), parent_index=0),
+        element(text="Second post", clickable=False, bounds=(10, 510, 900, 600), parent_index=4),
+        element(desc="Reply", clickable=False, bounds=(10, 700, 60, 750), parent_index=4),
+    ]
+
+
+def test_tap_within_picks_the_control_of_the_named_post(use_bridge):
+    screen = _feed()
+    fake = use_bridge(FakeBridge([screen]))
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        bridge.semantic_action("serial", "tap", desc="Reply")
+    bridge.semantic_action("serial", "tap", desc="Reply", within="Second post")
+    assert fake.calls == [("tap", screen[6])]
+
+
+@pytest.mark.parametrize("within", ["Missing post", "second post", "", 7])
+def test_tap_within_needs_one_exact_anchor(use_bridge, within):
+    fake = use_bridge(FakeBridge([_feed()]))
+    with pytest.raises((LookupError, ValueError)):
+        bridge.semantic_action("serial", "tap", desc="Reply", within=within)
+    assert not fake.calls
+
+
+def test_tap_within_never_borrows_a_neighbours_control(use_bridge):
+    screen = _feed()
+    screen[0].scrollable = True  # The list holding the posts, as X exposes it.
+    screen[3].desc = "Like"  # The first post has no Reply of its own.
+    fake = use_bridge(FakeBridge([screen]))
+    with pytest.raises(LookupError):
+        bridge.semantic_action("serial", "tap", desc="Reply", within="First post")
+    bridge.semantic_action("serial", "tap", desc="Reply", within="Second post")
+    assert fake.calls == [("tap", screen[6])]
+
+
+def test_tap_within_duplicate_anchor_is_refused(use_bridge):
+    screen = _feed()
+    screen[5].text = "First post"
+    fake = use_bridge(FakeBridge([screen]))
+    with pytest.raises(LookupError):
+        bridge.semantic_action("serial", "tap", desc="Reply", within="First post")
+    assert not fake.calls

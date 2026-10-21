@@ -50,9 +50,9 @@ the full resource ID and exact account label of a trusted app control, never
 post text or a mention. Test that control on each assigned phone. If an app
 does not expose a reliable indicator, use agent-assisted delivery instead.
 The worker checks this indicator on each observation and immediately before
-sending; earlier sightings do not grant authority. Automatic replies remain
-unsupported until platform-specific source adapters are verified; they stay
-in the existing review-and-deliver workflow. When enabled, the worker
+sending; earlier sightings do not grant authority. Automatic replies need a
+platform adapter (X has one; see below); elsewhere they stay in the existing
+review-and-deliver workflow. When enabled, the worker
 claims eligible approved text once, checks the phone's signed-in account and
 source, enters the exact approved text, sends once, and inspects the result.
 
@@ -181,8 +181,8 @@ The owner-only `POST /api/v1/social/jobs` and `/api/v1/social/schedules` accept
 Omitting `kind` retains original-post behavior. The source must be a non-root HTTPS
 link on the selected account's platform. Schedule edits copy the new source only
 into future jobs, cancelling queued work as before; running jobs retain their
-original target. Automatic phone reply delivery still needs a source-verifying
-platform adapter. A pending or approved draft is not proof that it was sent.
+original target. Automatic phone reply delivery uses the X reply adapter
+below; other platforms still need a source-verifying adapter. A pending or approved draft is not proof that it was sent.
 
 ### Labels inside buttons
 
@@ -212,8 +212,8 @@ Completion requires the exact body in one fresh post subtree with its author
 handle before the body and reply/repost/like controls. Old timestamps, editors,
 multiple matching posts and quoted or mixed-account subtrees cannot supply
 that proof. Layout or language changes may prevent verification; inspect an
-uncertain result instead of retrying. This adapter does not yet handle replies,
-attachments, long posts, other languages or app screens lacking those controls.
+uncertain result instead of retrying. Replies use the reply adapter below. This
+adapter does not handle attachments, long posts, other languages or app screens lacking those controls.
 Resource-ID calibration remains available for other original-post workflows.
 
 Owner account configuration accepts `delivery_adapter: "x-accessibility-v1"`;
@@ -233,8 +233,54 @@ the publication proof. The experimental fallback opens the unique matching post 
 blind screenshot transcription with the approved account/text and an independent
 UI timestamp. Actual new-post publication still needs live validation before
 enabling automatic delivery on this app version.
-LinkedIn exposes its personal identity in the navigation drawer but not in the
-composer; a platform-specific identity path remains to be implemented there.
+
+### X reply adapter
+
+With `x-accessibility-v1`, approved `kind: "reply"` reviews are delivered too.
+The review's `author` must be the commenter's exact `@handle` and `original` the
+comment's exact text as the app shows it. From X's home screen the worker opens
+Notifications, then Mentions, and looks for exactly one element with that text,
+scrolling at most three pages. It presses the Reply control of that comment
+(`tap --within`, below), never a Reply found elsewhere.
+
+The reply composer opened that way shows the comment's author and exact text,
+"Replying to" the author, and the signed-in account. All four are checked, with
+an empty editor, before typing; then again with the exact body, and again after
+the timestamp-minute wait. One Reply tap follows. Proof is a fresh post of the
+account with the exact text, found by the same subtree rules as original posts,
+on the profile's Replies tab (the drawer, Profile, Replies; up to three pages).
+
+Anything that stops before the Reply tap ends the review as uncertain with
+"Stopped before sending; nothing was posted." and the reason. After the tap,
+missing proof leaves it uncertain for the owner to inspect, never resent.
+Calibrated on the connected Samsung (21 October 2026) against real mentions and
+an empty reply composer; a live reply has not yet been sent.
+
+### LinkedIn post adapter
+
+`delivery_adapter: "linkedin-accessibility-v1"` delivers approved original text
+posts on LinkedIn. LinkedIn shows no handle and no name in its composer, so the
+account's `handle` must be the exact member name LinkedIn shows in its profile
+menu (`identity_mirror_component_profile_name`). The worker opens LinkedIn on
+the home feed, opens the profile menu and requires that name, closes it, and
+opens the composer from `home_post`. Before and after typing it requires one
+editor (empty, then the exact body), one "Post" control and the "Anyone"
+audience; a different default audience stops delivery. One Post tap follows.
+Proof is one feed post outside any composer whose full text is the approved
+body and whose own subtree names the member; otherwise the review is left
+uncertain. Company pages the member manages are never selected. Replies on
+LinkedIn are not automated yet: no comment was available to calibrate against.
+The composer was calibrated on the connected Samsung (21 October 2026) by
+typing and discarding a test word; the feed proof needs a first live post.
+
+### Taps within one post
+
+`POST /phones/PHONE/action` taps accept `within`: the exact text of one element.
+Matches are then limited to the smallest subtree around that element holding
+any match; one is tapped, several are ambiguous, and a missing or repeated
+anchor is refused. The search never reaches a scrollable ancestor (the list
+holding the posts), so a post without the control can't borrow a neighbour's.
+Adapters still check the screen the tap opens before typing.
 
 ### Screenshot interpretation work
 
