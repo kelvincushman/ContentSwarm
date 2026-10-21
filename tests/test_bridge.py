@@ -304,3 +304,24 @@ def test_tap_within_duplicate_anchor_is_refused(use_bridge):
     with pytest.raises(LookupError):
         bridge.semantic_action("serial", "tap", desc="Reply", within="First post")
     assert not fake.calls
+
+
+@pytest.mark.parametrize("url,package", [
+    ("https://x.com/UKKelvinLee", "com.twitter.android"),
+    ("https://www.linkedin.com/in/someone", "com.linkedin.android"),
+])
+def test_open_url_opens_social_links_in_their_app(use_bridge, url, package):
+    fake = use_bridge(FakeBridge())
+    assert bridge.semantic_action("serial", "open_url", url=url)["package"] == package
+    assert fake.calls == [("open_uri", url, package)]
+
+
+@pytest.mark.parametrize("url", [
+    "http://x.com/a", "https://evil.com/x.com", "https://x.com.evil.com/", "https://user@x.com/",
+    "https://x.com:8443/", "https://@x.com/a", "https://x.com:0/a", "https://x.com:443/a", "intent://x.com/#Intent;end", "file:///sdcard/a", "https://x.com/a b", None, 3,
+])
+def test_open_url_refuses_anything_else(use_bridge, url):
+    fake = use_bridge(FakeBridge())
+    with pytest.raises(ValueError):
+        bridge.semantic_action("serial", "open_url", url=url)
+    assert not fake.calls

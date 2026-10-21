@@ -275,6 +275,26 @@ def _nearest_to(elements, within, indexes):
     return []
 
 
+# Links a phone may open, and the app that must open them. Only these apps'
+# own pages: never a browser, a file, or an intent of another app.
+URL_APPS = {
+    "x.com": "com.twitter.android", "www.x.com": "com.twitter.android",
+    "twitter.com": "com.twitter.android", "mobile.twitter.com": "com.twitter.android",
+    "linkedin.com": "com.linkedin.android", "www.linkedin.com": "com.linkedin.android",
+}
+
+
+def _url_app(url: Any) -> str:
+    """The app that opens an allowlisted https link, or ValueError."""
+    from urllib.parse import urlparse
+    if not isinstance(url, str) or len(url) > 2000 or any(c.isspace() for c in url):
+        raise ValueError("url must be one https link")
+    parts = urlparse(url)
+    if parts.scheme != "https" or "@" in parts.netloc or parts.port is not None or parts.hostname not in URL_APPS:
+        raise ValueError("url must be an https link on x.com or linkedin.com")
+    return URL_APPS[parts.hostname]
+
+
 def semantic_action(device_id: str | None, action: str, **params: Any) -> Dict[str, Any]:
     """Perform one allowlisted Android action with no model or raw shell access."""
     bridge = _require_bridge(device_id)
@@ -333,7 +353,12 @@ def semantic_action(device_id: str | None, action: str, **params: Any) -> Dict[s
             bridge.swipe(*values, ms=duration)
             return {"success": True, "action": action, "duration_ms": duration}
 
-    raise ValueError("action must be tap, type, key, or swipe")
+        if action == "open_url":
+            package = _url_app(params.get("url"))
+            bridge.open_uri(params["url"], package)
+            return {"success": True, "action": action, "package": package}
+
+    raise ValueError("action must be tap, type, key, swipe, or open_url")
 
 
 def _channel(channel: Any) -> str:

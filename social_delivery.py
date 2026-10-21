@@ -151,7 +151,7 @@ def x_post(client, review):
     except Exception:
         on_profile = False  # Navigation failed; the screenshot check below still applies.
     if on_profile:
-        client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": "Verified exact approved text in one fresh post of the account on its X profile, outside the composer, with reply/repost/like controls."})
+        client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": f"Verified exact approved text in one fresh post of the account on its X profile, https://x.com/{handle.removeprefix('@')}, with reply/repost/like controls."})
         return
     try:
         # Back to Home, where the screenshot check looks for the post.
@@ -187,9 +187,18 @@ def _swipe_up(client, route, elements):
 
 def x_profile_proof(client, route, sense, tap, handle, body, sent_at, tab=None):
     """Open the account's profile (optionally one tab) and look for one fresh
-    post of the handle with the exact text, over up to three pages."""
-    tap(desc="Show navigation drawer")
-    tap(text="Profile")
+    post of the handle with the exact text, over up to three pages.
+
+    The profile opens from its link (https://x.com/<handle>) in the X app, from
+    whatever screen X is on; it must show the handle before anything is read."""
+    client.post(route + "/action", dict(action="open_url", url="https://x.com/" + handle.removeprefix("@")))
+    for wait in range(8):
+        time.sleep(1)
+        ui = sense()
+        if any(e.get("id") == "UserProfileScreen" for e in ui) and any(e.get("text") == handle for e in ui):
+            break
+    else:
+        return False
     if tab:
         tap(text=tab)
     for page in range(3):
@@ -263,7 +272,7 @@ def x_reply(client, review):
     tap(desc="Reply")  # Exactly one commit request. Exceptions never replay it.
     time.sleep(2)
     if x_profile_proof(client, route, sense, tap, handle, body, sent_at, tab="Replies"):
-        client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": f"Replied to {author}. Verified the exact approved text in one fresh post of {handle} on its Replies tab, outside any composer, with reply/repost/like controls."})
+        client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": f"Replied to {author}. Verified the exact approved text in one fresh post of {handle} on its Replies tab, https://x.com/{handle.removeprefix('@')}/with_replies, with reply/repost/like controls."})
         return
     raise ValueError("Reply was sent but not found fresh on the Replies tab")
 

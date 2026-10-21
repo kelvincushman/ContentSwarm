@@ -244,9 +244,16 @@ records that it is not, returning it to `approved` so the next worker run sends
 it again. Both need the current `revision` and apply only to `uncertain` items.
 
 After an X post, X returns to the home feed, which shows display names but not
-handles. When the feed can't prove the post, the worker opens the profile (the
-drawer, then Profile) and looks for one fresh post of the handle with the exact
-text, before the screenshot check. Found on the first live post, 21 October 2026.
+handles. When the feed can't prove the post, the worker opens the profile from
+its link (`open_url` with `https://x.com/<handle>`, opened in the X app from any
+screen), requires the profile screen to show the handle, and looks for one fresh
+post of the handle with the exact text, before the screenshot check. The
+evidence names the profile link, so the owner can open it.
+
+The kernel's `open_url` action (`contentswarm open-url PHONE URL`) opens only
+https links on x.com, twitter.com and linkedin.com, each in its own app
+(`com.twitter.android`, `com.linkedin.android`): never a browser, another app,
+a file or a custom intent. Found on the first live post, 21 October 2026.
 
 ### X reply adapter
 
