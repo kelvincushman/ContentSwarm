@@ -26,7 +26,9 @@ def reply_composer(body="", handle="@owner", original=ORIGINAL, author="@asker")
 
 
 def my_reply(age="4s", body=BODY):
-    return [node(parent=None), node("@owner"), node(age), node(body), node(desc="Reply"), node(desc="Repost"), node(desc="Like")]
+    """Our reply on the profile's Replies tab, opened from the profile link."""
+    return [node(parent=None), node("@owner"), node(age), node(body), node(desc="Reply"), node(desc="Repost"), node(desc="Like"),
+            node(id="UserProfileScreen")]
 
 
 class Client:
@@ -234,3 +236,12 @@ def test_x_not_in_front_is_reported_as_not_sent():
         x_reply(client, REPLY)
     with pytest.raises(NotSent):
         linkedin_post(Client([FEED], app="Chrome", package="com.android.chrome"), POST)
+
+
+def test_reply_proof_needs_the_right_profile():
+    other = [dict(n, text="@someone_else") if n.get("text") == "@owner" else n for n in my_reply()]
+    client = Client(reply_screens(other))
+    with pytest.raises(ValueError):
+        x_reply(client, REPLY)
+    assert any(d.get("url") == "https://x.com/owner" for _, d in client.calls)
+    assert not any(route.endswith("/complete") for route, _ in client.calls)

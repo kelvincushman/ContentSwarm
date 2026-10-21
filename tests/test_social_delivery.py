@@ -166,8 +166,8 @@ def test_post_proved_on_profile_when_feed_shows_names_only(monkeypatch):
     # not handles, so the proof needs the profile.
     monkeypatch.setattr('social_delivery.time.sleep',lambda _:None)
     feed_without_handle=[node(parent=None),node('Owner Name'),node('now'),node('Approved text'),node(desc='Reply'),node(desc='Repost'),node(desc='Like')]
-    client=Client([FEED,composer(),composer('Approved text'),composer('Approved text')]+[feed_without_handle]*5+[post(age='now')])
+    client=Client([FEED,composer(),composer('Approved text'),composer('Approved text')]+[feed_without_handle]*5+[post(age='now')+[dict(node(),id='UserProfileScreen')]])
     x_post(client,REVIEW)
     assert client.post_taps==2
-    assert any(d.get('text')=='Profile' for _,d in client.calls)
+    assert ('/phones/phone/action',dict(action='open_url',url='https://x.com/owner')) in client.calls
     assert client.calls[-1][0]=='/reviews/review/complete'
