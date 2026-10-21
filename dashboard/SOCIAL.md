@@ -277,6 +277,11 @@ missing proof leaves it uncertain for the owner to inspect, never resent.
 Calibrated on the connected Samsung (21 October 2026) against real mentions and
 an empty reply composer; a live reply has not yet been sent.
 
+First live reply (21 October 2026): X reopens where it was left. On the
+Notifications screen its selected tab can't be pressed, so the adapter now goes
+to Notifications only when the Mentions filter isn't already showing. The
+attempt stopped before sending and nothing was posted.
+
 ### LinkedIn post adapter
 
 `delivery_adapter: "linkedin-accessibility-v1"` delivers approved original text
@@ -292,7 +297,11 @@ body and whose own subtree names the member; otherwise the review is left
 uncertain. Company pages the member manages are never selected. Replies on
 LinkedIn are not automated yet: no comment was available to calibrate against.
 The composer was calibrated on the connected Samsung (21 October 2026) by
-typing and discarding a test word; the feed proof needs a first live post.
+typing and discarding a test word. The first live post (same day) went out,
+then LinkedIn covered the feed with "Your post was successful" and a paid
+"Boost your post" offer. The worker now declines the offer with "Not now"
+(never the offer's own button) and then finds the post at the top of the feed,
+named "Kelvin Lee" with its exact text, as the proof expects.
 
 ### Taps within one post
 

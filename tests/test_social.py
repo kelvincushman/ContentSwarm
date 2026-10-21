@@ -280,7 +280,7 @@ def test_worker_reply_uses_thread_context_humanizer_and_approval_queue(monkeypat
     review = next(data for route, data in (c for c in calls if isinstance(c, tuple)) if route == "/reviews")
     assert all(review[k] == v for k, v in target.items())
     assert review["phone"] == "online"
-    assert review["humanizer_version"] == "3.0.0"
+    assert review["humanizer_version"] == "3.1.0"
     assert calls[-1] == ("/social/jobs/job/finish", {"result": {"review_id": "review"}})
     assert not any("/approve" in str(c) or "/action" in str(c) for c in calls)
 

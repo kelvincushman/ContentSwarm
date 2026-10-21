@@ -78,7 +78,7 @@ information is needed rather than filling gaps. No tools, sending, or posting.
         review = client.post("/reviews", dict(account_id=account["id"], platform=account["platform"],
                     account=account["handle"], phone=available[0], reply=parsed["result"],
                     **dict({"source_url": {"x": "https://x.com/", "linkedin": "https://www.linkedin.com/", "facebook": "https://www.facebook.com/", "instagram": "https://www.instagram.com/"}[account["platform"]], "kind": "post"}, **target),
-                    humanizer_version="3.0.0"))
+                    humanizer_version="3.1.0"))
         client.post(f"/social/jobs/{job['id']}/finish", {"result": {"review_id": review["id"]}})
     except Exception as exc:
         # No retries: a crash after review creation must not silently duplicate work.
