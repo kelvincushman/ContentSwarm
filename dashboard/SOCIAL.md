@@ -264,10 +264,14 @@ Notifications, then Mentions, and looks for exactly one element with that text,
 scrolling at most three pages. It presses the Reply control of that comment
 (`tap --within`, below), never a Reply found elsewhere.
 
-The reply composer opened that way shows the comment's author and exact text,
-"Replying to" the author, and the signed-in account. All four are checked, with
-an empty editor, before typing; then again with the exact body, and again after
-the timestamp-minute wait. One Reply tap follows. Proof is a fresh post of the
+Before pressing Reply, the comment's own row (the smallest subtree around its
+text holding a Reply control, never the scrolling list) must hold exactly one
+Reply and the author's exact handle. The reply composer opened from the
+Mentions list then shows "Replying to" the author (an exact handle, not a longer
+one) and the signed-in account, without repeating the comment; if it does show
+the comment, it must be the exact original. These are checked with an empty
+editor before typing; then again with the exact body, and again after the
+timestamp-minute wait. One Reply tap follows. Proof is a fresh post of the
 account with the exact text, found by the same subtree rules as original posts,
 on the profile's Replies tab (the drawer, Profile, Replies; up to three pages).
 
@@ -281,6 +285,11 @@ First live reply (21 October 2026): X reopens where it was left. On the
 Notifications screen its selected tab can't be pressed, so the adapter now goes
 to Notifications only when the Mentions filter isn't already showing. The
 attempt stopped before sending and nothing was posted.
+
+The second live attempt reached the composer and stopped before sending: opened
+from the Mentions list, X's composer doesn't repeat the comment, which the first
+version required. The comment and author are now checked in the Mentions row
+instead, verified against the live screen. Nothing was posted.
 
 ### LinkedIn post adapter
 
