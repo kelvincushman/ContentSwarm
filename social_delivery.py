@@ -241,8 +241,11 @@ def x_reply_composer(elements, handle, author, original):
     replies to and shows our account. Opened from the Mentions list it doesn't
     repeat the comment; when it does, the comment must be the exact original."""
     shown = [e for e in elements if e.get("text") == original and "EditText" not in e.get("class", "")]
+    # A composer that quotes a comment shows its author's handle on a line of
+    # its own; the quoted comment must then be exactly the original.
+    quoting = any(e.get("text") == author for e in elements)
     return (x_identity(elements, handle)
-            and len(shown) <= 1
+            and len(shown) == (1 if quoting else 0)
             and any(e.get("text", "").startswith("Replying to") and _names(e.get("text"), author) for e in elements))
 
 

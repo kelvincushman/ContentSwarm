@@ -127,6 +127,8 @@ def test_composer_proof_from_the_mentions_list():
     assert x_reply_composer(reply_composer(), "@owner", "@asker", ORIGINAL)
     assert x_reply_composer(reply_composer(original=ORIGINAL), "@owner", "@asker", ORIGINAL)
     assert not x_reply_composer(reply_composer(handle="@other"), "@owner", "@asker", ORIGINAL)
+    # Quoting a different comment by the same author.
+    assert not x_reply_composer(reply_composer(original="Another comment"), "@owner", "@asker", ORIGINAL)
 
 
 def test_mention_row_must_hold_the_author_and_one_reply():
