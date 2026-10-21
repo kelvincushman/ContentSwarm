@@ -192,9 +192,12 @@ def x_profile_proof(client, route, sense, tap, handle, body, sent_at, tab=None):
     The profile opens from its link (https://x.com/<handle>) in the X app, from
     whatever screen X is on; it must show the handle before anything is read."""
     client.post(route + "/action", dict(action="open_url", url="https://x.com/" + handle.removeprefix("@")))
-    time.sleep(3)
-    ui = sense()
-    if not any(e.get("id") == "UserProfileScreen" for e in ui) or not any(e.get("text") == handle for e in ui):
+    for wait in range(8):
+        time.sleep(1)
+        ui = sense()
+        if any(e.get("id") == "UserProfileScreen" for e in ui) and any(e.get("text") == handle for e in ui):
+            break
+    else:
         return False
     if tab:
         tap(text=tab)

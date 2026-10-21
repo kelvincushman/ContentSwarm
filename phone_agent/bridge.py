@@ -290,7 +290,7 @@ def _url_app(url: Any) -> str:
     if not isinstance(url, str) or len(url) > 2000 or any(c.isspace() for c in url):
         raise ValueError("url must be one https link")
     parts = urlparse(url)
-    if parts.scheme != "https" or parts.username or parts.password or parts.port or parts.hostname not in URL_APPS:
+    if parts.scheme != "https" or "@" in parts.netloc or parts.port is not None or parts.hostname not in URL_APPS:
         raise ValueError("url must be an https link on x.com or linkedin.com")
     return URL_APPS[parts.hostname]
 

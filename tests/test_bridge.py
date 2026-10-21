@@ -318,7 +318,7 @@ def test_open_url_opens_social_links_in_their_app(use_bridge, url, package):
 
 @pytest.mark.parametrize("url", [
     "http://x.com/a", "https://evil.com/x.com", "https://x.com.evil.com/", "https://user@x.com/",
-    "https://x.com:8443/", "intent://x.com/#Intent;end", "file:///sdcard/a", "https://x.com/a b", None, 3,
+    "https://x.com:8443/", "https://@x.com/a", "https://x.com:0/a", "https://x.com:443/a", "intent://x.com/#Intent;end", "file:///sdcard/a", "https://x.com/a b", None, 3,
 ])
 def test_open_url_refuses_anything_else(use_bridge, url):
     fake = use_bridge(FakeBridge())
