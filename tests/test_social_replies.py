@@ -20,8 +20,11 @@ MENTIONS = HOME + [node(desc="Mentions"), node(parent=0), node("@asker", parent=
                    node(ORIGINAL, parent=5), node(desc="Reply", parent=5)]
 
 
-def reply_composer(body="", handle="@owner", original=ORIGINAL, author="@asker"):
-    return [node(parent=None), node(author), node(original), node(f"Replying to ﻿{author}﻿"),
+def reply_composer(body="", handle="@owner", original=None, author="@asker"):
+    """As X shows it when opened from the Mentions list: who it replies to and
+    our account, without repeating the comment (pass original to include it)."""
+    return [node(parent=None)] + ([node(author), node(original)] if original else []) + [
+            node(f"Replying to ﻿{author}﻿"),
             node(desc=f"{handle}, Switch accounts"), node(text=body, cls="android.widget.EditText"), node(desc="Reply")]
 
 
@@ -75,8 +78,8 @@ def test_reply_targets_the_mention_types_once_and_proves_it():
 
 @pytest.mark.parametrize("composer", [
     reply_composer(handle="@someone_else"),                # Wrong account.
-    reply_composer(original="A different comment"),       # Wrong original.
-    reply_composer(author="@another"),                     # Wrong author.
+    reply_composer(author="@another"),                     # Replying to someone else.
+    reply_composer(author="@askers"),                      # A longer handle.
     reply_composer("Leftover draft"),                      # Editor not empty.
 ])
 def test_reply_stops_before_sending_on_any_mismatch(composer):
@@ -120,11 +123,21 @@ def test_unproven_reply_is_left_for_the_owner():
     assert not any(route.endswith("/complete") for route, _ in client.calls)
 
 
-def test_composer_proof_needs_the_original_outside_the_editor():
-    screen = reply_composer(ORIGINAL)
-    screen[2]["text"] = ""
-    assert not x_reply_composer(screen, "@owner", "@asker", ORIGINAL)
+def test_composer_proof_from_the_mentions_list():
     assert x_reply_composer(reply_composer(), "@owner", "@asker", ORIGINAL)
+    assert x_reply_composer(reply_composer(original=ORIGINAL), "@owner", "@asker", ORIGINAL)
+    assert not x_reply_composer(reply_composer(handle="@other"), "@owner", "@asker", ORIGINAL)
+
+
+def test_mention_row_must_hold_the_author_and_one_reply():
+    from social_delivery import x_mention
+    assert x_mention(MENTIONS, "@asker", ORIGINAL)
+    assert not x_mention(MENTIONS, "@someone_else", ORIGINAL)
+    wrong_author = [dict(n, text="@impostor") if n.get("text") == "@asker" else n for n in MENTIONS]
+    client = Client([HOME, wrong_author])
+    with pytest.raises(NotSent, match="author"):
+        x_reply(client, REPLY)
+    assert not client.taps(desc="Reply")
 
 
 # LinkedIn

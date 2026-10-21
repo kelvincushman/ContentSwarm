@@ -210,13 +210,40 @@ def x_profile_proof(client, route, sense, tap, handle, body, sent_at, tab=None):
     return False
 
 
+def _names(text, handle):
+    """Whether text names this exact @handle (not a longer one)."""
+    return re.search(re.escape(handle) + r"(?![A-Za-z0-9_])", text or "") is not None
+
+
+def x_mention(elements, author, original):
+    """One mention whose own row holds the exact text, the author's handle and
+    one Reply control. The row is the smallest subtree around the text holding
+    a Reply, never reaching the scrolling list itself."""
+    anchors = [i for i, e in enumerate(elements) if e.get("text") == original and "EditText" not in e.get("class", "")]
+    if len(anchors) != 1:
+        return False
+    cursor = anchors[0]
+    while True:
+        if elements[cursor].get("scrollable"):
+            return False
+        group = descendants(elements, cursor)
+        replies = sum(e.get("desc") == "Reply" for e in group)
+        if replies:
+            return replies == 1 and any(e.get("text") == author for e in group)
+        parent = elements[cursor].get("parent_index")
+        if type(parent) is not int or not 0 <= parent < cursor:
+            return False
+        cursor = parent
+
+
 def x_reply_composer(elements, handle, author, original):
-    """The reply composer opened from the original's own Reply control shows
-    the original's author and exact text, who it replies to, and our account."""
+    """The reply composer opened from a mention's own Reply control says who it
+    replies to and shows our account. Opened from the Mentions list it doesn't
+    repeat the comment; when it does, the comment must be the exact original."""
+    shown = [e for e in elements if e.get("text") == original and "EditText" not in e.get("class", "")]
     return (x_identity(elements, handle)
-            and sum(e.get("text") == original and "EditText" not in e.get("class", "") for e in elements) == 1
-            and any(e.get("text") == author for e in elements)
-            and any(e.get("text", "").startswith("Replying to") and author in e.get("text", "") for e in elements))
+            and len(shown) <= 1
+            and any(e.get("text", "").startswith("Replying to") and _names(e.get("text"), author) for e in elements))
 
 
 def x_reply(client, review):
@@ -246,6 +273,8 @@ def x_reply(client, review):
         for page in range(4):
             ui = sense()
             if sum(e.get("text") == original for e in ui) == 1:
+                if not x_mention(ui, author, original):
+                    raise NotSent("The comment's row doesn't show its author and one Reply control")
                 break
             if page == 3:
                 raise NotSent("The comment was not found under Mentions")
