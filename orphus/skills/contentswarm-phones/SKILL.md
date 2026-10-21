@@ -46,6 +46,7 @@ contentswarm current phone_01           # foreground app
 contentswarm ui phone_01                # UI element tree - text/id/desc/center per element
 contentswarm screenshot phone_01 -o screen.png   # see the screen - read the PNG after
 contentswarm tap phone_01 --text Continue --confirm
+contentswarm tap phone_01 --desc Reply --within "exact post text" --confirm   # one post's control
 contentswarm type phone_01 "hello"
 contentswarm key phone_01 BACK --confirm
 contentswarm swipe phone_01 500 1600 500 500

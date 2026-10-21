@@ -71,8 +71,12 @@ This navigation support does not replace account/source checks or approval.
 An owner may select `delivery_adapter: "x-accessibility-v1"` on an X account.
 For original text posts, the worker uses deterministic navigation, exact account
 and body checks, one commit attempt and fresh-post evidence. Do not bypass an
-uncertain result, existing composer or unsupported screen. Automatic replies
-and media still need a separate verified workflow.
+uncertain result, existing composer or unsupported screen. With that adapter,
+approved X replies are delivered too; give `author` as the commenter's exact
+`@handle` and `original` as the comment's exact text, or the worker stops before
+sending. On a LinkedIn account, `delivery_adapter: "linkedin-accessibility-v1"`
+posts approved original text, with the account handle set to the exact member
+name the app shows. Media and LinkedIn replies still need a separate workflow.
 
 For device-local time, use `contentswarm clock PHONE` (GET
 `/api/v1/phones/PHONE/clock`): returns ISO time with UTC offset and epoch.

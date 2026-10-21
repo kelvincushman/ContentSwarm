@@ -418,6 +418,11 @@ and looks for a fresh published-post subtree. It does not call a model for
 navigation. See [the X adapter guide](dashboard/SOCIAL.md#x-accessibility-adapter)
 for setup and supported screens. Phone deployment testing is required before
 relying on it; a pending or uncertain review is never a delivery confirmation.
+The same adapter delivers approved X replies, found under Mentions by the
+commenter's exact handle and text, and LinkedIn accounts can select
+`linkedin-accessibility-v1` for original text posts. See
+[X replies](dashboard/SOCIAL.md#x-reply-adapter) and
+[LinkedIn posts](dashboard/SOCIAL.md#linkedin-post-adapter).
 
 Screenshot interpretation is in development for app screens that omit visible
 post text from accessibility data. The tool-free reader produces blind observations. The experimental X fallback

@@ -187,7 +187,12 @@ coordinates, infer parents from overlap, or treat a tap result as delivery proof
 Owner account configuration can select `delivery_adapter: "x-accessibility-v1"`
 for an X profile. The timer then uses deterministic phone calls for approved
 original text posts, retaining review leases and the global delivery opt-in.
-This does not extend automatic delivery to replies or media. See
+With that adapter, approved X replies are delivered too: the worker finds the
+comment under Mentions by its exact author and text and checks the reply
+composer before one send. `delivery_adapter: "linkedin-accessibility-v1"` does
+the same for original LinkedIn text posts, with the member name as the handle.
+Media and LinkedIn replies are not automated. Semantic taps accept `within`
+(the exact text of one element) to pick one post's control in a list. See
 [the supported X screens and verification](../dashboard/SOCIAL.md#x-accessibility-adapter).
 
 For device-local time, use `contentswarm clock PHONE` (GET
