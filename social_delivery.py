@@ -147,11 +147,18 @@ def x_post(client, review):
     # X goes back to the home feed, which shows display names, not handles; the
     # profile shows the handle and a fresh time on each of the account's posts.
     try:
-        if x_profile_proof(client, route, sense, tap, handle, body, sent_at):
-            client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": "Verified exact approved text in one fresh post of the account on its X profile, outside the composer, with reply/repost/like controls."})
-            return
+        on_profile = x_profile_proof(client, route, sense, tap, handle, body, sent_at)
     except Exception:
-        pass  # Navigation failed; the screenshot check below still applies.
+        on_profile = False  # Navigation failed; the screenshot check below still applies.
+    if on_profile:
+        client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": "Verified exact approved text in one fresh post of the account on its X profile, outside the composer, with reply/repost/like controls."})
+        return
+    try:
+        # Back to Home, where the screenshot check looks for the post.
+        if not any(e.get("desc") == "Show navigation drawer" for e in sense()):
+            client.post(route + "/action", dict(action="key", key="BACK", confirm=True))
+    except Exception:
+        pass
     from social_vision import verify_x_detail
     evidence = verify_x_detail(client, route, handle, body, started, sense)
     client.post(f"/reviews/{review['id']}/complete", {"revision": review["revision"], "evidence": evidence})

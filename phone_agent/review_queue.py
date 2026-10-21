@@ -145,12 +145,12 @@ class ReviewQueue:
                 # the approved text may be sent again.
                 if before != "uncertain":
                     raise ValueError("Only an uncertain delivery can be confirmed or retried")
+                item["history"].append({"uncertain": item.get("evidence", ""), "at": time.time()})
                 if action == "confirm":
                     item["status"] = "verified"
                     item["evidence"] = "The owner checked: it is published."
                 else:
                     item["status"] = "approved"
-                    item["history"].append({"uncertain": item.get("evidence", ""), "at": time.time()})
                     item.pop("evidence", None)
                 item.pop("lease_hash", None)
             else:

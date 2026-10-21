@@ -65,6 +65,7 @@ def test_owner_settles_an_uncertain_delivery(tmp_path):
     item = uncertain()
     done = queue.update(item["id"], "confirm", dict(revision=item["revision"]))
     assert done["status"] == "verified" and "owner checked" in done["evidence"]
+    assert done["history"][-1]["uncertain"] == "No proof"
     item = uncertain()
     again = queue.update(item["id"], "retry", dict(revision=item["revision"]))
     assert again["status"] == "approved" and "evidence" not in again

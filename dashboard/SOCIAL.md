@@ -238,8 +238,8 @@ enabling automatic delivery on this app version.
 
 An uncertain review means the worker can't prove what happened; it is never
 resent on its own. The owner checks the phone, then settles it from the
-console session (owner-only, CSRF like approval): `POST /reviews/ID/confirm`
-records that it is published (status `verified`), and `POST /reviews/ID/retry`
+console session (owner-only, CSRF like approval): `POST /api/v1/reviews/ID/confirm`
+records that it is published (status `verified`), and `POST /api/v1/reviews/ID/retry`
 records that it is not, returning it to `approved` so the next worker run sends
 it again. Both need the current `revision` and apply only to `uncertain` items.
 
