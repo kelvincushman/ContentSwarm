@@ -9,8 +9,8 @@ The vision model is the *teacher*: it drives a task once and every replayable
 action is recorded with its exact press points (resolution-independent
 0-1000 coordinates) plus the semantic identity (text/id/desc) of the element
 under each tap. Replays target the recorded element wherever it now sits -
-flows survive layout shifts and different screens - and fall back to the
-recorded coordinates when the element is not found. No model calls,
+flows can survive layout shifts. If a recorded semantic target is missing,
+replay stops instead of falling back to old coordinates. No model calls,
 near-zero cost.
 
 Uses the same environment as `contentswarm-phones`
@@ -57,7 +57,8 @@ contentswarm replay phone_02 tiktok-open-upload --wait --speed 1.5
 
 Flows record relative coordinates, so a flow learned on one phone replays on
 any phone. Taps first look for the recorded element (text/id/desc) at its
-current position and only fall back to the recorded point.
+current position. A missing semantic target stops replay; coordinate-only
+legacy steps remain unverified.
 
 ## Verify: what it did vs what it was supposed to do
 
@@ -71,7 +72,7 @@ contentswarm runs tiktok-open-upload
 
 Per step: `success`, and `method` - `"element"` means the recorded semantic
 target was found on screen and tapped (verified); `"coords"` means the
-coordinate fallback fired (unverified - the layout may have changed). The
+coordinate-only legacy step fired (unverified - the layout may have changed). The
 summary's `verified` count against `executed` is the health signal: a flow
 whose verified count drops after an app update needs re-learning before it
 misclicks. For rendered content, a screenshot is still the ground truth:
@@ -107,3 +108,16 @@ CS -X POST -H "Content-Type: application/json" -d '{"task":"...","flow_name":"my
 CS -X POST -H "Content-Type: application/json" -d '{"flow_name":"my-flow"}' "$CONTENTSWARM_API_URL/phones/phone_01/replay"
 CS "$CONTENTSWARM_API_URL/flows"
 ```
+
+Empty/failed learning is not saved as a completed flow. Empty replay fails, and
+replay stops after its first failed step. Sensitive confirmation/takeover is
+never auto-approved. Use `contentswarm cancel-task TASK_ID --confirm` to request
+a cooperative stop. Input may already have happened; inspect before retrying.
+The `verified` count measures input targeting only, not the final task outcome.
+
+The recorder preserves sensitive-action confirmation markers; replay denies
+those controls and stops, rather than treating an old approval as permanent.
+Existing flows saved without such markers cannot be repaired by inference:
+inspect/re-learn them before use. Semantic Double Tap/Long Press is not yet
+implemented; those steps fail rather than using old coordinates. Coordinate-only
+legacy gestures still require independent outcome checks.

@@ -8,19 +8,20 @@ as REST + WebSocket endpoints that an external agent harness (Orphus via the
 import base64
 import hashlib
 import hmac
+import json
+import logging
 import os
 import re
 import secrets
 import threading
 import time
 import uuid
-import json
 from typing import Any, Dict, Optional
 
-from flask import Blueprint, Response, jsonify, request, session, has_request_context
-
+from flask import Blueprint, Response, has_request_context, jsonify, request, session
 
 _PREPARED_TTL_SECONDS = 300
+_MAX_TASK_ERROR_LENGTH = 1000
 
 
 def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
@@ -45,6 +46,7 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
     @lru_cache(maxsize=8)
     def cached_store(root, kind):
         from pathlib import Path
+
         from phone_agent.review_queue import ReviewQueue
         from phone_agent.social import SocialStore
         return (ReviewQueue if kind == "reviews" else SocialStore)(Path(root) / (kind + ".sqlite3"))
@@ -66,14 +68,16 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         return jsonify({"error": "Unauthorized"}), 401
 
     def review_queue():
-        from phone_agent.review_queue import ReviewQueue
         from pathlib import Path
+
+        from phone_agent.review_queue import ReviewQueue
         root = os.environ.get("CONTENTSWARM_STATE_DIR", str(Path.home() / ".local/state/contentswarm"))
         return cached_store(root, "reviews")
 
     def social_store():
-        from phone_agent.social import SocialStore
         from pathlib import Path
+
+        from phone_agent.social import SocialStore
         root = os.environ.get("CONTENTSWARM_STATE_DIR", str(Path.home() / ".local/state/contentswarm"))
         return cached_store(root, "social")
 
@@ -272,7 +276,37 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         """Emit event via SocketIO to /ws/events namespace."""
         sio = _get_socketio()
         if sio:
-            sio.emit("contentswarm_event", event, namespace="/ws/events")
+            try:
+                sio.emit("contentswarm_event", event, namespace="/ws/events")
+            except Exception as exc:
+                # Event transport must not change an operation's actual outcome.
+                logging.getLogger(__name__).warning(
+                    "Event delivery failed (%s); poll task status for authoritative results",
+                    type(exc).__name__,
+                )
+
+    # Keep existing observers while delivering worker terminal events to clients.
+    for source in (state.get("phone_manager"), state.get("automation")):
+        if source and hasattr(source, "set_event_callback"):
+            previous = getattr(source, "_event_callback", None)
+            def forward(event, previous=previous):
+                try:
+                    if previous:
+                        previous(event)
+                finally:
+                    _emit_event(event)
+            source.set_event_callback(forward)
+
+    def task_error(exc):
+        detail = str(exc)
+        for key in ("CONTENTSWARM_API_TOKEN", "CONTENTSWARM_CONSOLE_TOKEN", "PHONE_AGENT_API_KEY"):
+            secret = os.environ.get(key)
+            if secret:
+                detail = detail.replace(secret, "[redacted]")
+        detail = re.sub(r"(?i)\bBearer\s+[^\s,;]+", "Bearer [redacted]", detail)
+        detail = re.sub(r"(?i)(token|password|api[_-]?key)([\s\"']*[:=][\s\"']*)[^\s,;\"']+", r"\1\2[redacted]", detail)
+        detail = re.sub(r"(?i)(https?://)[^\s/]+@", r"\1[redacted]@", detail)
+        return " ".join(detail.split())[:_MAX_TASK_ERROR_LENGTH]
 
     # ── Phone Management ────────────────────────────────────────────
 
@@ -482,6 +516,8 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
         except Exception as e:
             return jsonify({"error": f"Screenshot failed: {e}"}), 500
 
+        if getattr(shot, "capture_error", None) or getattr(shot, "is_sensitive", False):
+            return jsonify(error="Screenshot unavailable; no current screen evidence. Human inspection required."), 503
         png_bytes = base64.b64decode(shot.base64_data)
         return Response(
             png_bytes,
@@ -903,6 +939,8 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
     @api.route("/tasks/<task_id>", methods=["GET"])
     def get_task(task_id: str):
         """Check the status of an async task."""
+        if task_id in _tasks:
+            return jsonify(dict(_tasks[task_id]))
         pm = _get_phone_manager()
         if not pm:
             return jsonify({"error": "Phone manager not initialized"}), 503
@@ -913,14 +951,32 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
 
         return jsonify(status)
 
-    @api.route("/tasks", methods=["GET"])
-    def list_tasks():
-        """List all tracked tasks."""
+    @api.post("/tasks/<task_id>/cancel")
+    def cancel_task(task_id):
+        data, error = _json_body()
+        if error:
+            return error
+        if data.get("confirm") is not True:
+            return jsonify(error="confirm must be true to request a task stop"), 409
+        if task_id in _tasks:
+            return jsonify(error="Discovery cancellation is not supported; observe its result before retrying"), 409
         pm = _get_phone_manager()
         if not pm:
-            return jsonify({"error": "Phone manager not initialized"}), 503
+            return jsonify(error="Phone manager not initialized"), 503
+        try:
+            return jsonify(pm.cancel_task(task_id))
+        except LookupError as exc:
+            return jsonify(error=str(exc)), 404
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 409
 
-        return jsonify({"tasks": pm.get_all_tasks()})
+    @api.route("/tasks", methods=["GET"])
+    def list_tasks():
+        """List tracked phone tasks and pipeline discovery outcomes."""
+        pm = _get_phone_manager()
+        if not pm and not _tasks:
+            return jsonify({"error": "Phone manager not initialized"}), 503
+        return jsonify(tasks=(pm.get_all_tasks() if pm else []) + [dict(t) for t in list(_tasks.values())])
 
     # ── Pipeline Control ────────────────────────────────────────────
 
@@ -953,10 +1009,18 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
             phone = phones[0]
 
         # Run discovery in background
-        result_holder = {"result": None, "error": None}
-        task_id = str(uuid.uuid4())[:8]
+        task_id = uuid.uuid4().hex
+        _tasks[task_id] = dict(task_id=task_id, phone=phone, task=f"discover:{platform_str}",
+                               status="pending", result=None, error=None, outcome_verified=False)
+        result_holder = _tasks[task_id]
 
         def _discover():
+            result_holder.update(status="running", started_at=time.time())
+            _emit_event(dict(
+                event="task_started", task_id=task_id, phone=phone,
+                status=result_holder["status"],
+                outcome_verified=result_holder["outcome_verified"],
+            ))
             try:
                 trending = automation.discover_trending(platform, phone, limit)
                 result_holder["result"] = [
@@ -964,14 +1028,28 @@ def create_api_blueprint(state: Dict[str, Any]) -> Blueprint:
                      "engagement": t.engagement, "hashtags": t.hashtags}
                     for t in trending
                 ]
+                result_holder.update(status="completed", completed_at=time.time())
+                _emit_event(dict(
+                    event="task_completed", task_id=task_id, phone=phone,
+                    status=result_holder["status"],
+                    outcome_verified=result_holder["outcome_verified"],
+                ))
             except Exception as e:
-                result_holder["error"] = str(e)
+                error = task_error(e)
+                result_holder.update(error=error, status="failed", completed_at=time.time())
+                _emit_event(dict(
+                    event="task_failed", task_id=task_id, phone=phone,
+                    status=result_holder["status"],
+                    outcome_verified=result_holder["outcome_verified"],
+                    error=error,
+                ))
 
         thread = threading.Thread(target=_discover, daemon=True)
         thread.start()
 
         return jsonify({
             "message": f"Discovery started on {platform_str} via {phone}",
+            "task_id": task_id,
             "limit": limit
         }), 202
 

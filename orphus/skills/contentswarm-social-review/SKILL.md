@@ -5,6 +5,11 @@ description: Collect X, LinkedIn, Facebook and Instagram conversations, humanize
 
 # Social reply review
 
+This skill describes the approved sender protocol; it does not grant sender
+authority. A stricter host Phone policy still applies. Navigation-only Phone
+agents must report the exact review ID/status/evidence to the existing approved
+sender, not claim another lease, tap Post, or ask for approval again.
+
 First select the exact profile from `contentswarm social accounts`, then read
 `contentswarm social context --account ID --query WORDS`. Only that account's
 soul, sourced knowledge, verified history and owner rewrites inform its voice.

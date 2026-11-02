@@ -95,10 +95,10 @@ def wait_for_task(client: Client, task_id: str, timeout: int) -> dict:
     deadline = time.time() + timeout
     while time.time() < deadline:
         status = client.get(f"/tasks/{task_id}")
-        if status.get("status") in ("completed", "failed"):
+        if status.get("status") in ("completed", "failed", "cancelled", "timeout"):
             return status
         time.sleep(POLL_INTERVAL_SECONDS)
-    return {"task_id": task_id, "status": "timeout", "error": f"No result within {timeout}s"}
+    return {"task_id": task_id, "status": "timeout", "error": f"No result within {timeout}s; the task may still be running. Inspect or cancel it; do not resubmit uncertain actions"}
 
 
 def parse_batch_tasks(pairs: list[str]) -> dict:
@@ -193,6 +193,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("task", help="Status of one async task")
     p.add_argument("task_id")
+
+    p = sub.add_parser("cancel-task", help="Request a task stop; does not undo inputs already sent")
+    p.add_argument("task_id")
+    p.add_argument("--confirm", action="store_true", required=True)
 
     sub.add_parser("tasks", help="List all tracked tasks")
     sub.add_parser("apps", help="List apps that can be launched by name")
@@ -336,7 +340,7 @@ def run_command(args, client: Client) -> None:
         if args.wait:
             result = wait_for_task(client, result["task_id"], args.wait_timeout)
         output(result)
-        if result.get("status") in ("failed", "timeout"):
+        if result.get("status") in ("failed", "timeout", "cancelled"):
             sys.exit(1)
 
     elif args.command == "batch":
@@ -348,13 +352,16 @@ def run_command(args, client: Client) -> None:
                 for phone, task_id in result["task_ids"].items()
             }
             output({"results": results})
-            if any(r.get("status") in ("failed", "timeout") for r in results.values()):
+            if any(r.get("status") in ("failed", "timeout", "cancelled") for r in results.values()):
                 sys.exit(1)
         else:
             output(result)
 
     elif args.command == "task":
         output(client.get(f"/tasks/{args.task_id}"))
+
+    elif args.command == "cancel-task":
+        output(client.post(f"/tasks/{args.task_id}/cancel", {"confirm": args.confirm}))
 
     elif args.command == "tasks":
         output(client.get("/tasks"))
@@ -492,7 +499,7 @@ def run_command(args, client: Client) -> None:
         if args.wait:
             result = wait_for_task(client, result["task_id"], args.wait_timeout)
         output(result)
-        if result.get("status") in ("failed", "timeout"):
+        if result.get("status") in ("failed", "timeout", "cancelled"):
             sys.exit(1)
 
     elif args.command == "replay":
@@ -503,7 +510,7 @@ def run_command(args, client: Client) -> None:
         if args.wait:
             result = wait_for_task(client, result["task_id"], args.wait_timeout)
         output(result)
-        if result.get("status") in ("failed", "timeout"):
+        if result.get("status") in ("failed", "timeout", "cancelled"):
             sys.exit(1)
 
     elif args.command == "flows":

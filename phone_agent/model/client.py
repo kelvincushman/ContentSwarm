@@ -18,6 +18,7 @@ class ModelConfig:
     temperature: float = 0.0
     top_p: float = 0.85
     frequency_penalty: float = 0.2
+    request_timeout: float = 60
     extra_body: dict[str, Any] = field(default_factory=dict)
 
 
@@ -40,7 +41,12 @@ class ModelClient:
 
     def __init__(self, config: ModelConfig | None = None):
         self.config = config or ModelConfig()
-        self.client = OpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
+        self.client = OpenAI(
+            base_url=self.config.base_url,
+            api_key=self.config.api_key,
+            timeout=self.config.request_timeout,
+            max_retries=0,
+        )
 
     def request(self, messages: list[dict[str, Any]]) -> ModelResponse:
         """

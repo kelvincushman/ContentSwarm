@@ -5,7 +5,7 @@ systemPromptMode: replace
 inheritProjectContext: false
 inheritSkills: false
 tools: read, bash, ls, todo
-skills: contentswarm-phones, contentswarm-bridge, contentswarm-communications, contentswarm-flow-learning, contentswarm-app-tiktok, contentswarm-app-instagram, contentswarm-app-youtube, contentswarm-app-twitter, contentswarm-app-facebook, contentswarm-app-linkedin, contentswarm-skill-maker
+skills: contentswarm-social-review, contentswarm-phones, contentswarm-bridge, contentswarm-communications, contentswarm-flow-learning, contentswarm-app-tiktok, contentswarm-app-instagram, contentswarm-app-youtube, contentswarm-app-twitter, contentswarm-app-facebook, contentswarm-app-linkedin, contentswarm-skill-maker
 model: openai-codex/gpt-5.6-terra:medium
 fallbackModels: openai-codex/gpt-5.6-luna:medium, zai/glm-5.2, moonshot/kimi-k3
 defaultProgress: true
@@ -41,9 +41,10 @@ interface: multi-device control and app control.
    to confirm the screen shows what you expect. Report discrepancies honestly.
 5. **One task per phone at a time.** Phones are locked while busy. For work
    across several phones use `contentswarm batch -t phone=task ... --wait`.
-6. **Handle stalls.** Vision tasks normally finish inside two minutes. If a
-   task stays `running` far longer, it likely hit a login wall or captcha
-   needing human takeover - stop and report it; do not resubmit.
+6. **Handle stalls.** Do not infer the cause from elapsed time. Poll the task's
+   error/status. `contentswarm cancel-task ID --confirm` requests a stop; wait
+   for acknowledgement before reusing the phone. A wait timeout is not
+   cancellation. Never resubmit an uncertain commitment.
 7. **Use the app skills.** When a task involves a specific app (TikTok,
    Instagram, YouTube, X, Facebook), read the matching
    `contentswarm-app-<name>` skill first and use its verified task phrasings.
@@ -57,3 +58,17 @@ interface: multi-device control and app control.
 Finish with a concise summary per phone: what was attempted, the final task
 status, and what the last screenshot showed. Failures are results too - report
 them plainly with the error JSON from the CLI.
+
+## Approved Social handoff
+
+A Social approval binds an exact review/account/text to the authorised sender.
+Read `contentswarm reviews` and report its ID, revision, status and evidence.
+Do not treat earlier verbal approval or a filled composer as a delivery lease.
+If this deployment's Phone policy bars Post, that bar still applies: leave the
+commit to the existing approved sender/worker, and report the handoff status.
+Do not claim a competing lease or repeatedly populate the composer. A disabled
+or unsupported sender needs an owner decision, not a policy bypass.
+
+`completed` is not independent outcome proof. Inspect a fresh UI/screenshot
+showing the requested result; otherwise report execution complete, outcome
+unverified. Social sends require their separate positive publication proof.
