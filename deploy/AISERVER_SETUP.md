@@ -266,3 +266,11 @@ phone adapter to its actual service and compare deployed source hashes.
 Bridge-only typing now fails closed if the dependency is absent; discovery
 lifecycle events include authoritative status and unverified-outcome flags.
 No automatic delivery or broader Phone authority is enabled by this release.
+
+### Review follow-up: metadata-only diagnostics
+
+The OB-35 collector omits source text entirely, including typed constants,
+quoted values and header/call forms. `adapter_source_review` retains only source
+references/hashes and allowed connection metadata. Keep older exported reports
+private; this change does not retrospectively sanitise them. The service and
+credential configuration is unchanged.

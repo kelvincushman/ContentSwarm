@@ -266,3 +266,8 @@ capability error without unchecked legacy IME input. See the
 [review/rollout/rollback gate](../deploy/PHONE_RELIABILITY_ROLLOUT.md) before
 updating a running installation. No definition is installed or authority
 expanded merely by changing this checkout.
+
+The review follow-up uses typed selector ambiguity and tap-attempt uncertainty;
+pre-tap dependency/UI failures are not labelled as uncertain sends. The runtime
+collector's source-review field is now metadata-only, never raw application
+code. Historical source-bearing reports are not rewritten by this correction.

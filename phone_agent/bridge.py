@@ -47,6 +47,14 @@ _RECIPIENT_IDS = {
 }
 
 
+class AmbiguousSelector(RuntimeError):
+    """A selector matched more than one target before any action was attempted."""
+
+
+class TapOutcomeUncertain(RuntimeError):
+    """A tap dispatch was attempted; its device outcome is not confirmed."""
+
+
 def installed() -> bool:
     """True if the adb-agent-bridge library is importable."""
     return Bridge is not None
@@ -121,12 +129,9 @@ def tap_target(
         semantic_action(device_id, "tap", **{k: v for k, v in
                         {"text": text, "id": id, "desc": desc}.items() if v is not None})
         return True
-    except (LookupError, ValueError):
-        return False  # No action was attempted for a missing/invalid selector.
-    except RuntimeError as exc:
-        if str(exc) == "selector is ambiguous; provide another selector":
-            return False
-        raise RuntimeError("Tap outcome uncertain; inspect the phone before retrying") from exc
+    except (LookupError, ValueError, AmbiguousSelector):
+        # These selector preconditions fail before a tap is dispatched.
+        return False
 
 
 def prefetch_ui(device_id: str | None = None) -> None:
@@ -319,8 +324,13 @@ def semantic_action(device_id: str | None, action: str, **params: Any) -> Dict[s
             if not matches:
                 raise LookupError("no enabled clickable element matched")
             if len(matches) > 1:
-                raise RuntimeError("selector is ambiguous; provide another selector")
-            bridge.tap(matches[0])
+                raise AmbiguousSelector("selector is ambiguous; provide another selector")
+            try:
+                bridge.tap(matches[0])
+            except Exception as exc:
+                raise TapOutcomeUncertain(
+                    "Tap outcome uncertain; inspect the phone before retrying"
+                ) from exc
             return {"success": True, "action": action, "target": list(matches[0].center)}
 
         if action == "type":

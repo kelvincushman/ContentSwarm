@@ -22,9 +22,12 @@ non-secret fields of explicitly referenced MCP registration JSON, and
 allowlisted journal failure markers/task IDs. The extended collector projects
 only exact named connection URL/host/port/state/enable fields from matched
 service environments; token/password fields are not decoded or exported.
-Credential/config files are not copied. It can export the relevant tracked Rust
-adapter modules (with obvious credential literals redacted) and marker-only
-Phone session summaries; no message/post text is exported. It makes no
+Credential/config files are not copied. Source review data is metadata-only:
+file paths, hashes, reference line numbers and known connection-key names/origins.
+It never exports application source text; regex redaction cannot cover arbitrary
+credential syntax. Phone session summaries contain markers only, not messages.
+Historical source-bearing diagnostic reports are not rewritten by this change;
+keep them private and inspect before sharing. It makes no
 network calls and never controls the phone or services. Output goes into the
 shared team's `diagnostics/phone-runtime/` directory with private permissions.
 A missing unit, denied journal or absent registration is a reported gap, not
@@ -170,3 +173,18 @@ worker's generic evidence unless a suitable task record can be recovered.
 These are configuration and on-disk source checks, not proof that every binary
 was built from the accompanying checkout, nor a successful send. No production
 service or scheduler has been stopped, restarted or updated by this work.
+
+## OB-35 review corrections
+
+Pre-tap dependency/UI errors remain ordinary errors. Missing/invalid selectors
+and typed `AmbiguousSelector` failures occur before dispatch; no uncertainty is
+invented from an error-message string. Only an exception during the one bridge
+tap call becomes `TapOutcomeUncertain`, regardless of its exception class. It
+never permits a coordinate fallback or a second tap.
+
+The diagnostic collector no longer exports raw source under any redaction
+pattern. The existing `adapter_source_review` report field contains metadata
+only. Do not rerun an older source-exporting collector while preparing rollout;
+use the version-only check for current service hashes. This candidate must
+complete CodeRabbit and the requested actual independent reviewer before the
+specific deployment approval gate; merging earlier PRs does not waive it.

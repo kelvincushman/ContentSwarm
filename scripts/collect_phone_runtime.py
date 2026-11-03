@@ -312,7 +312,9 @@ def adapter_source_metadata(root):
                 if re.search(r"contentswarm|custom-tools", line, re.I)
             ][:25],
             "connection_key_names": sorted(
-                set(re.findall(r"\b[A-Z_]*CONTENTSWARM[A-Z_]*\b", data))
+                key.decode("ascii")
+                for key in CONNECTION_KEYS
+                if key.decode("ascii") in data
             ),
             "literal_origins": [],
         }
@@ -336,57 +338,12 @@ def adapter_source_metadata(root):
 
 
 def source_review_bundle(root):
-    """Export only tracked Rust phone/approval adapter modules, never configs."""
-    root = root.resolve()
-    if not (root / ".git").exists():
-        return []
-    code, text = command(
-        ["git", "-C", str(root), "ls-files", "--", "crates/server/src", "src"]
-    )
-    if code:
-        return []
-    result = []
-    names = {
-        "phone.rs",
-        "social.rs",
-        "mcp.rs",
-        "tools.rs",
-        "review.rs",
-        "approval.rs",
-        "tasks.rs",
-    }
-    for name in text.splitlines():
-        path = root / name
-        if (
-            path.name not in names
-            or not path.resolve().is_relative_to(root)
-            or not path.is_file()
-            or path.stat().st_size > 250_000
-        ):
-            continue
-        source = path.read_text(errors="replace")
-        # Never export config/credential files. Also redact obvious credential
-        # literals in code; dynamic key names/call structure remain inspectable.
-        redacted = re.sub(
-            r'(?i)((?:api[_-]?key|password|access[_-]?token|secret)\s*[:=]\s*)"[^"\n]+"',
-            r'\1"[redacted]"',
-            source,
-        )
-        redacted = re.sub(
-            r"(?i)Bearer [A-Za-z0-9._-]{12,}", "Bearer [redacted]", redacted
-        )
-        redacted = re.sub(r"\bsk-[A-Za-z0-9_-]{16,}", "[redacted-key]", redacted)
-        result.append(
-            {
-                "file": str(path),
-                "sha256": hashlib.sha256(source.encode()).hexdigest(),
-                "source_for_review": redacted,
-                "scope": "tracked application Rust source, not runtime configuration",
-            }
-        )
-        if len(result) >= 12:
-            break
-    return result
+    """Return source-reference/connection metadata for review, never source text.
+
+    No regex can reliably redact credentials from arbitrary application code.
+    Keep the existing report field, but make its contents metadata-only.
+    """
+    return adapter_source_metadata(root)
 
 
 def task_trace_metadata(directory):

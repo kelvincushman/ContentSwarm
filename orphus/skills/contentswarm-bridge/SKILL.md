@@ -62,19 +62,22 @@ retry a state-changing action after a timeout or uncertain response.
 
 ## How the bridge changes existing commands
 
-- **Replays** tap the recorded element's current position (text/id/desc
-  match), falling back to recorded coordinates - flows survive layout shifts.
+- **Replays** require a recorded semantic target to match its current position.
+  A missing or ambiguous target does not permit a stale-coordinate fallback.
+  Legacy coordinate-only steps still need independent observation.
 - **Typing** commits in ~100ms with no keyboard on screen (media pickers are
   never hidden). The device keeps ADBKeyboard active during automation.
 - **Run reports** (`contentswarm runs <flow>`) show, per replayed step,
-  whether it hit the intended element (`"method": "element"` = verified) or
-  fell back to coordinates (`"method": "coords"` = unverified - eyeball it).
+  whether input matched the intended element (`"method": "element"`) or used
+  a legacy coordinate-only step (`"method": "coords"`). Neither proves the final
+  task outcome; inspect the resulting screen.
   Aggregated health across all replays is available via `contentswarm health <flow>`.
-- **Actions** (replay taps, typing) silently fall back to the original
-  vision/ADB path on any phone where the bridge is unavailable - nothing
-  breaks. **`ui` is the exception**: inspection has no vision fallback, so it
-  returns an error when the bridge library or the device's UI tree is
-  unavailable - treat that error as "switch to screenshot + vision".
+- **Failures** are explicit. Missing typing bridge fails closed. Selector
+  validation and typed ambiguity stop before tapping; dependency/UI errors
+  remain ordinary pre-tap errors. Only an exception during the one tap attempt
+  is an uncertain outcome. Do not retry it or substitute coordinates. `ui`
+  errors mean no structured observation is available; use a fresh screenshot
+  where supported, never invent a target.
 
 ## Guidance
 
