@@ -15,6 +15,7 @@ from scripts import collect_phone_runtime as diag
         'request.header("x-api-key", "SYNTHETIC_HEADER_SECRET");',
         'let token = "MY_CONTENTSWARM_SECRET_VALUE";',
         "// PRIVATE_SOURCE_MARKER\nfn phone() {}",
+        'let endpoint = "https://SYNTHETIC_URL_SECRET.example.test/private";',
     ],
 )
 def test_review_bundle_exports_metadata_only(tmp_path, monkeypatch, source):
@@ -29,13 +30,14 @@ def test_review_bundle_exports_metadata_only(tmp_path, monkeypatch, source):
     encoded = json.dumps(rows)
     assert "source_for_review" not in encoded
     assert not any(
-        marker in encoded
+        marker.lower() in encoded.lower()
         for marker in (
             "SYNTHETIC_RUST_SECRET",
             "SYNTHETIC_JSON_SECRET",
             "SYNTHETIC_HEADER_SECRET",
             "MY_CONTENTSWARM_SECRET_VALUE",
             "PRIVATE_SOURCE_MARKER",
+            "SYNTHETIC_URL_SECRET",
             "fn phone",
         )
     )
@@ -61,4 +63,4 @@ def test_rollout_checks_pinned_collector_before_running_it():
     check = guide.index("sha256sum --check -; then")
     run = guide.index('python3 "$COLLECTOR"')
     assert check < run
-    assert "STOP: collector hash differs; do not run it." in guide
+    assert "STOP: collector hash differs. Do not run or deploy it;" in guide

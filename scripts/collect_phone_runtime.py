@@ -316,21 +316,7 @@ def adapter_source_metadata(root):
                 for key in CONNECTION_KEYS
                 if key.decode("ascii") in data
             ),
-            "literal_origins": [],
         }
-        for literal in re.findall(r'https?://[^\s"\'<>]+', data):
-            try:
-                url = urlsplit(literal.rstrip("),;"))
-                if url.hostname:
-                    row["literal_origins"].append(
-                        {
-                            "scheme": url.scheme,
-                            "hostname": url.hostname,
-                            "port": url.port,
-                        }
-                    )
-            except ValueError:
-                continue
         result.append(row)
         if len(result) >= 20:
             break

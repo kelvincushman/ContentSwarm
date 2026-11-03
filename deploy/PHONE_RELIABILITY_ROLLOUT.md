@@ -14,16 +14,18 @@ name in the bot is a bind mount; the host backing path was obtained from
 
 First compare the host copy with this candidate's pinned collector SHA-256.
 Do not run a mismatching copy: it may be the old source-exporting collector.
-Use the version-only check instead. Matching a hash does not itself authorise
-execution or deployment; the normal service owner still approves execution.
+Stop and escalate a mismatch to the service owner. Do not run or deploy the
+host copy until an approved collector is supplied. Matching a hash does not
+itself authorise execution or deployment; the normal service owner still
+approves execution.
 
 ```sh
 COLLECTOR=/mnt/ai_storage/home_cache/local/share/containers/storage/volumes/orphusbot-team/_data/diagnostics/collect-phone-runtime.py
-EXPECTED_COLLECTOR_SHA256=8abfb3adc70a2d3b5317224854ecb2905b309e62fb1fd466953f7bd488c7d121
+EXPECTED_COLLECTOR_SHA256=93b15e628792dbd78b535617c897e74da6ead75c0c1eed91d9be590477d3961e
 if printf '%s  %s\n' "$EXPECTED_COLLECTOR_SHA256" "$COLLECTOR" | sha256sum --check -; then
     python3 "$COLLECTOR"
 else
-    printf '%s\n' 'STOP: collector hash differs; do not run it. Use the version-only check.'
+    printf '%s\n' 'STOP: collector hash differs. Do not run or deploy it; ask the service owner for an approved collector.'
 fi
 ```
 
@@ -34,7 +36,9 @@ allowlisted journal failure markers/task IDs. The extended collector projects
 only exact named connection URL/host/port/state/enable fields from matched
 service environments; token/password fields are not decoded or exported.
 Credential/config files are not copied. Source review data is metadata-only:
-file paths, hashes, reference line numbers and known connection-key names/origins.
+file paths, hashes, reference line numbers and known connection-key names.
+Origins are projected only from allowlisted runtime connection settings, not
+from arbitrary strings in application source.
 It never exports application source text; regex redaction cannot cover arbitrary
 credential syntax. Phone session summaries contain markers only, not messages.
 Historical source-bearing diagnostic reports are not rewritten by this change;
@@ -196,6 +200,7 @@ never permits a coordinate fallback or a second tap.
 The diagnostic collector no longer exports raw source under any redaction
 pattern. The existing `adapter_source_review` report field contains metadata
 only. Do not rerun an older source-exporting collector while preparing rollout;
-use the version-only check for current service hashes. This candidate must
+stop and escalate a hash mismatch to the service owner; do not run or deploy
+that host copy until an approved collector is supplied. This candidate must
 complete CodeRabbit and the requested actual independent reviewer before the
 specific deployment approval gate; merging earlier PRs does not waive it.
