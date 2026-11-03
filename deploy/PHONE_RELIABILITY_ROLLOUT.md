@@ -37,8 +37,9 @@ only exact named connection URL/host/port/state/enable fields from matched
 service environments; token/password fields are not decoded or exported.
 Credential/config files are not copied. Source review data is metadata-only:
 file paths, hashes, reference line numbers and known connection-key names.
-Origins are projected only from allowlisted runtime connection settings, not
-from arbitrary strings in application source.
+Origins are projected from allowlisted runtime connection settings and
+explicitly referenced MCP registration URL fields, not from arbitrary strings
+in application source.
 It never exports application source text; regex redaction cannot cover arbitrary
 credential syntax. Phone session summaries contain markers only, not messages.
 Historical source-bearing diagnostic reports are not rewritten by this change;
