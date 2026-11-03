@@ -62,7 +62,7 @@ def test_collector_uses_only_readonly_commands_and_no_environment_properties(
     assert (
         report["read_only"]
         and not report["network_calls"]
-        and not report["environment_read"]
+        and report["environment_read"] == "allowlisted connection-field projection only"
     )
     assert all(call[0] in ("systemctl", "journalctl") for call in calls)
     assert not any(
@@ -195,3 +195,65 @@ def test_named_credential_files_are_not_opened(tmp_path, monkeypatch):
         lambda *_a, **_k: pytest.fail("credential file must not be opened"),
     )
     assert diag.binding_metadata(path) is None
+
+
+def test_runtime_connection_projection_never_exports_credentials():
+    raw = (
+        b"CONTENTSWARM_API_URL=https://user:PASS@localhost:5055/private?token=SECRET\0"
+        b"CONTENTSWARM_API_TOKEN=SECRET\0OTHER_SECRET=SECRET\0"
+        b"CONTENTSWARM_PORT=5055\0CONTENTSWARM_DELIVERY_ENABLED=0\0"
+    )
+    result = diag.project_connection_fields(raw)
+    assert result["CONTENTSWARM_API_URL"] == {
+        "scheme": "https",
+        "hostname": "localhost",
+        "port": 5055,
+    }
+    assert result["CONTENTSWARM_PORT"] == "5055"
+    assert result["CONTENTSWARM_DELIVERY_ENABLED"] == "0"
+    assert all(
+        value not in json.dumps(result)
+        for value in ("PASS", "SECRET", "private", "TOKEN")
+    )
+
+
+def test_only_process_owned_listening_ports_are_projected(tmp_path):
+    (tmp_path / "fd").mkdir()
+    (tmp_path / "net").mkdir()
+    (tmp_path / "environ").write_bytes(b"API_TOKEN=SECRET\0CONTENTSWARM_PORT=5055\0")
+    (tmp_path / "fd/3").symlink_to("socket:[123]")
+    (tmp_path / "net/tcp").write_text(
+        "header\n0: 0100007F:13BF 00000000:0000 0A 0 0 0 0 0 123\n1: 0100007F:9999 00000000:0000 0A 0 0 0 0 0 999\n"
+    )
+    (tmp_path / "net/tcp6").write_text("header\n")
+    result = diag.connection_metadata(tmp_path)
+    assert result["listening_ports"] == [5055]
+    assert "SECRET" not in json.dumps(result)
+
+
+def test_adapter_scan_does_not_follow_tracked_symlink_outside_checkout(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    (root / "src").mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text("contentswarm https://user:PASS@host.test")
+    (root / "src/phone.py").symlink_to(outside)
+    monkeypatch.setattr(diag, "command", lambda _: (0, "src/phone.py\n"))
+    assert diag.adapter_source_metadata(root) == []
+
+
+def test_source_bundle_is_tracked_code_only_and_redacts_credential_literals(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    (root / "src").mkdir()
+    (root / "src/phone.rs").write_text('let api_key = "SECRET"; fn phone() {}')
+    (root / "src/config.rs").write_text("NEVER EXPORTED")
+    monkeypatch.setattr(diag, "command", lambda _: (0, "src/phone.rs\nsrc/config.rs\n"))
+    result = diag.source_review_bundle(root)
+    assert len(result) == 1
+    assert "SECRET" not in result[0]["source_for_review"]
+    assert "fn phone" in result[0]["source_for_review"]

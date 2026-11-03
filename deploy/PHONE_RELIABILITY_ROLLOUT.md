@@ -1,8 +1,8 @@
 # Phone reliability: review, rollout and rollback
 
 This is a **candidate release**, not authority to change production. OB-16,
-OB-19 and OB-29 fixes are combined on `fix/ob-19-phone-task-outcomes`. The live
-MCP phone route is not yet mapped to this checkout. Never report a full live fix
+OB-19 and OB-29 fixes are combined on `fix/ob-19-phone-task-outcomes`. Host reports map the configured MCP target to the loopback 5055 service; its
+working tree still matches the base, not this candidate. Never report a full live fix
 from the offline suite, dispatch, a composer, or a successful input.
 
 ## First gate: identify what actually runs
@@ -19,8 +19,12 @@ python3 /mnt/ai_storage/home_cache/local/share/containers/storage/volumes/orphus
 The same file is versioned at `scripts/collect_phone_runtime.py`. It exports
 only relevant systemd properties, process executable/cwd and source hashes,
 non-secret fields of explicitly referenced MCP registration JSON, and
-allowlisted journal failure markers/task IDs. It reads neither environment
-files nor process environments; raw log messages are withheld. It makes no
+allowlisted journal failure markers/task IDs. The extended collector projects
+only exact named connection URL/host/port/state/enable fields from matched
+service environments; token/password fields are not decoded or exported.
+Credential/config files are not copied. It can export the relevant tracked Rust
+adapter modules (with obvious credential literals redacted) and marker-only
+Phone session summaries; no message/post text is exported. It makes no
 network calls and never controls the phone or services. Output goes into the
 shared team's `diagnostics/phone-runtime/` directory with private permissions.
 A missing unit, denied journal or absent registration is a reported gap, not
@@ -140,3 +144,29 @@ falling back to unchecked legacy IME. Discovery events match pollable status;
 event transport failures are logged but cannot reverse a successful operation
 or leave it stuck running. API errors redact common/configured credentials;
 they remain private diagnostic data, not material to publish unreviewed.
+
+## Observed host mapping (read-only reports, not deployment approval)
+
+Reports in `diagnostics/phone-runtime/20261102T234032007327Z.json` and
+`20261102T235433644919Z.json` established:
+
+| Component | Observed state |
+| --- | --- |
+| Orphusbot server | User unit `orphusbot-server.service`; `ORPHUSBOT_CONTENTSWARM_URL` origin `http://127.0.0.1:5055` |
+| Intended API target | User unit `orphusbot-contentswarm.service`, listening on 5055, working directory `/home/aiserver/orphusbot-contentswarm` |
+| API source working tree | `ed82e539b2930543254b9145e2d92477b485a815`; all changed source hashes match the base or are absent, not the candidate |
+| Durable queue location | Configured `CONTENTSWARM_STATE_DIR=/home/aiserver/.local/state/orphusbot-contentswarm` — never overlay or delete it |
+| Delivery scheduler | User timer `orphusbot-contentswarm-social.timer` active/waiting; oneshot `orphusbot-contentswarm-social.service` inactive/dead between runs, not itself evidence of failure |
+| Other installation | User unit `contentswarm-api.service`, `/home/aiserver/contentswarm`, revision `36a21fd8ce291eb1adf303bbca7464422cc1c949`, listening on 8771 — do not deploy/restart this copy for the 5055 integration |
+
+The extended source inspection exports `crates/server/src/phone.rs` and
+`social.rs` from the native Orphusbot checkout. The Phone classifier identifies
+Post/Send as Commit actions requiring the separate owner gate. Social's proxy
+allows owner approval but deliberately excludes claim/complete; delivery belongs
+to ContentSwarm's worker. Do not remove the Phone gate to make Social delivery
+complete. The exact historical precondition/error is still lost behind the old
+worker's generic evidence unless a suitable task record can be recovered.
+
+These are configuration and on-disk source checks, not proof that every binary
+was built from the accompanying checkout, nor a successful send. No production
+service or scheduler has been stopped, restarted or updated by this work.
