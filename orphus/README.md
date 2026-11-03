@@ -210,3 +210,59 @@ the native Android share preview and returns without choosing a recipient; image
 reading is a fallback only when metadata is absent, never when it mismatches.
 
 Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
+
+## Task outcomes and stops
+
+`run`, `learn` and `replay` report `pending`, `running`, `completed`, `failed`,
+`cancelled` or `timeout`. Failures keep a reason. The CLI `--wait` exits nonzero
+for failed/cancelled/timed-out tasks. `outcome_verified: false` means the worker
+has not independently proved the user's goal: inspect fresh `ui` and screenshot
+output. Replay's `verified` count measures matched input targets, not publication
+or business outcomes.
+
+- `contentswarm cancel-task TASK_ID --confirm` requests a cooperative stop
+  (`POST /api/v1/tasks/TASK_ID/cancel`, body `{"confirm":true}`).
+- A running cancellation returns `cancel_requested: true`; it retains the phone
+  lock until the running operation returns and checks the stop. It cannot undo
+  any input already sent. Never restart an uncertain send.
+- Async phone tasks have a five-minute deadline by default (manager constructor
+  `task_timeout`, seconds, including queue time). Checks occur before model/input
+  steps and after model responses, not by killing threads mid-action. Model HTTP
+  requests use `ModelConfig.request_timeout` (60 seconds) with no SDK retries.
+  These are cooperative bounds: blocked drivers and an active stream can delay
+  acknowledgement. No hard cancellation guarantee is made.
+- Background sensitive confirmations fail closed instead of waiting on stdin;
+  human takeover/choice requests become actionable failures. Replays never grant
+  sensitive-action approval, and stop on the first failed step. Failed/empty
+  learning is not saved as a reusable flow. Missing semantic targets do not
+  fall back to old coordinates. Missing/protected screenshots stop input.
+- `POST /api/v1/pipeline/discover` now returns `task_id`. Poll `/tasks/ID` or list
+  `/tasks` for its result/error. Discovery cancellation is not implemented and
+  returns 409. Task history is process-local, not durable across server restart.
+
+The definitions here are shipped repo configuration, not evidence that the live
+Phone bot loaded them. The host agent's tool/policy config may be stricter.
+Social approval belongs to an exact reviewed item and the approved sender path;
+it is not a general grant for a navigation bot to tap Post. Read
+[the social handoff](skills/contentswarm-social-review/SKILL.md). Keep a stricter
+host prohibition intact and report the review ID/status to the sender instead
+of repeatedly composing, re-approving or bypassing it.
+
+Screen capture failures (including nonzero ADB capture/pull exits) return an
+error, not a successful black screenshot. Ambiguous/disabled semantic targets
+are rejected. A response lost after typing/tapping is terminal, with no legacy
+fallback retry. Recorded confirmation markers survive learning and are denied
+on replay; older flows whose markers were stripped need manual inspection or
+re-learning. Semantic Double Tap/Long Press is unsupported and fails closed.
+Known remaining limit: the recorder's asynchronous UI prefetch is not a full
+before/after outcome proof; existing coordinate-only flows can become stale.
+
+### Reviewed reliability release
+
+Discovery lifecycle events now include the same `status` and
+`outcome_verified` fields as polling. A broken event transport cannot corrupt
+the actual operation result. Missing typing bridge now returns a terminal
+capability error without unchecked legacy IME input. See the
+[review/rollout/rollback gate](../deploy/PHONE_RELIABILITY_ROLLOUT.md) before
+updating a running installation. No definition is installed or authority
+expanded merely by changing this checkout.

@@ -62,12 +62,13 @@ need rendered content - see the `contentswarm-bridge` skill.
 
 ```bash
 # Submit and wait for completion (tasks take 5-120+ seconds):
-contentswarm run phone_01 "Open TikTok, search for 'bushcraft', like the top 3 videos" --wait
+contentswarm run phone_01 "Open TikTok, search for 'bushcraft', describe the top 3 videos without engaging" --wait
 
 # Fire-and-forget, then poll:
 contentswarm run phone_01 "Open Instagram and scroll Reels for a minute"
-contentswarm task <task_id>       # status: pending | running | completed | failed
+contentswarm task <task_id>       # status: pending | running | completed | failed | cancelled | timeout
 contentswarm tasks                # everything tracked
+contentswarm cancel-task <task_id> --confirm  # request stop, not rollback
 ```
 
 ### Parallel across phones
@@ -102,10 +103,21 @@ curl -s -X POST -H "Authorization: Bearer $CONTENTSWARM_API_TOKEN" -H "Content-T
   commenting, liking, following, reposting, subscribing, or sharing. Use
   `--confirm` only after approval. Never retry one of these actions without
   inspecting the phone first.
-- Tasks that hit login walls or captchas pause for human takeover - if a task
-  seems stuck in `running` far past its expected duration, report it rather
-  than resubmitting.
+- Background tasks cannot read confirmation/takeover input from a terminal.
+  They fail with a human-takeover reason; never bypass login or captcha.
+- A running stop returns `cancel_requested: true` and keeps the phone locked
+  until acknowledgement. `--wait` timing out does not cancel the task. Poll or
+  request a stop; never resubmit an uncertain external action.
+- Async phone tasks use a five-minute cooperative deadline and 60-second model
+  HTTP timeout. A blocked driver can delay stopping. `completed` and a semantic
+  tap are execution results, not independent goal proof (`outcome_verified`
+  stays false); inspect the actual final screen before claiming success.
 - Phone names come from `contentswarm phones`; never guess them.
 - Ordinary ADB cannot bypass app permissions, encryption, `FLAG_SECURE`, or
   private app storage. Report those boundaries rather than attempting a
   workaround.
+
+Discovery event status now matches `/tasks/ID`; if event delivery fails, poll
+the task rather than submitting again. Missing typing bridge is an explicit
+capability failure, never a successful legacy fallback. Ask for a supported
+installation fix; do not bypass the checked path with raw ADB.

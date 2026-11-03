@@ -234,6 +234,29 @@ blind screenshot transcription with the approved account/text and an independent
 UI timestamp. Actual new-post publication still needs live validation before
 enabling automatic delivery on this app version.
 
+### X send failures and retry safety
+
+The final Post control must be unique and enabled. Its exact name may be in
+Android's text or content-description field; ambiguous controls still stop the
+worker. The approved account and full body are checked again after the device
+minute wait, before one commit request. A failure before that request reports
+`Stopped before sending` with its stage and reason.
+
+The worker no longer discards adapter exceptions. The review's evidence shows
+the exception type and a bounded reason, with credentials and approved copy
+redacted. The existing console displays that evidence. Failures remain
+`uncertain`, not `verified` or eligible for automatic retry: after a request
+error the worker cannot know whether X accepted the post. Only the owner may
+confirm publication or authorise a retry after checking the timeline.
+
+A successful tap is not success. Verification requires a closed composer and
+the existing independent fresh-post proof. If the composer remains open after
+the observation window, the worker reports that failure without another Post
+tap or navigating away from the draft. These checks have offline regression
+coverage; they do not establish the cause of any past live failure. The three
+reported stuck approvals still need their original UI dumps, worker logs and
+review evidence to tie them to a specific precondition or request error.
+
 ### Settling an uncertain delivery
 
 An uncertain review means the worker can't prove what happened; it is never

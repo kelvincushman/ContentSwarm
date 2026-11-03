@@ -42,6 +42,8 @@ def descendants(elements, ancestor):
 
 def x_published(elements, handle, body, seconds_since_send):
     """Require a fresh, single-post subtree containing account, body and controls."""
+    if editors(elements):
+        return False  # A visible composer is never proof of publication.
     proofs = []
     for index, element in enumerate(elements):
         if element.get("text") != body or "EditText" in element.get("class", ""):
@@ -95,13 +97,22 @@ def next_device_minute(client, route):
     raise ValueError("Phone clock minute did not advance")
 
 
+def x_post_control(elements):
+    """Require one enabled Post label; Android can expose text or content-desc."""
+    matches = [e for e in elements if e.get("text") == "Post" or e.get("desc") == "Post"]
+    if len(matches) != 1 or not matches[0].get("enabled", False):
+        raise ValueError("Expected one enabled X Post control (text or content-desc)")
+    field = "desc" if matches[0].get("desc") == "Post" else "text"
+    return {field: "Post"}
+
+
 def x_post(client, review):
     """Publish an already leased original post once, or leave it uncertain."""
     if review.get("kind") != "post" or review.get("platform") != "x":
-        raise ValueError("X adapter handles original posts only")
+        raise NotSent("X adapter handles original posts only")
     handle, body = review["account"], review["reply"]
     if not re.fullmatch(r"@[A-Za-z0-9_]{1,15}", handle):
-        raise ValueError("X adapter requires an exact @handle")
+        raise NotSent("X adapter requires an exact @handle")
     route = "/phones/" + quote(review["phone"], safe="")
     def sense():
         if client.get(route + "/current_app")["current_app"] not in ("X", "Twitter", "twitter"):
@@ -109,34 +120,41 @@ def x_post(client, review):
         return client.get(route + "/ui")["elements"]
     def tap(**selector):
         client.post(route + "/action", dict(action="tap", confirm=True, **selector))
-    client.post(route + "/app", {"app": "X"})
-    ui = sense()
-    if editors(ui):
-        raise ValueError("Existing composer left untouched")
-    one(ui, desc="Show navigation drawer")
-    one(ui, desc="Home")
-    if any(e.get("text") == body for e in ui):
-        raise ValueError("Matching text already visible; inspect before posting")
-    one(ui, desc="Post")
-    tap(desc="Post")
-    ui = sense()
-    fields = editors(ui)
-    if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text"):
-        raise ValueError("Composer account or empty editor not verified")
-    client.post(route + "/action", dict(action="type", text=body, clear=True, confirm=True))
-    ui = sense()
-    fields = editors(ui)
-    if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text") != body:
-        raise ValueError("Final account/body check failed")
-    one(ui, desc="Post")
-    started = next_device_minute(client, route)
-    ui = sense()
-    fields = editors(ui)
-    if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text") != body:
-        raise ValueError("Composer changed while waiting for timestamp boundary")
-    one(ui, desc="Post")
+    stage = "opening X"
+    try:
+        client.post(route + "/app", {"app": "X"})
+        ui = sense()
+        if editors(ui):
+            raise ValueError("Existing composer left untouched")
+        one(ui, desc="Show navigation drawer")
+        one(ui, desc="Home")
+        if any(e.get("text") == body for e in ui):
+            raise ValueError("Matching text already visible; inspect before posting")
+        one(ui, desc="Post")
+        stage = "opening the empty composer"
+        tap(desc="Post")
+        ui = sense()
+        fields = editors(ui)
+        if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text"):
+            raise ValueError("Composer account or empty editor not verified")
+        stage = "checking the approved composer"
+        client.post(route + "/action", dict(action="type", text=body, clear=True, confirm=True))
+        ui = sense()
+        fields = editors(ui)
+        if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text") != body:
+            raise ValueError("Final account/body check failed")
+        x_post_control(ui)
+        stage = "waiting for the timestamp boundary"
+        started = next_device_minute(client, route)
+        ui = sense()
+        fields = editors(ui)
+        if not x_identity(ui, handle) or len(fields) != 1 or fields[0].get("text") != body:
+            raise ValueError("Composer changed while waiting for timestamp boundary")
+        selector = x_post_control(ui)
+    except Exception as exc:
+        raise NotSent(f"X stopped while {stage}: {type(exc).__name__}: {exc}") from exc
     sent_at = time.monotonic()
-    tap(desc="Post")  # Exactly one commit request. Exceptions never replay it.
+    tap(**selector)  # Exactly one commit request. Exceptions never replay it.
     for attempt in range(5):
         ui = sense()
         if x_published(ui, handle, body, time.monotonic() - sent_at):
@@ -144,6 +162,8 @@ def x_post(client, review):
             return
         if attempt < 4:
             time.sleep(1)
+    if editors(ui):
+        raise ValueError("X composer remained open after the final Post tap; publication is unverified. Inspect before retrying.")
     # X goes back to the home feed, which shows display names, not handles; the
     # profile shows the handle and a fresh time on each of the account's posts.
     try:

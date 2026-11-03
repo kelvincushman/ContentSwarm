@@ -20,6 +20,7 @@ class Screenshot:
     width: int
     height: int
     is_sensitive: bool = False
+    capture_error: str | None = None
 
 
 def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screenshot:
@@ -51,18 +52,18 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
 
         # Check for screenshot failure (sensitive screen)
         output = result.stdout + result.stderr
-        if "Status: -1" in output or "Failed" in output:
+        if result.returncode != 0 or "Status: -1" in output or "Failed" in output:
             return _create_fallback_screenshot(is_sensitive=True)
 
         # Pull screenshot to local temp path
-        subprocess.run(
+        pulled = subprocess.run(
             adb_prefix + ["pull", "/sdcard/tmp.png", temp_path],
             capture_output=True,
             text=True,
             timeout=5,
         )
 
-        if not os.path.exists(temp_path):
+        if pulled.returncode != 0 or not os.path.exists(temp_path):
             return _create_fallback_screenshot(is_sensitive=False)
 
         # Read and encode image
@@ -106,4 +107,7 @@ def _create_fallback_screenshot(is_sensitive: bool) -> Screenshot:
         width=default_width,
         height=default_height,
         is_sensitive=is_sensitive,
+        capture_error="Protected or unavailable screenshot"
+        if is_sensitive
+        else "Screenshot capture failed",
     )

@@ -2,16 +2,16 @@
 """One timer invocation: enqueue due work and prepare one draft through the API."""
 
 import json
+import math
 import os
-from pathlib import Path
+import re
 import subprocess
 import tempfile
 import time
-import re
-import math
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
-from contentswarm_cli import Client, DEFAULT_API_URL
+from contentswarm_cli import DEFAULT_API_URL, Client
 
 
 def main():
@@ -125,13 +125,25 @@ def deliver(client, review):
             delivery_loop(delivery, claimed, profile["delivery_indicator"])
     except social_delivery.NotSent as exc:
         # Adapters raise this only before their single commit tap.
-        evidence = f"Stopped before sending; nothing was posted. {exc}"[:8000]
-    except Exception:
-        pass  # The terminal transition below records ambiguity without leaking output.
+        evidence = f"Stopped before sending; nothing was posted. {delivery_error(exc, delivery, claimed)}"[:8000]
+    except Exception as exc:
+        evidence = (f"Delivery failed; publication is unverified. {delivery_error(exc, delivery, claimed)}. "
+                    "Inspect the account timeline and phone before any owner-authorised retry.")
     finally:
         current = next(r for r in delivery.get("/reviews")["reviews"] if r["id"] == review["id"])
         if current["status"] == "executing":
             delivery.post(f"/reviews/{review['id']}/uncertain", {"revision": current["revision"], "evidence": evidence})
+
+
+def delivery_error(exc, client, review):
+    """Keep the actionable reason, but never persist credentials or approved copy."""
+    detail = f"{type(exc).__name__}: {exc}"
+    sensitive = list(client.headers.values()) + [review.get("reply", "")]
+    sensitive += [value.removeprefix("Bearer ") for value in client.headers.values()]
+    for value in sorted(set(sensitive), key=len, reverse=True):
+        if value:
+            detail = detail.replace(value, "[redacted]")
+    return " ".join(detail.split())[:1500]
 
 
 def model_environment():

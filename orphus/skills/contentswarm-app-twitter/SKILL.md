@@ -29,27 +29,22 @@ contentswarm run phone_01 "In X, open the search tab and list the top 10 trendin
 contentswarm run phone_01 "In X, search for 'bushcraft' and describe the top posts" --wait
 ```
 
-## Engage
+## Preparing a post or reply
+
+Read `contentswarm-social-review` for the exact reviewed sender protocol.
+Ordinary `run` tasks are for navigation and observation, not a replacement for
+a social delivery lease. Keep the approved copy unchanged and do not infer send
+authority from an earlier approval. If the host Phone policy forbids Post, hand
+the review ID/status to the authorised sender and leave that boundary intact.
 
 ```bash
-contentswarm run phone_01 "In X, like the current post" --wait
-contentswarm run phone_01 "In X, repost the current post" --wait
-contentswarm run phone_01 "In X, reply 'Interesting take' to the current post" --wait
-contentswarm run phone_01 "In X, follow the author of the current post" --wait
+contentswarm run phone_01 "In X, open the empty composer, then stop before entering text or tapping Post" --wait
+contentswarm reviews
 ```
 
-## Post
-
-```bash
-contentswarm run phone_01 "In X, tap the compose button and post: 'POST TEXT HERE'" --wait
-contentswarm screenshot phone_01 -o /tmp/x-post.png
-```
-
-With media (file must be in the gallery):
-
-```bash
-contentswarm run phone_01 "In X, tap the compose button, tap the image icon, select the newest video from the gallery, add the text 'POST TEXT', then tap Post" --wait
-```
+Do not open a competing composer while a review is executing. Inspect a fresh
+screen after navigation. A composer, successful tap, or `completed` task does
+not prove publication. Uncertain sends need owner inspection, not another tap.
 
 ## Pitfalls
 

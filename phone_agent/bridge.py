@@ -117,18 +117,16 @@ def tap_target(
     desc: str | None = None,
 ) -> bool:
     """Tap an element found by semantic target. True only if found and tapped."""
-    bridge = get_bridge(device_id)
-    if bridge is None:
-        return False
     try:
-        with device_lock(device_id):
-            element = bridge.find(text=text, id=id, desc=desc)
-            if element is None:
-                return False
-            bridge.tap(element)
+        semantic_action(device_id, "tap", **{k: v for k, v in
+                        {"text": text, "id": id, "desc": desc}.items() if v is not None})
         return True
-    except Exception:
-        return False
+    except (LookupError, ValueError):
+        return False  # No action was attempted for a missing/invalid selector.
+    except RuntimeError as exc:
+        if str(exc) == "selector is ambiguous; provide another selector":
+            return False
+        raise RuntimeError("Tap outcome uncertain; inspect the phone before retrying") from exc
 
 
 def prefetch_ui(device_id: str | None = None) -> None:
@@ -182,8 +180,8 @@ def type_text_fast(device_id: str | None, text: str, clear: bool = True) -> bool
         with device_lock(device_id):
             bridge.text(text, clear=clear)
         return True
-    except Exception:
-        return False
+    except Exception as exc:
+        raise RuntimeError("Typing outcome uncertain; inspect before retrying") from exc
 
 
 def _require_bridge(device_id: str | None):

@@ -6,8 +6,8 @@ import traceback
 from dataclasses import dataclass
 from typing import Any, Callable, Dict
 
-from phone_agent.actions import ActionHandler
-from phone_agent.actions.handler import do, finish, parse_action
+from phone_agent.actions import ActionHandler, ActionResult
+from phone_agent.actions.handler import parse_action
 from phone_agent.adb import get_current_app, get_screenshot
 from phone_agent.config import get_messages, get_system_prompt
 from phone_agent.model import ModelClient, ModelConfig
@@ -69,6 +69,7 @@ class PhoneAgent:
         confirmation_callback: Callable[[str], bool] | None = None,
         takeover_callback: Callable[[str], None] | None = None,
         event_callback: Callable[[Dict[str, Any]], None] | None = None,
+        stop_check: Callable[[], None] | None = None,
     ):
         self.model_config = model_config or ModelConfig()
         self.agent_config = agent_config or AgentConfig()
@@ -83,6 +84,7 @@ class PhoneAgent:
         self._context: list[dict[str, Any]] = []
         self._step_count = 0
         self._event_callback = event_callback
+        self._stop_check = stop_check
 
     def _emit_event(self, event: Dict[str, Any]) -> None:
         """Emit an event to the callback if set."""
@@ -91,6 +93,11 @@ class PhoneAgent:
                 self._event_callback(event)
             except Exception:
                 pass
+
+    def _check_stopped(self) -> None:
+        """Raise via the caller-provided callback when this task must stop."""
+        if self._stop_check:
+            self._stop_check()
 
     def run(self, task: str) -> str:
         """
@@ -108,17 +115,16 @@ class PhoneAgent:
         # First step with user prompt
         result = self._execute_step(task, is_first=True)
 
-        if result.finished:
-            return result.message or "Task completed"
-
-        # Continue until finished or max steps reached
-        while self._step_count < self.agent_config.max_steps:
-            result = self._execute_step(is_first=False)
-
+        while True:
             if result.finished:
+                if not result.success:
+                    raise RuntimeError(result.message or "Task failed")
                 return result.message or "Task completed"
 
-        return "Max steps reached"
+            if self._step_count >= self.agent_config.max_steps:
+                raise RuntimeError("Max steps reached")
+
+            result = self._execute_step(is_first=False)
 
     def step(self, task: str | None = None) -> StepResult:
         """
@@ -150,8 +156,12 @@ class PhoneAgent:
         """Execute a single step of the agent loop."""
         self._step_count += 1
 
+        self._check_stopped()
+
         # Capture current screen state
         screenshot = get_screenshot(self.agent_config.device_id)
+        if getattr(screenshot, "capture_error", None) or getattr(screenshot, "is_sensitive", False):
+            return StepResult(False, True, None, "", "Screenshot unavailable; no action taken. Human inspection required.")
         current_app = get_current_app(self.agent_config.device_id)
 
         self._emit_event({
@@ -186,6 +196,7 @@ class PhoneAgent:
                 )
             )
 
+        self._check_stopped()
         # Get model response
         try:
             msgs = get_messages(self.agent_config.lang)
@@ -204,14 +215,20 @@ class PhoneAgent:
                 message=f"Model error: {e}",
             )
 
-        # Parse action from response
+        # Parse action from response. Invalid model output is a terminal failure,
+        # never a successful finish action.
         try:
             action = parse_action(response.action)
-        except ValueError:
+            result = None
+        except ValueError as e:
             if self.agent_config.verbose:
                 traceback.print_exc()
-            action = finish(message=response.action)
-
+            action = None
+            result = ActionResult(
+                success=False,
+                should_finish=True,
+                message=f"Invalid model action: {e}",
+            )
         if self.agent_config.verbose:
             # Print thinking process
             print("-" * 50)
@@ -223,16 +240,20 @@ class PhoneAgent:
         self._context[-1] = MessageBuilder.remove_images_from_message(self._context[-1])
 
         # Execute action
-        try:
-            result = self.action_handler.execute(
-                action, screenshot.width, screenshot.height
-            )
-        except Exception as e:
-            if self.agent_config.verbose:
-                traceback.print_exc()
-            result = self.action_handler.execute(
-                finish(message=str(e)), screenshot.width, screenshot.height
-            )
+        if action is not None:
+            self._check_stopped()
+            try:
+                result = self.action_handler.execute(
+                    action, screenshot.width, screenshot.height
+                )
+            except Exception as e:
+                if self.agent_config.verbose:
+                    traceback.print_exc()
+                result = ActionResult(
+                    success=False,
+                    should_finish=True,
+                    message=f"Action failed: {e}",
+                )
 
         # Add assistant response to context
         self._context.append(
@@ -251,22 +272,25 @@ class PhoneAgent:
         })
 
         # Check if finished
-        finished = action.get("_metadata") == "finish" or result.should_finish
+        action_message = action.get("message") if action else None
+        finished = bool(
+            (action and action.get("_metadata") == "finish") or result.should_finish
+        )
 
-        if finished:
+        if finished and result.success:
             self._emit_event({
                 "event": "task_finished",
                 "steps": self._step_count,
-                "message": result.message or action.get("message"),
+                "message": result.message or action_message,
                 "device_id": self.agent_config.device_id,
                 "timestamp": time.time()
             })
 
-        if finished and self.agent_config.verbose:
+        if finished and result.success and self.agent_config.verbose:
             msgs = get_messages(self.agent_config.lang)
             print("\n" + "🎉 " + "=" * 48)
             print(
-                f"✅ {msgs['task_completed']}: {result.message or action.get('message', msgs['done'])}"
+                f"✅ {msgs['task_completed']}: {result.message or action_message or msgs['done']}"
             )
             print("=" * 50 + "\n")
 
@@ -275,7 +299,7 @@ class PhoneAgent:
             finished=finished,
             action=action,
             thinking=response.thinking,
-            message=result.message or action.get("message"),
+            message=result.message or action_message,
         )
 
     @property

@@ -9,16 +9,12 @@ from typing import Any, Callable
 from phone_agent import bridge
 from phone_agent.adb import (
     back,
-    clear_text,
-    detect_and_set_adb_keyboard,
     double_tap,
     home,
     launch_app,
     long_press,
-    restore_keyboard,
     swipe,
     tap,
-    type_text,
 )
 
 
@@ -28,7 +24,7 @@ class ActionResult:
 
     method records HOW the action landed, for run reports:
     "element" = semantic bridge tap on the intended element (verified),
-    "coords" = raw coordinate tap, "bridge" / "ime" = fast vs legacy typing.
+    "coords" = raw coordinate tap, "bridge" = text entry through the checked bridge; missing bridge fails.
     """
 
     success: bool
@@ -101,7 +97,7 @@ class ActionHandler:
             return handler_method(action, screen_width, screen_height)
         except Exception as e:
             return ActionResult(
-                success=False, should_finish=False, message=f"Action failed: {e}"
+                success=False, should_finish=True, message=f"Action failed: {e}"
             )
 
     def _get_handler(self, action_name: str) -> Callable | None:
@@ -147,9 +143,9 @@ class ActionHandler:
         """Handle tap action.
 
         Actions may carry a semantic target (target_text/target_id/target_desc,
-        recorded by FlowRecorder) alongside the relative coordinates. The
-        element-center tap is tried first — it survives layout shifts — with
-        the recorded coordinates as the fallback.
+        recorded by FlowRecorder) alongside relative coordinates. A semantic
+        miss fails closed so the caller can re-observe instead of tapping stale
+        coordinates.
         """
         element = action.get("element")
         has_target = any(
@@ -167,50 +163,39 @@ class ActionHandler:
                     message="User cancelled sensitive operation",
                 )
 
-        if has_target and bridge.tap_target(
-            self.device_id,
-            text=action.get("target_text"),
-            id=action.get("target_id"),
-            desc=action.get("target_desc"),
-        ):
-            return ActionResult(True, False, method="element")
+        if has_target:
+            if bridge.tap_target(
+                self.device_id,
+                text=action.get("target_text"),
+                id=action.get("target_id"),
+                desc=action.get("target_desc"),
+            ):
+                return ActionResult(True, False, method="element")
+            return ActionResult(False, False, "Target element not found on screen")
 
         if not element:
-            return ActionResult(False, False, "Target element not found on screen")
+            return ActionResult(False, False, "No element coordinates")
 
         x, y = self._convert_relative_to_absolute(element, width, height)
         tap(x, y, self.device_id)
         return ActionResult(True, False, method="coords")
 
     def _handle_type(self, action: dict, width: int, height: int) -> ActionResult:
-        """Handle text input action.
+        """Handle text input through the semantic bridge only.
 
-        Bridge path: clear + type in ~100ms, IME switched once per session and
-        left on ADBKeyboard (its slim status bar never hides media pickers the
-        way a full keyboard does). Legacy path: the 4x1s sleep dance, kept as
-        the fallback for devices where the bridge is unavailable.
+        A missing bridge fails closed because the legacy IME helpers do not
+        report whether text was actually entered.
         """
         text = action.get("text", "")
 
         if bridge.type_text_fast(self.device_id, text, clear=True):
             return ActionResult(True, False, method="bridge")
 
-        # Switch to ADB keyboard
-        original_ime = detect_and_set_adb_keyboard(self.device_id)
-        time.sleep(1.0)
-
-        # Clear existing text and type new text
-        clear_text(self.device_id)
-        time.sleep(1.0)
-
-        type_text(text, self.device_id)
-        time.sleep(1.0)
-
-        # Restore original keyboard
-        restore_keyboard(original_ime, self.device_id)
-        time.sleep(1.0)
-
-        return ActionResult(True, False, method="ime")
+        return ActionResult(
+            False,
+            True,
+            "Typing bridge unavailable; no text was entered",
+        )
 
     def _handle_swipe(self, action: dict, width: int, height: int) -> ActionResult:
         """Handle swipe action."""
@@ -238,6 +223,8 @@ class ActionHandler:
 
     def _handle_double_tap(self, action: dict, width: int, height: int) -> ActionResult:
         """Handle double tap action."""
+        if any(action.get(key) for key in ("target_text", "target_id", "target_desc")):
+            return ActionResult(False, True, "Semantic gesture is not implemented; inspect and re-learn without stale coordinates")
         element = action.get("element")
         if not element:
             return ActionResult(False, False, "No element coordinates")
@@ -248,6 +235,8 @@ class ActionHandler:
 
     def _handle_long_press(self, action: dict, width: int, height: int) -> ActionResult:
         """Handle long press action."""
+        if any(action.get(key) for key in ("target_text", "target_id", "target_desc")):
+            return ActionResult(False, True, "Semantic gesture is not implemented; inspect and re-learn without stale coordinates")
         element = action.get("element")
         if not element:
             return ActionResult(False, False, "No element coordinates")
@@ -281,14 +270,12 @@ class ActionHandler:
 
     def _handle_call_api(self, action: dict, width: int, height: int) -> ActionResult:
         """Handle API call action (placeholder for summarization)."""
-        # This action is typically used for content summarization
-        # Implementation depends on specific requirements
-        return ActionResult(True, False)
+        return ActionResult(False, True, "Call_API is not implemented; no API was called")
 
     def _handle_interact(self, action: dict, width: int, height: int) -> ActionResult:
         """Handle interaction request (user choice needed)."""
         # This action signals that user input is needed
-        return ActionResult(True, False, message="User interaction required")
+        return ActionResult(False, True, message="User interaction required; background execution cannot collect a choice")
 
     @staticmethod
     def _default_confirmation(message: str) -> bool:
@@ -317,35 +304,33 @@ def parse_action(response: str) -> dict[str, Any]:
     """
     try:
         response = response.strip()
-        if response.startswith("do"):
-            # Use AST parsing instead of eval for safety
-            try:
-                tree = ast.parse(response, mode='eval')
-                if not isinstance(tree.body, ast.Call):
-                    raise ValueError("Expected a function call")
+        tree = ast.parse(response, mode="eval")
+        if not isinstance(tree.body, ast.Call):
+            raise TypeError("Expected a function call")
 
-                call = tree.body
-                # Extract keyword arguments safely
-                action = {"_metadata": "do"}
-                for keyword in call.keywords:
-                    key = keyword.arg
-                    value = ast.literal_eval(keyword.value)
-                    action[key] = value
+        call = tree.body
+        if not isinstance(call.func, ast.Name) or call.func.id not in {"do", "finish"}:
+            raise ValueError("Expected do() or finish()")
+        if call.args:
+            raise ValueError("Action calls accept keyword arguments only")
 
-                return action
-            except (SyntaxError, ValueError) as e:
-                raise ValueError(f"Failed to parse do() action: {e}")
+        values: dict[str, Any] = {}
+        for keyword in call.keywords:
+            if keyword.arg is None:
+                raise ValueError("Expanded keyword arguments are not allowed")
+            if keyword.arg == "_metadata" or keyword.arg in values:
+                raise ValueError(f"Invalid action keyword: {keyword.arg}")
+            values[keyword.arg] = ast.literal_eval(keyword.value)
 
-        elif response.startswith("finish"):
-            action = {
-                "_metadata": "finish",
-                "message": response.replace("finish(message=", "")[1:-2],
-            }
-        else:
-            raise ValueError(f"Failed to parse action: {response}")
-        return action
-    except Exception as e:
-        raise ValueError(f"Failed to parse action: {e}")
+        call_name = call.func.id
+        if call_name == "finish":
+            message = values.get("message")
+            if not isinstance(message, str) or not message.strip():
+                raise ValueError("finish() requires a nonempty message")
+
+        return {"_metadata": call_name, **values}
+    except (AttributeError, SyntaxError, TypeError, ValueError) as e:
+        raise ValueError(f"Failed to parse action: {e}") from e
 
 
 def do(**kwargs) -> dict[str, Any]:
