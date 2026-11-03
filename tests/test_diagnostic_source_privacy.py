@@ -41,3 +41,24 @@ def test_review_bundle_exports_metadata_only(tmp_path, monkeypatch, source):
     )
     assert rows[0]["sha256"]
     assert rows[0]["reference_lines"]
+
+
+def test_rollout_checks_pinned_collector_before_running_it():
+    import hashlib
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    guide = (root / "deploy/PHONE_RELIABILITY_ROLLOUT.md").read_text()
+    expected = re.search(r"EXPECTED_COLLECTOR_SHA256=([0-9a-f]{64})", guide)
+    assert expected
+    assert (
+        expected[1]
+        == hashlib.sha256(
+            (root / "scripts/collect_phone_runtime.py").read_bytes()
+        ).hexdigest()
+    )
+    check = guide.index("sha256sum --check -; then")
+    run = guide.index('python3 "$COLLECTOR"')
+    assert check < run
+    assert "STOP: collector hash differs; do not run it." in guide

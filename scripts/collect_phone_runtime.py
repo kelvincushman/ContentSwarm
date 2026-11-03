@@ -436,7 +436,7 @@ def process_metadata(pid, seen=None):
         # Static references identify a handler candidate, not proof of runtime routing.
         item["connections"] = connection_metadata(root)
         item["adapter_source_references"] = adapter_source_metadata(Path(cwd))
-        item["adapter_source_review"] = source_review_bundle(Path(cwd))
+        item["adapter_source_review"] = item["adapter_source_references"]
         item["phone_task_trace"] = task_trace_metadata(cwd)
         item["registered_bindings"] = [
             binding for path in paths if (binding := binding_metadata(Path(path)))

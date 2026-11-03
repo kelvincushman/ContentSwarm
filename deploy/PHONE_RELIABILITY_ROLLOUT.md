@@ -12,8 +12,19 @@ sudo, print credentials, open ports, or restart services. The shared `/shared`
 name in the bot is a bind mount; the host backing path was obtained from
 `/proc/self/mountinfo`, not guessed:
 
+First compare the host copy with this candidate's pinned collector SHA-256.
+Do not run a mismatching copy: it may be the old source-exporting collector.
+Use the version-only check instead. Matching a hash does not itself authorise
+execution or deployment; the normal service owner still approves execution.
+
 ```sh
-python3 /mnt/ai_storage/home_cache/local/share/containers/storage/volumes/orphusbot-team/_data/diagnostics/collect-phone-runtime.py
+COLLECTOR=/mnt/ai_storage/home_cache/local/share/containers/storage/volumes/orphusbot-team/_data/diagnostics/collect-phone-runtime.py
+EXPECTED_COLLECTOR_SHA256=8abfb3adc70a2d3b5317224854ecb2905b309e62fb1fd466953f7bd488c7d121
+if printf '%s  %s\n' "$EXPECTED_COLLECTOR_SHA256" "$COLLECTOR" | sha256sum --check -; then
+    python3 "$COLLECTOR"
+else
+    printf '%s\n' 'STOP: collector hash differs; do not run it. Use the version-only check.'
+fi
 ```
 
 The same file is versioned at `scripts/collect_phone_runtime.py`. It exports
