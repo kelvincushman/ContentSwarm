@@ -255,3 +255,14 @@ Supported Samsung native share-preview verification needs no new dependency and
 avoids the screenshot model when its author/body metadata matches. App/OS layout
 changes fail or use the existing image fallback; keep delivery disabled until
 new-post verification is exercised on the installed app version.
+
+## Phone reliability upgrade gate
+
+Do not run the installer over a live service merely to pick up the task fixes.
+Use [the staged rollout and rollback procedure](PHONE_RELIABILITY_ROLLOUT.md).
+The runtime collector is read-only and exports selected metadata/failure
+markers, never credentials or raw logs. First map the working `custom-tools`
+phone adapter to its actual service and compare deployed source hashes.
+Bridge-only typing now fails closed if the dependency is absent; discovery
+lifecycle events include authoritative status and unverified-outcome flags.
+No automatic delivery or broader Phone authority is enabled by this release.

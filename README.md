@@ -436,3 +436,24 @@ recipient or use the clipboard. Screenshot interpretation remains a fallback.
 The current-app API includes the exact focused package alongside the friendly name.
 
 Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
+
+X delivery errors now appear in review evidence with their stage/reason rather
+than a generic unverified result. A remaining composer is not send proof, and
+uncertain sends still need owner inspection before any retry. See
+[X send failures and retry safety](dashboard/SOCIAL.md#x-send-failures-and-retry-safety).
+
+## Phone task outcomes and stops
+
+Task submission is not completion. Async tasks now propagate model/action
+failures, stop on invalid model output and report `cancelled` or `timeout` when
+appropriate. `completed` describes execution only; `outcome_verified: false`
+requires a fresh UI/screenshot check before claiming the requested outcome.
+`contentswarm cancel-task TASK_ID --confirm` requests a stop. Running work keeps
+the phone lock until it acknowledges the stop; a wait timeout never means it is
+safe to resubmit. See [task control](orphus/README.md#task-outcomes-and-stops).
+
+The remaining discovery-event and legacy-typing review gaps are covered by
+regressions: discovery events match polling, and absent bridge typing stops
+without unchecked fallback. Deployment still requires a running-version check,
+independent review and approval; use the
+[staged rollout and rollback guide](deploy/PHONE_RELIABILITY_ROLLOUT.md).

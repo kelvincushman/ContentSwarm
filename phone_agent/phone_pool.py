@@ -1,13 +1,14 @@
 """Phone Pool Manager for controlling multiple phones with easy switching."""
 
 import json
+import math
 import os
 import tempfile
 import threading
 import time
 import uuid
-from contextlib import contextmanager
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -16,6 +17,7 @@ from phone_agent import PhoneAgent
 from phone_agent.adb import ADBConnection, list_devices
 from phone_agent.agent import AgentConfig
 from phone_agent.model import ModelConfig
+from phone_agent.task_control import TaskCancelled, TaskControl, TaskTimeout
 
 
 @dataclass
@@ -25,11 +27,13 @@ class TaskResult:
     task_id: str
     phone_name: str
     task: str
-    status: str  # "pending", "running", "completed", "failed"
+    status: str  # pending, running, completed, failed, cancelled, timeout
     result: Optional[str] = None
     error: Optional[str] = None
     started_at: Optional[float] = None
     completed_at: Optional[float] = None
+    cancel_requested: bool = False
+    outcome_verified: bool = False
 
 
 @dataclass
@@ -65,7 +69,8 @@ class PhonePoolManager:
         agent_config: Optional[AgentConfig] = None,
         phones_config: Optional[str] = None,
         max_parallel: int = 20,
-        event_callback: Optional[Callable[[Dict[str, Any]], None]] = None
+        event_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        task_timeout: float = 300,
     ):
         """
         Initialize the Phone Pool Manager.
@@ -77,6 +82,13 @@ class PhonePoolManager:
             max_parallel: Maximum number of phones to run in parallel.
             event_callback: Optional callback for task lifecycle events.
         """
+        if not math.isfinite(task_timeout) or task_timeout <= 0:
+            raise ValueError("task_timeout must be finite and positive")
+        self.task_timeout = task_timeout
+        self._controls = {}
+        self._futures = {}
+        self._task_guard = threading.RLock()
+        self._closed = False
         self.model_config = model_config or ModelConfig()
         self.base_agent_config = agent_config or AgentConfig()
 
@@ -320,7 +332,10 @@ class PhonePoolManager:
         self._event_callback = callback
 
     def _emit_event(self, event: Dict[str, Any]) -> None:
-        """Emit a task lifecycle event."""
+        """Emit a task lifecycle event with its authoritative terminal status."""
+        task = self._tasks.get(event.get("task_id"))
+        if task:
+            event = dict(event, status=task.status, outcome_verified=task.outcome_verified)
         if self._event_callback:
             try:
                 self._event_callback(event)
@@ -355,6 +370,7 @@ class PhonePoolManager:
         lock = None
         acquired = False
         try:
+            self._check_task(task_id)
             if phone_name not in self.phones:
                 raise ValueError(f"Phone '{phone_name}' not found")
 
@@ -381,23 +397,26 @@ class PhonePoolManager:
                 max_steps=self.base_agent_config.max_steps,
                 device_id=phone.device_id,
                 lang=self.base_agent_config.lang,
-                verbose=self.base_agent_config.verbose
+                verbose=self.base_agent_config.verbose,
+                system_prompt=self.base_agent_config.system_prompt,
             )
 
             agent = PhoneAgent(
                 model_config=self.model_config,
-                agent_config=agent_config
+                agent_config=agent_config,
+                stop_check=lambda: self._check_task(task_id),
+                confirmation_callback=lambda _message: False,
+                takeover_callback=self._require_takeover,
             )
 
             result = agent.run(task)
+            self._check_task(task_id)
 
-            if task_result:
-                task_result.status = "completed"
-                task_result.result = result
-                task_result.completed_at = time.time()
+            self._complete_task(task_id, result)
 
             self._emit_event({
                 "event": "task_completed",
+                "outcome_verified": False,
                 "task_id": task_id,
                 "phone": phone_name,
                 "task": task,
@@ -408,10 +427,7 @@ class PhonePoolManager:
             return result
 
         except Exception as e:
-            if task_id in self._tasks:
-                self._tasks[task_id].status = "failed"
-                self._tasks[task_id].error = str(e)
-                self._tasks[task_id].completed_at = time.time()
+            self._record_task_error(task_id, e)
 
             self._emit_event({
                 "event": "task_failed",
@@ -447,7 +463,7 @@ class PhonePoolManager:
             status="pending"
         )
 
-        self._executor.submit(self._run_task_on_phone, phone_name, task, task_id)
+        self._submit_task(task_id, self._run_task_on_phone, phone_name, task, task_id)
         return task_id
 
     def batch_run_parallel(self, tasks: Dict[str, str]) -> Dict[str, str]:
@@ -474,6 +490,7 @@ class PhonePoolManager:
         lock = None
         acquired = False
         try:
+            self._check_task(task_id)
             if phone_name not in self.phones:
                 raise ValueError(f"Phone '{phone_name}' not found")
 
@@ -503,15 +520,22 @@ class PhonePoolManager:
                 max_steps=self.base_agent_config.max_steps,
                 device_id=phone.device_id,
                 lang=self.base_agent_config.lang,
-                verbose=self.base_agent_config.verbose
+                verbose=self.base_agent_config.verbose,
+                system_prompt=self.base_agent_config.system_prompt,
             )
             agent = PhoneAgent(
                 model_config=self.model_config,
                 agent_config=agent_config,
                 event_callback=recorder.on_event,
+                stop_check=lambda: self._check_task(task_id),
+                confirmation_callback=lambda _message: False,
+                takeover_callback=self._require_takeover,
             )
 
             agent_result = agent.run(task)
+            self._check_task(task_id)
+            if not recorder.flow.steps:
+                raise RuntimeError("Learning produced no replayable steps; no flow saved")
             path = save_flow(recorder.flow, flows_dir)
 
             summary = json.dumps({
@@ -522,13 +546,11 @@ class PhonePoolManager:
                 "agent_result": agent_result,
             })
 
-            if task_result:
-                task_result.status = "completed"
-                task_result.result = summary
-                task_result.completed_at = time.time()
+            self._complete_task(task_id, summary)
 
             self._emit_event({
                 "event": "learn_completed",
+                "outcome_verified": False,
                 "task_id": task_id,
                 "phone": phone_name,
                 "flow": flow_name,
@@ -538,10 +560,7 @@ class PhonePoolManager:
             return summary
 
         except Exception as e:
-            if task_id in self._tasks:
-                self._tasks[task_id].status = "failed"
-                self._tasks[task_id].error = str(e)
-                self._tasks[task_id].completed_at = time.time()
+            self._record_task_error(task_id, e)
             self._emit_event({
                 "event": "learn_failed",
                 "task_id": task_id,
@@ -567,8 +586,8 @@ class PhonePoolManager:
             task=f"learn:{flow_name}: {task}",
             status="pending"
         )
-        self._executor.submit(
-            self._learn_on_phone, phone_name, task, flow_name, flows_dir, task_id
+        self._submit_task(
+            task_id, self._learn_on_phone, phone_name, task, flow_name, flows_dir, task_id
         )
         return task_id
 
@@ -581,6 +600,7 @@ class PhonePoolManager:
         lock = None
         acquired = False
         try:
+            self._check_task(task_id)
             if phone_name not in self.phones:
                 raise ValueError(f"Phone '{phone_name}' not found")
 
@@ -605,29 +625,27 @@ class PhonePoolManager:
 
             flow = load_flow(flow_name, flows_dir)
             replayer = FlowReplayer(device_id=phone.device_id, flows_dir=flows_dir)
-            outcome = replayer.replay(flow, speed=speed)
+            outcome = replayer.replay(flow, speed=speed, stop_check=lambda: self._check_task(task_id))
+            self._check_task(task_id)
             summary = json.dumps(outcome)
 
-            if task_result:
-                task_result.status = "completed" if outcome.get("failed", 0) == 0 else "failed"
-                task_result.result = summary
-                task_result.completed_at = time.time()
+            self._complete_task(task_id, summary,
+                                status="failed" if outcome.get("failed") else "completed",
+                                error=outcome.get("message") if outcome.get("failed") else None)
 
             self._emit_event({
-                "event": "replay_completed",
+                "event": "replay_completed" if not outcome.get("failed") else "replay_failed",
                 "task_id": task_id,
                 "phone": phone_name,
                 "flow": flow_name,
                 "outcome": outcome,
+                "outcome_verified": False,
                 "timestamp": time.time()
             })
             return summary
 
         except Exception as e:
-            if task_id in self._tasks:
-                self._tasks[task_id].status = "failed"
-                self._tasks[task_id].error = str(e)
-                self._tasks[task_id].completed_at = time.time()
+            self._record_task_error(task_id, e)
             self._emit_event({
                 "event": "replay_failed",
                 "task_id": task_id,
@@ -653,10 +671,62 @@ class PhonePoolManager:
             task=f"replay:{flow_name}",
             status="pending"
         )
-        self._executor.submit(
-            self._replay_on_phone, phone_name, flow_name, flows_dir, speed, task_id
+        self._submit_task(
+            task_id, self._replay_on_phone, phone_name, flow_name, flows_dir, speed, task_id
         )
         return task_id
+
+    @staticmethod
+    def _require_takeover(message):
+        raise RuntimeError(f"Human takeover required: {message}")
+
+    def _check_task(self, task_id):
+        control = self._controls.get(task_id)
+        if control:
+            control.check()
+
+    def _complete_task(self, task_id, result, status="completed", error=None):
+        with self._task_guard:
+            self._check_task(task_id)
+            task = self._tasks.get(task_id)
+            if task:
+                task.status = status
+                task.result = result
+                task.error = error
+                task.completed_at = time.time()
+
+    def _record_task_error(self, task_id, error):
+        task = self._tasks.get(task_id)
+        if task:
+            task.status = ("cancelled" if isinstance(error, TaskCancelled) else
+                           "timeout" if isinstance(error, TaskTimeout) else "failed")
+            task.error = str(error)
+            task.completed_at = time.time()
+
+    def _submit_task(self, task_id, function, *args):
+        with self._task_guard:
+            if self._closed:
+                self._tasks.pop(task_id, None)
+                raise RuntimeError("Phone task manager is shut down")
+            self._controls[task_id] = TaskControl(time.monotonic() + self.task_timeout)
+            self._futures[task_id] = self._executor.submit(function, *args)
+
+    def cancel_task(self, task_id):
+        """Request a stop; running work retains its lock until it acknowledges."""
+        with self._task_guard:
+            task = self._tasks.get(task_id)
+            if not task:
+                raise LookupError("Task not found")
+            if task.status not in ("pending", "running"):
+                raise ValueError("Task is already terminal; inspect its result")
+            task.cancel_requested = True
+            self._controls[task_id].cancelled.set()
+            future = self._futures.get(task_id)
+            if future and future.cancel():
+                self._record_task_error(task_id, TaskCancelled("Queued task cancelled before execution"))
+                self._emit_event({"event": "task_cancelled", "task_id": task_id,
+                                  "phone": task.phone_name, "timestamp": time.time()})
+            return self.get_task_status(task_id)
 
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -680,16 +750,23 @@ class PhonePoolManager:
             "result": task_result.result,
             "error": task_result.error,
             "started_at": task_result.started_at,
+            "cancel_requested": task_result.cancel_requested,
+            "outcome_verified": task_result.outcome_verified,
             "completed_at": task_result.completed_at
         }
 
     def get_all_tasks(self) -> List[Dict[str, Any]]:
         """Get status of all tracked tasks."""
-        return [self.get_task_status(tid) for tid in self._tasks]
+        return [self.get_task_status(tid) for tid in list(self._tasks)]
 
     def shutdown(self) -> None:
         """Shutdown the thread pool executor."""
-        self._executor.shutdown(wait=False)
+        with self._task_guard:
+            self._closed = True
+            for task_id, task in list(self._tasks.items()):
+                if task.status in ("pending", "running"):
+                    self.cancel_task(task_id)
+            self._executor.shutdown(wait=False, cancel_futures=True)
 
     def scan_and_add_devices(self) -> int:
         """

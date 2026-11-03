@@ -185,7 +185,7 @@ class FlowRecorder:
         delay = 1.0 if self._last_time is None else max(0.5, min(now - self._last_time, 10.0))
         self._last_time = now
 
-        clean = {k: v for k, v in action.items() if k != "message"}
+        clean = dict(action)  # Keep confirmation markers; replay must never grant them.
         if name in self.TARGETED_ACTIONS:
             target = self._element_target(clean.get("element"))
             if target:
@@ -195,9 +195,9 @@ class FlowRecorder:
     def _element_target(self, element: Optional[List[int]]) -> Optional[Dict[str, str]]:
         """Semantic identity (text/id/desc) of the element under a recorded tap.
 
-        Replays try this target first and only fall back to the recorded
-        coordinates, so flows survive layout shifts, A/B moves, and different
-        screen sizes.
+        Replays require this target to be found rather than falling back to
+        recorded coordinates, so layout shifts fail closed instead of risking
+        a tap on the wrong control.
         """
         if not element:
             return None
@@ -241,15 +241,20 @@ class FlowReplayer:
         self.flows_dir = flows_dir
         self.action_handler = ActionHandler(
             device_id=device_id,
-            confirmation_callback=lambda _msg: True,
-            takeover_callback=lambda _msg: None,
+            confirmation_callback=lambda _msg: False,
+            takeover_callback=self._deny_takeover,
         )
+
+    @staticmethod
+    def _deny_takeover(_message: str) -> None:
+        raise RuntimeError("Takeover is not allowed during flow replay")
 
     def replay(
         self,
         flow: Flow,
         speed: float = 1.0,
         step_callback: Optional[Callable[[int, Dict[str, Any], bool], None]] = None,
+        stop_check: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Any]:
         """Replay a flow on the device.
 
@@ -257,17 +262,21 @@ class FlowReplayer:
             flow: The Flow to replay.
             speed: Time multiplier for recorded delays (2.0 = twice as fast).
             step_callback: Optional callback(step_index, action, success).
+            stop_check: Optional callback that raises when replay must stop.
 
         Returns:
             Summary dict with executed/failed step counts.
         """
+        if stop_check:
+            stop_check()
+
         if not flow.steps:
             return self._finalize({
                 "flow": flow.name,
                 "device_id": self.device_id,
                 "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "executed": 0,
-                "failed": 0,
+                "failed": 1,
                 "verified": 0,
                 "final_app": "",
                 "steps": [],
@@ -275,6 +284,8 @@ class FlowReplayer:
             })
 
         screenshot = get_screenshot(self.device_id)
+        if getattr(screenshot, "capture_error", None) or getattr(screenshot, "is_sensitive", False):
+            raise RuntimeError("Screenshot unavailable; replay stopped before input")
         width, height = screenshot.width, screenshot.height
 
         executed = 0
@@ -285,14 +296,17 @@ class FlowReplayer:
         started_at = time.strftime("%Y-%m-%d %H:%M:%S")
 
         for i, step in enumerate(flow.steps):
+            if stop_check:
+                stop_check()
             time.sleep(step.delay_before / speed)
+            if stop_check:
+                stop_check()
             result = self.action_handler.execute(step.action, width, height)
             success = result.success
             executed += 1
             if not success:
                 failed += 1
-            # "element" means the recorded semantic target was found on screen
-            # and tapped - the step verifiably did what the flow intended.
+            # "element" measures input target matching, not the task outcome.
             if result.method == "element":
                 verified += 1
             step_reports.append({
@@ -309,6 +323,8 @@ class FlowReplayer:
             })
             if step_callback:
                 step_callback(i, step.action, success)
+            if not success:
+                break
 
         final_app = ""
         try:
@@ -325,7 +341,7 @@ class FlowReplayer:
             "verified": verified,
             "final_app": final_app,
             "steps": step_reports,
-            "message": "Replay complete" if failed == 0 else f"Replay finished with {failed} failed step(s)",
+            "message": "Replay complete" if failed == 0 else f"Replay stopped after {failed} failed step(s)",
         })
 
     def _finalize(self, summary: Dict[str, Any]) -> Dict[str, Any]:
