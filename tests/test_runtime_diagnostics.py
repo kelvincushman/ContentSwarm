@@ -244,16 +244,17 @@ def test_adapter_scan_does_not_follow_tracked_symlink_outside_checkout(
     assert diag.adapter_source_metadata(root) == []
 
 
-def test_source_bundle_is_tracked_code_only_and_redacts_credential_literals(
-    tmp_path, monkeypatch
-):
+def test_source_bundle_is_metadata_only(tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / ".git").mkdir(parents=True)
     (root / "src").mkdir()
-    (root / "src/phone.rs").write_text('let api_key = "SECRET"; fn phone() {}')
+    (root / "src/phone.rs").write_text(
+        '// contentswarm adapter\nlet api_key = "SECRET"; fn phone() {}'
+    )
     (root / "src/config.rs").write_text("NEVER EXPORTED")
     monkeypatch.setattr(diag, "command", lambda _: (0, "src/phone.rs\nsrc/config.rs\n"))
     result = diag.source_review_bundle(root)
     assert len(result) == 1
-    assert "SECRET" not in result[0]["source_for_review"]
-    assert "fn phone" in result[0]["source_for_review"]
+    assert "source_for_review" not in result[0]
+    assert "SECRET" not in json.dumps(result)
+    assert result[0]["reference_lines"]

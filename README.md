@@ -457,3 +457,8 @@ regressions: discovery events match polling, and absent bridge typing stops
 without unchecked fallback. Deployment still requires a running-version check,
 independent review and approval; use the
 [staged rollout and rollback guide](deploy/PHONE_RELIABILITY_ROLLOUT.md).
+
+The review follow-up distinguishes pre-tap errors from uncertain dispatched taps
+using typed exceptions. Runtime diagnostics now export source metadata only,
+not raw code subject to incomplete credential regexes. Neither change grants
+posting authority or enables deployment/delivery.

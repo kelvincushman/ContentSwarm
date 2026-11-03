@@ -12,8 +12,21 @@ sudo, print credentials, open ports, or restart services. The shared `/shared`
 name in the bot is a bind mount; the host backing path was obtained from
 `/proc/self/mountinfo`, not guessed:
 
+First compare the host copy with this candidate's pinned collector SHA-256.
+Do not run a mismatching copy: it may be the old source-exporting collector.
+Stop and escalate a mismatch to the service owner. Do not run or deploy the
+host copy until an approved collector is supplied. Matching a hash does not
+itself authorise execution or deployment; the normal service owner still
+approves execution.
+
 ```sh
-python3 /mnt/ai_storage/home_cache/local/share/containers/storage/volumes/orphusbot-team/_data/diagnostics/collect-phone-runtime.py
+COLLECTOR=/mnt/ai_storage/home_cache/local/share/containers/storage/volumes/orphusbot-team/_data/diagnostics/collect-phone-runtime.py
+EXPECTED_COLLECTOR_SHA256=93b15e628792dbd78b535617c897e74da6ead75c0c1eed91d9be590477d3961e
+if printf '%s  %s\n' "$EXPECTED_COLLECTOR_SHA256" "$COLLECTOR" | sha256sum --check -; then
+    python3 "$COLLECTOR"
+else
+    printf '%s\n' 'STOP: collector hash differs. Do not run or deploy it; ask the service owner for an approved collector.'
+fi
 ```
 
 The same file is versioned at `scripts/collect_phone_runtime.py`. It exports
@@ -22,9 +35,15 @@ non-secret fields of explicitly referenced MCP registration JSON, and
 allowlisted journal failure markers/task IDs. The extended collector projects
 only exact named connection URL/host/port/state/enable fields from matched
 service environments; token/password fields are not decoded or exported.
-Credential/config files are not copied. It can export the relevant tracked Rust
-adapter modules (with obvious credential literals redacted) and marker-only
-Phone session summaries; no message/post text is exported. It makes no
+Credential/config files are not copied. Source review data is metadata-only:
+file paths, hashes, reference line numbers and known connection-key names.
+Origins are projected from allowlisted runtime connection settings and
+explicitly referenced MCP registration URL fields, not from arbitrary strings
+in application source.
+It never exports application source text; regex redaction cannot cover arbitrary
+credential syntax. Phone session summaries contain markers only, not messages.
+Historical source-bearing diagnostic reports are not rewritten by this change;
+keep them private and inspect before sharing. It makes no
 network calls and never controls the phone or services. Output goes into the
 shared team's `diagnostics/phone-runtime/` directory with private permissions.
 A missing unit, denied journal or absent registration is a reported gap, not
@@ -170,3 +189,19 @@ worker's generic evidence unless a suitable task record can be recovered.
 These are configuration and on-disk source checks, not proof that every binary
 was built from the accompanying checkout, nor a successful send. No production
 service or scheduler has been stopped, restarted or updated by this work.
+
+## OB-35 review corrections
+
+Pre-tap dependency/UI errors remain ordinary errors. Missing/invalid selectors
+and typed `AmbiguousSelector` failures occur before dispatch; no uncertainty is
+invented from an error-message string. Only an exception during the one bridge
+tap call becomes `TapOutcomeUncertain`, regardless of its exception class. It
+never permits a coordinate fallback or a second tap.
+
+The diagnostic collector no longer exports raw source under any redaction
+pattern. The existing `adapter_source_review` report field contains metadata
+only. Do not rerun an older source-exporting collector while preparing rollout;
+stop and escalate a hash mismatch to the service owner; do not run or deploy
+that host copy until an approved collector is supplied. This candidate must
+complete CodeRabbit and the requested actual independent reviewer before the
+specific deployment approval gate; merging earlier PRs does not waive it.
