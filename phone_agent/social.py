@@ -10,6 +10,51 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
+# Platforms with accounts and reviews, and the hosts a source link may use.
+HOSTS = {
+    "x": {"x.com", "www.x.com", "twitter.com"},
+    "linkedin": {"linkedin.com", "www.linkedin.com"},
+    "facebook": {"facebook.com", "www.facebook.com", "m.facebook.com"},
+    "instagram": {"instagram.com", "www.instagram.com"},
+    "tiktok": {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"},
+}
+PLATFORMS = tuple(HOSTS)
+
+# Exact @handles as each app prints them. X: 1-15 letters, digits, underscore.
+# Instagram: up to 30 letters, digits, underscores and dots. TikTok: 2-24.
+HANDLE_PATTERNS = {
+    "x": r"@[A-Za-z0-9_]{1,15}",
+    "instagram": r"@(?!\.)(?!.*\.\.)[A-Za-z0-9_.]{1,30}(?<!\.)",
+    "tiktok": r"@[A-Za-z0-9_.]{2,24}(?<!\.)",
+}
+
+# Deterministic delivery adapters: the platform each serves and how its
+# account handle is checked against what the app shows.
+ADAPTERS = {
+    "x-accessibility-v1": ("x", "x"),
+    "linkedin-accessibility-v1": ("linkedin", "name"),
+    "facebook-accessibility-v1": ("facebook", "name"),
+    "instagram-accessibility-v1": ("instagram", "instagram"),
+    "tiktok-accessibility-v1": ("tiktok", "tiktok"),
+}
+ADAPTER_HANDLE_ERRORS = {
+    "x": "X delivery requires an exact X @handle",
+    "instagram": "Instagram delivery requires the exact @username the app shows",
+    "tiktok": "TikTok delivery requires the exact @username the app shows",
+    # LinkedIn and Facebook show no handle; the member or profile name the app
+    # shows is the identity, so the handle must be that exact name.
+    "name": "LinkedIn and Facebook delivery require the handle to be the exact profile name the app shows",
+}
+
+
+def valid_handle(rule, handle):
+    """Whether a handle has the exact form an adapter can check in the app."""
+    import re
+    if rule == "name":
+        return not handle.startswith("@") and handle == handle.strip() and len(handle) <= 100 and "\n" not in handle
+    return re.fullmatch(HANDLE_PATTERNS[rule], handle) is not None
+
+
 def text(data, key, limit=8000):
     value = data.get(key)
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
@@ -104,20 +149,15 @@ class SocialStore:
 
     def account(self, data):
         item = {key: text(data, key) for key in ("name", "platform", "handle", "soul")}
-        if item["platform"] not in ("x", "linkedin", "facebook", "instagram"):
+        if item["platform"] not in PLATFORMS:
             raise ValueError("Unsupported platform")
         adapter = data.get("delivery_adapter")
-        if adapter not in (None, "", "x-accessibility-v1", "linkedin-accessibility-v1"):
+        if adapter not in (None, "") and adapter not in ADAPTERS:
             raise ValueError("Unknown delivery adapter")
-        if adapter == "x-accessibility-v1":
-            import re
-            if item["platform"] != "x" or not re.fullmatch(r"@[A-Za-z0-9_]{1,15}", item["handle"]):
-                raise ValueError("X delivery requires an exact X @handle")
-        if adapter == "linkedin-accessibility-v1":
-            # LinkedIn shows no handle; the member name in its profile menu is
-            # the identity, so the handle must be that exact name.
-            if item["platform"] != "linkedin" or item["handle"].startswith("@") or item["handle"] != item["handle"].strip() or len(item["handle"]) > 100:
-                raise ValueError("LinkedIn delivery requires the handle to be the exact member name the app shows")
+        if adapter:
+            platform, rule = ADAPTERS[adapter]
+            if item["platform"] != platform or not valid_handle(rule, item["handle"]):
+                raise ValueError(ADAPTER_HANDLE_ERRORS[rule])
         if adapter:
             item["delivery_adapter"] = adapter
         phones = data.get("phones", [])
@@ -235,8 +275,7 @@ class SocialStore:
             from urllib.parse import urlparse
             target.update({key: text(data, key) for key in ("source_url", "author", "original")})
             url = urlparse(target["source_url"])
-            hosts = {"x": {"x.com", "www.x.com", "twitter.com"}, "linkedin": {"linkedin.com", "www.linkedin.com"}, "facebook": {"facebook.com", "www.facebook.com", "m.facebook.com"}, "instagram": {"instagram.com", "www.instagram.com"}}
-            if url.scheme != "https" or url.hostname not in hosts[platform] or url.username or url.path in ("", "/"):
+            if url.scheme != "https" or url.hostname not in HOSTS[platform] or url.username or url.path in ("", "/"):
                 raise ValueError("Reply source_url must link to a conversation on the account's platform")
         return target
 

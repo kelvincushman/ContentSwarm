@@ -230,7 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--within", help="Exact text of one element; tap the match nearest to it (e.g. one post's Reply)")
     p.add_argument("--confirm", action="store_true", required=True, help="Confirm this exact tap")
 
-    p = sub.add_parser("open-url", help="Open an https x.com or linkedin.com link in its app")
+    p = sub.add_parser("open-url", help="Open an https x.com, linkedin.com, facebook.com, instagram.com or tiktok.com link in its app")
     p.add_argument("phone")
     p.add_argument("url")
 
