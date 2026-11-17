@@ -392,8 +392,9 @@ The worker, after claiming the approved review:
    exactly once stand in for it; a visible "Reply to" someone else stops) and one enabled send control
    (Facebook Send/Post/Comment, Instagram Post, TikTok Post comment).
 7. Taps send once. Proof is exactly one copy of the text outside any editor,
-   whose list row is ours and shows a fresh time ("Just now", "now", seconds or
-   "1m"): on Facebook the row names the profile, on Instagram it shows the
+   whose list row is ours and shows a fresh time ("Just now", "now" or at most 30
+   seconds; the text was not on screen before typing, and an identical reply
+   would have to be under half a minute old to pass): on Facebook the row names the profile, on Instagram it shows the
    username, on TikTok it carries the "Creator" badge only the video's owner
    gets. Without proof within about twelve seconds the review stays uncertain.
 

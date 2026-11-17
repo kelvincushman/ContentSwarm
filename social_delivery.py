@@ -437,7 +437,16 @@ def linkedin_post(client, review):
 # account with the exact text in the same comments list. Anything before the
 # send raises NotSent; after it, missing proof leaves the review uncertain.
 
-FRESH = re.compile(r"(?:just now|now|\d{1,2}\s?s|1\s?m|\d{1,2} sec(?:ond)?s?(?: ago)?)", re.I)
+# A reply's age right after sending: "Just now", "now" or at most 30 seconds.
+# The proof window is about twelve seconds, so an identical reply of ours
+# that existed before this attempt would have to be under half a minute old.
+FRESH = re.compile(r"(?:just now|now|(\d{1,2})\s?s|(\d{1,2}) sec(?:ond)?s?(?: ago)?)", re.I)
+
+
+def fresh(label):
+    match = FRESH.fullmatch(_fold(label).strip("·• "))
+    seconds = match and (match[1] or match[2])
+    return bool(match) and (not seconds or int(seconds) <= 30)
 
 
 def _app(client, route, package, label):
@@ -680,7 +689,7 @@ def fresh_reply(elements, body, is_ours, bodies=None):
         return False
     group = descendants(elements, _row(elements, copies[0]))
     labels = [label_of(e) for e in group]
-    return is_ours(group) and any(FRESH.fullmatch(_fold(v).strip("·• ")) for v in labels)
+    return is_ours(group) and any(fresh(v) for v in labels)
 
 
 def _hints(phrases):

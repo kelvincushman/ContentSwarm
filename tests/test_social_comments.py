@@ -478,3 +478,19 @@ def test_drafts_that_look_like_hints_are_never_cleared(draft):
     with pytest.raises(NotSent, match="not empty"):
         instagram_reply(client, IG_REVIEW)
     assert not client.typed()
+
+
+@pytest.mark.parametrize("age", ["45s", "1m", "59 seconds ago"])
+def test_a_reply_older_than_half_a_minute_is_never_proof(age):
+    """An identical reply that appears only after the send (it wasn't on the
+    screen before) still can't prove this send unless it is that fresh."""
+    client = ig_screens(after=ig_published(age=age))
+    with pytest.raises(ValueError) as caught:
+        instagram_reply(client, IG_REVIEW)
+    assert not isinstance(caught.value, NotSent)
+    assert not client.completed()
+
+
+def test_fresh_ages():
+    assert all(social_delivery.fresh(v) for v in ("Just now", "now", "1s", "30s", "· 12s", "5 seconds ago"))
+    assert not any(social_delivery.fresh(v) for v in ("31s", "1m", "2h", "3d", "now and then"))
