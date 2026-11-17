@@ -55,6 +55,42 @@ contentswarm screenshot phone_01 -o /tmp/ig-post.png
 contentswarm run phone_01 "In Instagram, tap the plus button, choose Story, select the newest image from the gallery, then tap 'Your story' to share" --wait
 ```
 
+## Read comments on the account's own posts (for reply review)
+
+Read only: never like, follow, reply or type here. The approved reply is
+sent by the `instagram-accessibility-v1` worker after the owner approves it.
+
+Path: **Home** tab, then the heart at the top (`id/notification`, no label),
+which opens "Notifications". A "Finish setting up your account" sheet may
+cover Home: Back closes it; never press Continue. A comment
+notification reads "USERNAME commented: TEXT" (or "replied to your comment").
+Tap it to open the post's comments; usernames are shown without "@", and
+each comment prints as one line "USERNAME TEXT": the comment is the text after
+the username.
+
+```bash
+contentswarm launch phone_01 Instagram
+contentswarm ui phone_01        # Home -> Notifications; read rows; open one
+```
+
+For each comment worth answering, record for the review:
+
+- `author`: the commenter's username exactly as the comment shows it (with or without the leading @)
+- `original`: the comment's **full exact text** as it appears in the post's
+  comments (open the notification; the notification line itself is often
+  shortened with "…")
+- `source_url`: an https instagram.com link to the post if you have one; otherwise
+  `https://www.instagram.com/p/CODE/` plus a non-root path naming the post is accepted, but a real
+  link is better for the owner
+- `kind: "reply"`, `platform: "instagram"`, and the account `handle` from
+  `contentswarm social accounts`
+
+The worker later goes the same way: the notification must name the author and
+show the comment, the comment's row must show the author and one Reply, and
+the composer must reply to that author. If another notification or comment
+by the same person with the same text is on the same page or the next one
+down, it stops; reply to those yourself. It does not open `source_url`.
+
 ## Pitfalls
 
 - "Suspicious activity" interstitials appear after bursts of actions - stop

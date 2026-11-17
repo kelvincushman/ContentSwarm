@@ -279,6 +279,12 @@ URL_APPS = {
     "x.com": "com.twitter.android", "www.x.com": "com.twitter.android",
     "twitter.com": "com.twitter.android", "mobile.twitter.com": "com.twitter.android",
     "linkedin.com": "com.linkedin.android", "www.linkedin.com": "com.linkedin.android",
+    "facebook.com": "com.facebook.katana", "www.facebook.com": "com.facebook.katana",
+    "m.facebook.com": "com.facebook.katana",
+    "instagram.com": "com.instagram.android", "www.instagram.com": "com.instagram.android",
+    "tiktok.com": "com.zhiliaoapp.musically", "www.tiktok.com": "com.zhiliaoapp.musically",
+    "m.tiktok.com": "com.zhiliaoapp.musically", "vm.tiktok.com": "com.zhiliaoapp.musically",
+    "vt.tiktok.com": "com.zhiliaoapp.musically",
 }
 
 
@@ -289,7 +295,7 @@ def _url_app(url: Any) -> str:
         raise ValueError("url must be one https link")
     parts = urlparse(url)
     if parts.scheme != "https" or "@" in parts.netloc or parts.port is not None or parts.hostname not in URL_APPS:
-        raise ValueError("url must be an https link on x.com or linkedin.com")
+        raise ValueError("url must be an https link on x.com, linkedin.com, facebook.com, instagram.com or tiktok.com")
     return URL_APPS[parts.hostname]
 
 

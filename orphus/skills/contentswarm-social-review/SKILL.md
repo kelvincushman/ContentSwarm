@@ -1,6 +1,6 @@
 ---
 name: contentswarm-social-review
-description: Collect X, LinkedIn, Facebook and Instagram conversations, humanize reply drafts, and submit them for human review before phone delivery.
+description: Collect X, LinkedIn, Facebook, Instagram and TikTok conversations, humanize reply drafts, and submit them for human review before phone delivery.
 ---
 
 # Social reply review
@@ -26,7 +26,7 @@ embedded mode, preserve facts, and use approved owner rewrites from
 Humanizer 3.0.0 is vendored from blader/humanizer commit
 9862685f575c65a8247f90369951df1b3416e3d6 under its retained MIT license.
 
-Write a private JSON file with platform (`x`, `linkedin`, `facebook`, `instagram`), account
+Write a private JSON file with platform (`x`, `linkedin`, `facebook`, `instagram`, `tiktok`), account
 (the exact handle), account_id (the profile id from social accounts),
 kind (`post` for original posts, `reply` for replies), phone, source_url,
 author, original, reply and humanizer_version (`3.0.0`). Original posts must
@@ -86,6 +86,17 @@ sending. On a LinkedIn account, `delivery_adapter: "linkedin-accessibility-v1"`
 posts approved original text, with the account handle set to the exact member
 name the app shows. Media and LinkedIn replies still need a separate workflow.
 
+Comment replies on the account's own Facebook, Instagram and TikTok posts are
+delivered by `facebook-accessibility-v1` (handle: the exact profile name),
+`instagram-accessibility-v1` and `tiktok-accessibility-v1` (handle: the exact
+`@username`). For those reviews, give `author` exactly as the comment row shows
+it (Instagram username; Facebook and TikTok display name) and `original` as the
+comment's full exact text read from the post's comments, not the shortened
+notification line. The worker finds the comment from its notification, checks
+the account, the comment's row and the reply composer, sends once and looks
+for the fresh reply. Where to read each app's comments is in the
+`contentswarm-app-facebook`, `-instagram` and `-tiktok` skills.
+
 For device-local time, use `contentswarm clock PHONE` (GET
 `/api/v1/phones/PHONE/clock`): returns ISO time with UTC offset and epoch.
 X's experimental publication fallback uses blind tool-free screenshot reading
@@ -100,4 +111,4 @@ underlying app. The X verifier can read structured native preview author/body
 without selecting contacts or copying links; it restores the detail and checks
 the same independent publication timestamp. It avoids a model on exact matches.
 
-Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
+Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1` (opt-in; their comment-row, composer and proof steps are not yet verified live, and any mismatch stops before sending); see [Facebook, Instagram and TikTok comment replies](../../../dashboard/SOCIAL.md#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.

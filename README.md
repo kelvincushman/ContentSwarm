@@ -3,7 +3,7 @@
 ## Mobile console
 
 The server opens a workspace for tasks, phone preview, app controls, learned
-flows and post/reply review for X, LinkedIn, Facebook and Instagram. Each social account has
+flows and post/reply review for X, LinkedIn, Facebook, Instagram and TikTok. Each social account has
 an editable voice, sourced knowledge, conversation context and assigned phones.
 Prepare drafts on demand or on editable minute/hour/calendar repeats, then
 approve their exact text or rewrite it. Set publish times before approval.
@@ -422,7 +422,10 @@ The same adapter delivers approved X replies, found under Mentions by the
 commenter's exact handle and text, and LinkedIn accounts can select
 `linkedin-accessibility-v1` for original text posts. See
 [X replies](dashboard/SOCIAL.md#x-reply-adapter) and
-[LinkedIn posts](dashboard/SOCIAL.md#linkedin-post-adapter).
+[LinkedIn posts](dashboard/SOCIAL.md#linkedin-post-adapter). Facebook, Instagram and
+TikTok accounts can select `facebook-accessibility-v1`, `instagram-accessibility-v1`
+or `tiktok-accessibility-v1` to reply to comments on their own posts; see
+[comment replies](dashboard/SOCIAL.md#facebook-instagram-and-tiktok-comment-replies).
 
 Screenshot interpretation is in development for app screens that omit visible
 post text from accessibility data. The tool-free reader produces blind observations. The experimental X fallback
@@ -435,7 +438,7 @@ from Android's native share preview, avoiding a model call. It does not select a
 recipient or use the clipboard. Screenshot interpretation remains a fallback.
 The current-app API includes the exact focused package alongside the friendly name.
 
-Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
+Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1` (opt-in; their comment-row, composer and proof steps are not yet verified live, and any mismatch stops before sending); see [Facebook, Instagram and TikTok comment replies](dashboard/SOCIAL.md#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.
 
 X delivery errors now appear in review evidence with their stage/reason rather
 than a generic unverified result. A remaining composer is not send proof, and

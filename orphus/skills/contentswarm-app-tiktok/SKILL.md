@@ -56,6 +56,39 @@ contentswarm run phone_01 "In TikTok, tap the plus button, choose Upload, select
 contentswarm screenshot phone_01 -o /tmp/tt-post.png   # verify the post confirmation
 ```
 
+## Read comments on the account's own posts (for reply review)
+
+Read only: never like, follow, reply or type here. The approved reply is
+sent by the `tiktok-accessibility-v1` worker after the owner approves it.
+
+Path: **Inbox** tab, then **Activity** (comments, mentions and likes). A
+comment notification shows the commenter's name and "commented: TEXT" (or
+"replied to your comment: TEXT"). Tap it to open the video with its comments
+panel. The account's own comments carry a "Creator" badge.
+
+```bash
+contentswarm launch phone_01 TikTok
+contentswarm ui phone_01        # Inbox tab -> Activity; read rows; open one
+```
+
+For each comment worth answering, record for the review:
+
+- `author`: the commenter's display name exactly as the comment row shows it (TikTok comments show the name, not the @username)
+- `original`: the comment's **full exact text** as it appears in the post's
+  comments (open the notification; the notification line itself is often
+  shortened with "…")
+- `source_url`: an https tiktok.com link to the post if you have one; otherwise
+  `https://www.tiktok.com/@HANDLE/video/ID` plus a non-root path naming the post is accepted, but a real
+  link is better for the owner
+- `kind: "reply"`, `platform: "tiktok"`, and the account `handle` from
+  `contentswarm social accounts`
+
+The worker later goes the same way: the notification must name the author and
+show the comment, the comment's row must show the author and one Reply, and
+the composer must reply to that author. If another notification or comment
+by the same person with the same text is on the same page or the next one
+down, it stops; reply to those yourself. It does not open `source_url`.
+
 ## Pitfalls
 
 - Ads and live streams interrupt feed swiping - the vision agent usually skips

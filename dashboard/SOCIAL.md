@@ -274,8 +274,9 @@ post of the handle with the exact text, before the screenshot check. The
 evidence names the profile link, so the owner can open it.
 
 The kernel's `open_url` action (`contentswarm open-url PHONE URL`) opens only
-https links on x.com, twitter.com and linkedin.com, each in its own app
-(`com.twitter.android`, `com.linkedin.android`): never a browser, another app,
+https links on x.com, twitter.com, linkedin.com, facebook.com, instagram.com and
+tiktok.com, each in its own app (`com.twitter.android`, `com.linkedin.android`,
+`com.facebook.katana`, `com.instagram.android`, `com.zhiliaoapp.musically`): never a browser, another app,
 a file or a custom intent. Found on the first live post, 21 October 2026.
 
 ### X reply adapter
@@ -335,6 +336,112 @@ then LinkedIn covered the feed with "Your post was successful" and a paid
 (never the offer's own button) and then finds the post at the top of the feed,
 named "Kelvin Lee" with its exact text, as the proof expects.
 
+### Facebook, Instagram and TikTok comment replies
+
+Three adapters reply to a comment on the account's **own** post, the comment
+the review's `author` and `original` point at. They share one engine
+(`social_delivery.comment_reply`) and differ only in how each app shows things:
+
+| Adapter | Account `handle` | Review `author` | Identity check |
+|---|---|---|---|
+| `facebook-accessibility-v1` | the exact profile name Facebook shows | the commenter's name as the comment shows it | Profile tab: the name beside "Open profile switcher", on a profile with "Edit profile" |
+| `instagram-accessibility-v1` | `@username` | the commenter's username (with or without `@`) | Profile tab: the title-bar username, on a profile with "Edit profile" and "Create new" |
+| `tiktok-accessibility-v1` | `@username` | the commenter's display name as the comment shows it | Profile tab: the one `@username` shown |
+
+Instagram and TikTok usernames are validated (Instagram: up to 30 letters,
+digits, `_` and `.`, no leading, trailing or double dot; TikTok: 2–24 letters,
+digits, `_` and `.`, no trailing dot). Facebook, like LinkedIn, uses the
+profile name and rejects an `@` handle. Each adapter handles `kind: "reply"`
+only; original posts on these apps (which need media) are not automated.
+
+The worker, after claiming the approved review:
+
+1. Opens the app and requires its package in the foreground on every read.
+   An editor holding anything but one of the app's exact empty-field hints
+   (for example "Comment as USERNAME..." or "Reply to AUTHOR") is left
+   untouched; a draft that merely starts like a hint is still a draft.
+2. Opens the account's profile/menu and requires the account's exact identity.
+3. Opens the app's notifications (Facebook's Notifications tab; Instagram's
+   Home tab, then the heart, `id/notification`, which must open a screen titled
+   Notifications; TikTok's Inbox, then Activity) and looks for
+   exactly one notification row that names the author, mentions a comment or
+   reply, and shows the comment: all of it, or at least its first 30
+   characters followed by an ellipsis (lists shorten long comments). It
+   scrolls at most three pages. Once found, it looks one page further down and
+   stops if another such row is there (told apart by every label in the row,
+   so the same row seen again after scrolling is not a second one), then
+   scrolls back and requires the same row again.
+4. Taps that notification, which opens the post with its comments, and finds
+   exactly one element with the comment's exact text (scrolling at most three
+   pages, with the same one-page look below for a second comment with the same
+   words). The comment's own row (the smallest subtree around the text holding
+   a Reply, never the list) must hold exactly one Reply and the author's exact
+   name.
+5. Presses that row's Reply (`tap --within` the comment) and checks the
+   composer: it must reply to the author ("Replying to NAME" on Facebook and
+   Instagram; the field's "Reply to NAME" hint on TikTok) with an empty field.
+   Instagram prefills `@author ` and Facebook the author's name; that prefix is
+   kept, so the typed text is the prefix plus the approved body (unless the body
+   already starts with it). Any other starting text stops delivery. If that
+   text is already visible in any form the app prints a reply in (Instagram
+   also prints "USERNAME TEXT"), it stops before typing, so an earlier reply
+   can never stand in as proof.
+6. Types that text, then requires the field to hold exactly it, the reply
+   target still shown (TikTok drops its hint once text is typed: only when no
+   "Reply to" label remains at all may the comment still being on screen
+   exactly once stand in for it; a visible "Reply to" someone else stops) and one enabled send control
+   (Facebook Send/Post/Comment, Instagram Post, TikTok Post comment).
+7. Taps send once. Proof is exactly one copy of the text outside any editor,
+   whose list row is ours and shows a fresh time ("Just now", "now" or at most 30
+   seconds; the text was not on screen before typing, and an identical reply
+   would have to be under half a minute old to pass): on Facebook the row names the profile, on Instagram it shows the
+   username, on TikTok it carries the "Creator" badge only the video's owner
+   gets. Without proof within about twelve seconds the review stays uncertain.
+
+The review's `source_url` is not opened: on these apps the Phone agent usually
+can't read a post's link, so the source is the comment's notification ("on
+your post"), which must be the only one by that author with that text. Two
+identical comments by one person on different posts both appear there and
+stop delivery when they are within a page of each other; older duplicates
+further down are not seen.
+
+Everything before the send tap raises `NotSent` ("Stopped before sending;
+nothing was posted.") and the reason; after it, missing proof is never resent.
+
+App details found on the connected phone (17 November 2026, read-only: no
+comment, reply or field was typed or sent):
+
+- Facebook 587: tabs are described "Home, tab 1 of 6" … "Notifications, tab 5
+  of 6, 1 new" … "Profile, tab 6 of 6". While the feed is scrolled the tab bar
+  collapses to empty bounds; the adapter then scrolls up once and retries.
+  The first visit to Notifications showed a "Get notified on time" push
+  permission dialog, which blocks the app until the owner answers it; the
+  adapter stops before sending while it is up.
+- Instagram 455: a "Finish setting up your account" sheet can cover Home on
+  launch (Back closes it). Post and comment text print as one line
+  "USERNAME TEXT" (`IgTextLayoutView`) with the name and text repeated as
+  buttons' descriptions, so the comment is found by that line. The comment
+  field is an `AutoCompleteTextView`, now counted as an editor everywhere; its
+  empty hint is "Comment as USERNAME...".
+- TikTok was signed out at the time; its screens are built from TikTok's
+  public layout and covered by fixtures only.
+
+The comment rows, Reply composers and posted replies of these apps could not
+be recorded: no comment on the account's posts was available, and nothing may
+be typed on the owner's phone outside an approved delivery. Their fixtures
+follow each app's known layout. The first approved reply on each app is the
+live test of those steps; any mismatch stops before sending.
+`open_url` also opens facebook.com, instagram.com and tiktok.com links (and
+TikTok's `vm.`/`vt.` short links) in their own apps for reading. TikTok
+accounts and reviews accept sources on `tiktok.com`, `www.`, `m.`, `vm.` and
+`vt.tiktok.com`.
+
+For reading, the Phone agent should copy what the comment row shows: the
+author exactly as displayed (Instagram username; Facebook and TikTok display
+name) and the comment's exact full text from the post's comments, not the
+shortened notification line. See the app skills in `orphus/skills/` for the
+notification paths.
+
 ### Taps within one post
 
 `POST /phones/PHONE/action` taps accept `within`: the exact text of one element.
@@ -391,7 +498,7 @@ live validation before enabling automatic delivery.
 no window is focused). Detection uses `mCurrentFocus`, never the underlying
 `mFocusedApp`, so a chooser or dialog cannot be mistaken for the app behind it.
 
-Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
+Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1` (opt-in; their comment-row, composer and proof steps are not yet verified live, and any mismatch stops before sending); see [Facebook, Instagram and TikTok comment replies](#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.
 
 See [app mapping](APP_MAPPING.md) for the controls observed on the connected
 phone and the remaining verification for each app.

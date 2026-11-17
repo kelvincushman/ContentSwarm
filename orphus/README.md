@@ -1,7 +1,7 @@
 # ContentSwarm for Orphus and Pi
 
 Use the [social review skill](skills/contentswarm-social-review/SKILL.md) for
-X, LinkedIn, Facebook and Instagram replies. It includes Humanizer 3.0.0 and documents
+X, LinkedIn, Facebook, Instagram and TikTok replies. It includes Humanizer 3.0.0 and documents
 `reviews`, `review-add`, and `review-action` for the human-reviewed handoff.
 
 Orphus or Pi is the brain; ContentSwarm is the Android execution layer. Agents
@@ -191,7 +191,10 @@ With that adapter, approved X replies are delivered too: the worker finds the
 comment under Mentions by its exact author and text and checks the reply
 composer before one send. `delivery_adapter: "linkedin-accessibility-v1"` does
 the same for original LinkedIn text posts, with the member name as the handle.
-Media and LinkedIn replies are not automated. Semantic taps accept `within`
+`facebook-accessibility-v1`, `instagram-accessibility-v1` and
+`tiktok-accessibility-v1` reply to comments on the account's own posts, found
+from the app's notifications by the commenter and exact comment text.
+Media posts and LinkedIn replies are not automated. Semantic taps accept `within`
 (the exact text of one element) to pick one post's control in a list. See
 [the supported X screens and verification](../dashboard/SOCIAL.md#x-accessibility-adapter).
 
@@ -209,7 +212,7 @@ an underlying activity as the focused app. X verification prefers metadata from
 the native Android share preview and returns without choosing a recipient; image
 reading is a fallback only when metadata is absent, never when it mismatches.
 
-Instagram profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com. Media selection/upload and automatic comment delivery are not yet implemented; the legacy text-only delivery loop rejects Instagram before opening the app. Review approval alone does not publish anything.
+Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1` (opt-in; their comment-row, composer and proof steps are not yet verified live, and any mismatch stops before sending); see [Facebook, Instagram and TikTok comment replies](../dashboard/SOCIAL.md#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.
 
 ## Task outcomes and stops
 
