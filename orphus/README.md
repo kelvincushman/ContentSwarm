@@ -212,7 +212,7 @@ an underlying activity as the focused app. X verification prefers metadata from
 the native Android share preview and returns without choosing a recipient; image
 reading is a fallback only when metadata is absent, never when it mismatches.
 
-Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1`; see [Facebook, Instagram and TikTok comment replies](../dashboard/SOCIAL.md#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.
+Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1` (opt-in; their comment-row, composer and proof steps are not yet verified live, and any mismatch stops before sending); see [Facebook, Instagram and TikTok comment replies](../dashboard/SOCIAL.md#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.
 
 ## Task outcomes and stops
 

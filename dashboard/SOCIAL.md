@@ -357,7 +357,9 @@ only; original posts on these apps (which need media) are not automated.
 The worker, after claiming the approved review:
 
 1. Opens the app and requires its package in the foreground on every read.
-   An editor already holding text is left untouched.
+   An editor holding anything but one of the app's exact empty-field hints
+   (for example "Comment as USERNAME..." or "Reply to AUTHOR") is left
+   untouched; a draft that merely starts like a hint is still a draft.
 2. Opens the account's profile/menu and requires the account's exact identity.
 3. Opens the app's notifications (Facebook's Notifications tab; Instagram's
    Home tab, then the heart, `id/notification`, which must open a screen titled
@@ -365,27 +367,42 @@ The worker, after claiming the approved review:
    exactly one notification row that names the author, mentions a comment or
    reply, and shows the comment: all of it, or at least its first 30
    characters followed by an ellipsis (lists shorten long comments). It
-   scrolls at most three pages.
+   scrolls at most three pages. Once found, it looks one page further down and
+   stops if another such row is there (told apart by every label in the row,
+   so the same row seen again after scrolling is not a second one), then
+   scrolls back and requires the same row again.
 4. Taps that notification, which opens the post with its comments, and finds
    exactly one element with the comment's exact text (scrolling at most three
-   pages). The comment's own row (the smallest subtree around the text holding
+   pages, with the same one-page look below for a second comment with the same
+   words). The comment's own row (the smallest subtree around the text holding
    a Reply, never the list) must hold exactly one Reply and the author's exact
-   name. Stops if the approved reply is already visible.
+   name.
 5. Presses that row's Reply (`tap --within` the comment) and checks the
    composer: it must reply to the author ("Replying to NAME" on Facebook and
    Instagram; the field's "Reply to NAME" hint on TikTok) with an empty field.
    Instagram prefills `@author ` and Facebook the author's name; that prefix is
    kept, so the typed text is the prefix plus the approved body (unless the body
-   already starts with it). Any other starting text stops delivery.
+   already starts with it). Any other starting text stops delivery. If that
+   text is already visible in any form the app prints a reply in (Instagram
+   also prints "USERNAME TEXT"), it stops before typing, so an earlier reply
+   can never stand in as proof.
 6. Types that text, then requires the field to hold exactly it, the reply
-   target still shown (TikTok drops its hint once text is typed, so there the
-   comment must still be on screen exactly once) and one enabled send control
+   target still shown (TikTok drops its hint once text is typed: only when no
+   "Reply to" label remains at all may the comment still being on screen
+   exactly once stand in for it; a visible "Reply to" someone else stops) and one enabled send control
    (Facebook Send/Post/Comment, Instagram Post, TikTok Post comment).
 7. Taps send once. Proof is exactly one copy of the text outside any editor,
    whose list row is ours and shows a fresh time ("Just now", "now", seconds or
    "1m"): on Facebook the row names the profile, on Instagram it shows the
    username, on TikTok it carries the "Creator" badge only the video's owner
    gets. Without proof within about twelve seconds the review stays uncertain.
+
+The review's `source_url` is not opened: on these apps the Phone agent usually
+can't read a post's link, so the source is the comment's notification ("on
+your post"), which must be the only one by that author with that text. Two
+identical comments by one person on different posts both appear there and
+stop delivery when they are within a page of each other; older duplicates
+further down are not seen.
 
 Everything before the send tap raises `NotSent` ("Stopped before sending;
 nothing was posted.") and the reason; after it, missing proof is never resent.
@@ -480,7 +497,7 @@ live validation before enabling automatic delivery.
 no window is focused). Detection uses `mCurrentFocus`, never the underlying
 `mFocusedApp`, so a chooser or dialog cannot be mistaken for the app behind it.
 
-Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1`; see [Facebook, Instagram and TikTok comment replies](#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.
+Instagram and TikTok profiles support scoped soul/knowledge, scheduled caption or reply drafting, and owner review. Source links must use instagram.com or tiktok.com (including TikTok's vm./vt. short links). Media selection/upload is not implemented, and the legacy text-only delivery loop rejects both before opening the app. Comment replies on the account's own posts are delivered by `instagram-accessibility-v1`, `tiktok-accessibility-v1` and, for Facebook, `facebook-accessibility-v1` (opt-in; their comment-row, composer and proof steps are not yet verified live, and any mismatch stops before sending); see [Facebook, Instagram and TikTok comment replies](#facebook-instagram-and-tiktok-comment-replies). Review approval alone does not publish anything.
 
 See [app mapping](APP_MAPPING.md) for the controls observed on the connected
 phone and the remaining verification for each app.

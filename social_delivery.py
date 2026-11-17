@@ -494,49 +494,44 @@ def comment_reply(client, review, app):
         client.post(route + "/app", {"app": app["label"]})
         time.sleep(2)
         ui = sense()
-        if any(not app["blank"](e.get("text", "")) for e in editors(ui)):
+        blank = lambda value: value in app["blank"](handle, author)
+        if any(not blank(e.get("text", "")) for e in editors(ui)):
             raise NotSent(f"A {app['label']} composer holds text; left untouched")
         seen = app["identity"](client, route, sense, tap)
         if seen != handle:
             raise NotSent(f"The signed-in {app['label']} account is not this account")
         app["inbox"](client, route, sense, tap)
-        for page in range(4):
-            ui = sense()
-            target = app["notification"](ui, author, original)
-            if target:
-                break
-            if page == 3:
-                raise NotSent("The comment's notification was not found")
-            _swipe_up(client, route, ui)
+        # The approved comment is the one notification by its author showing
+        # its text; a second one (another post, an older copy) stops delivery.
+        target = _find_once(client, route, sense, lambda ui: notification_rows(ui, author, original),
+                            "The comment's notification was not found", "The comment has more than one notification")
         tap(**target)
+        time.sleep(1)
         shown = app.get("comment_texts", lambda author, original: [original])(author, original)
-        for page in range(4):
-            time.sleep(1)
-            ui = sense()
-            anchors = [i for i, e in enumerate(ui) if e.get("text") in shown and e not in editors(ui)]
-            if len(anchors) == 1:
-                if comment_row(ui, anchors[0], lambda group: app["row_author"](group, author), app["reply_label"]) is None:
-                    raise NotSent("The comment's row doesn't show its author and one Reply control")
-                break
-            if len(anchors) > 1:
-                raise NotSent("The comment's text appears more than once on the post")
-            if page == 3:
-                raise NotSent("The comment was not found on the post")
-            _swipe_up(client, route, ui)
-        if any(body in (e.get("text"), e.get("desc")) for e in ui):
-            raise NotSent("Matching text already visible; inspect before replying")
+        def comments(ui):
+            return [(e["text"], tuple(label_of(x) for x in descendants(ui, _row(ui, i))))
+                    for i, e in enumerate(ui) if e.get("text") in shown and e not in editors(ui)]
+        anchor = _find_once(client, route, sense, comments,
+                            "The comment was not found on the post", "The comment's text appears more than once on the post")
+        ui = sense()
+        anchors = [i for i, e in enumerate(ui) if e.get("text") == anchor]
+        if len(anchors) != 1 or comment_row(ui, anchors[0], lambda group: app["row_author"](group, author), app["reply_label"]) is None:
+            raise NotSent("The comment's row doesn't show its author and one Reply control")
         # Tap the Reply inside the comment's own row, anchored on its exact text.
-        tap(**app["reply_tap"], within=ui[anchors[0]]["text"])
+        tap(**app["reply_tap"], within=anchor)
         time.sleep(1)
         ui = sense()
         fields = editors(ui)
         start = fields[0].get("text", "") if len(fields) == 1 else None
         if start is None or not app["composer"](ui, author):
             raise NotSent("Reply composer or the comment it replies to not verified")
-        prefix = "" if app["blank"](start) else app["prefix"](author, start)
+        prefix = "" if blank(start) else app["prefix"](author, start)
         if prefix is None:
             raise NotSent("Reply editor is not empty")
         expected = body if body.startswith(prefix.strip()) else prefix + body
+        forms = app.get("forms", lambda handle, body: [body])(handle, expected) + [body]
+        if any(e.get("text") in forms or e.get("desc") in forms for e in ui if e not in fields):
+            raise NotSent("Matching text already visible; inspect before replying")
         client.post(route + "/action", dict(action="type", text=expected, clear=True))
         time.sleep(1)
         ui = sense()
@@ -588,19 +583,76 @@ def names(label, author):
 
 def notification(elements, author, original):
     """The tap selector of the one notification naming the author and showing
-    the comment, or None. Its row is the whole list item holding the line."""
-    found = []
+    the comment, or None."""
+    found = notifications(elements, author, original)
+    return found[0] if len(found) == 1 else None  # None also when not tappable.
+
+
+def notifications(elements, author, original):
+    """One tap selector per notification row naming the author and showing
+    the comment (None where its line isn't uniquely tappable). A row is the
+    whole list item holding the line; a line repeated inside one row (a label
+    and its button) is one notification."""
+    return [selector for selector, _ in notification_rows(elements, author, original)]
+
+
+def notification_rows(elements, author, original):
+    """(tap selector or None, row signature) for each matching notification
+    row; the signature (every label in the row) tells two rows apart."""
+    rows = {}
     for index, element in enumerate(elements):
         label = label_of(element)
-        if "EditText" in element.get("class", "") or not shows_comment(label, original):
+        if element in editors(elements) or not shows_comment(label, original):
             continue
-        group = descendants(elements, _row(elements, index))
+        row = _row(elements, index)
+        group = descendants(elements, row)
         words = " ".join(label_of(e) for e in group)
         if re.search(r"comment|repl", words, re.I) and any(names(label_of(e), author) for e in group):
-            found.append({"text": label} if element.get("text") == label else {"desc": label})
-    if len(found) != 1 or sum(label_of(e) == next(iter(found[0].values())) for e in elements) != 1:
-        return None
-    return found[0]
+            rows.setdefault(row, (label, tuple(label_of(e) for e in group)))
+    found = []
+    for label, signature in rows.values():
+        if sum(e.get("text") == label for e in elements) == 1:
+            found.append(({"text": label}, signature))
+        elif sum(e.get("desc") == label for e in elements) == 1:
+            found.append(({"desc": label}, signature))
+        else:
+            found.append((None, signature))
+    return found
+
+
+def _find_once(client, route, sense, matches, missing, repeated):
+    """Find exactly one match over up to four pages, then look one page
+    further for another and come back to it. Matches are (value, row
+    signature) pairs: the same row seen again after scrolling has the same
+    signature, another row with the same text differs (time, counts).
+    Returns the match's value."""
+    for page in range(4):
+        ui = sense()
+        found = matches(ui)
+        if len(found) > 1 or any(value is None for value, _ in found):
+            raise NotSent(repeated)
+        if found:
+            _swipe_up(client, route, ui)
+            time.sleep(1)
+            below = sense()
+            if any(other != found[0] for other in matches(below)) or len(matches(below)) > 1:
+                raise NotSent(repeated)
+            _swipe_down(client, route, below)
+            time.sleep(1)
+            if matches(sense()) != found:
+                raise NotSent(f"{missing} again after checking below it")
+            return found[0][0]
+        if page == 3:
+            raise NotSent(missing)
+        _swipe_up(client, route, ui)
+
+
+def _swipe_down(client, route, elements):
+    """Scroll back one page (the reverse of _swipe_up)."""
+    left, top, right, bottom = elements[0]["bounds"]
+    x = (left + right) // 2
+    client.post(route + "/action", dict(action="swipe", x1=x, y1=top + (bottom - top) // 4,
+                                        x2=x, y2=top + (bottom - top) * 3 // 4, duration_ms=400))
 
 
 def _row(elements, index):
@@ -629,6 +681,12 @@ def fresh_reply(elements, body, is_ours, bodies=None):
     group = descendants(elements, _row(elements, copies[0]))
     labels = [label_of(e) for e in group]
     return is_ours(group) and any(FRESH.fullmatch(_fold(v).strip("·• ")) for v in labels)
+
+
+def _hints(phrases):
+    """The exact placeholder texts an empty field may report: each phrase
+    alone or followed by "..." or "…", and the empty string."""
+    return {""} | {phrase + end for phrase in phrases for end in ("", "...", "…")}
 
 
 def _handle_rule(rule):
@@ -681,15 +739,16 @@ def tiktok_composer(elements, author):
 TIKTOK = dict(
     platform="tiktok", label="TikTok", package="com.zhiliaoapp.musically",
     handle=_handle_rule("tiktok"), author=_shown_name,
-    # An empty field shows its hint as its text ("Add comment...", "Reply to NAME").
-    blank=lambda value: not value or value.startswith(("Reply to", "Add comment")),
+    # An empty field shows its hint as its text; only these exact hints count.
+    blank=lambda handle, author: _hints(["Add comment", f"Reply to {author}", f"Reply to @{author}"]),
     identity=tiktok_identity, inbox=tiktok_inbox, notification=notification,
     row_author=lambda group, author: any(label_of(e) == author for e in group),
     reply_label="Reply", reply_tap={"text": "Reply"}, composer=tiktok_composer,
     # Typing replaces the "Reply to NAME" hint, the only reply-target label
     # in the field; the comment it replied to must still be on screen once.
-    typed=lambda ui, author, original: tiktok_composer(ui, author) or sum(
-        e.get("text") == original for e in ui if "EditText" not in e.get("class", "")) == 1,
+    typed=lambda ui, author, original: tiktok_composer(ui, author) or (
+        not any(label_of(e).startswith("Reply to") for e in ui)
+        and sum(e.get("text") == original for e in ui if e not in editors(ui)) == 1),
     prefix=lambda author, start: None,  # TikTok doesn't prefill a reply.
     send=lambda ui: _one_label(ui, "Post comment", "Post", "Send"),
     # Comments on the account's own video carry TikTok's "Creator" badge.
@@ -743,7 +802,7 @@ def instagram_inbox(client, route, sense, tap):
 INSTAGRAM = dict(
     platform="instagram", label="Instagram", package="com.instagram.android",
     handle=_handle_rule("instagram"), author=instagram_author,
-    blank=lambda value: not value or value.startswith(("Comment as ", "Add a comment", "Reply to")),
+    blank=lambda handle, author: _hints([f"Comment as {_bare(handle)}", "Add a comment", f"Reply to {author}"]),
     identity=instagram_identity, inbox=instagram_inbox, notification=notification,
     # A comment prints as its own text or as one line "USERNAME TEXT".
     comment_texts=lambda author, original: [original, f"{author} {original}"],
@@ -753,6 +812,8 @@ INSTAGRAM = dict(
     # Reply prefills "@USERNAME "; that mention is kept.
     prefix=lambda author, start: f"@{author} " if start.rstrip() == f"@{author}" else None,
     send=lambda ui: _one_label(ui, "Post"),
+    # A reply prints as its own text or as one line "USERNAME TEXT".
+    forms=lambda handle, body: [body, f"{_bare(handle)} {body}"],
     published=lambda ui, handle, body: fresh_reply(ui, body, lambda group: any(
         label_of(e) == _bare(handle) or label_of(e).startswith(_bare(handle) + " ") for e in group),
         bodies=[body, f"{_bare(handle)} {body}"]),
@@ -810,7 +871,7 @@ def facebook_inbox(client, route, sense, tap):
 FACEBOOK = dict(
     platform="facebook", label="Facebook", package="com.facebook.katana",
     handle=_handle_rule("name"), author=_shown_name,
-    blank=lambda value: not value or value.startswith(("Write a reply", "Reply to", "Write a comment", "Comment as")),
+    blank=lambda handle, author: _hints(["Write a reply", "Write a comment", f"Reply to {author}", f"Comment as {handle}"]),
     identity=facebook_identity, inbox=facebook_inbox, notification=notification,
     row_author=lambda group, author: any(label_of(e) == author or names(label_of(e), author) for e in group),
     reply_label="Reply", reply_tap={"text": "Reply"},

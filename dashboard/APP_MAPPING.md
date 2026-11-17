@@ -28,8 +28,11 @@ Package: `com.instagram.android`. Resource IDs below share that prefix.
 Live inspection reached Profile and Create, then backed out and returned Home.
 No media was selected and nothing was posted. Existing accounts, schedules and
 review data need no migration when adding an Instagram profile. Caption drafts
-and comment reply drafts can be scheduled and reviewed; automatic Instagram
-delivery is explicitly unavailable until media/comment adapters are verified.
+and comment reply drafts can be scheduled and reviewed. Automatic media posts
+are unavailable. Comment replies can be delivered with the opt-in
+`instagram-accessibility-v1` adapter; its comment-row, composer and proof steps
+are not yet verified live, so the first approved reply is that test (any
+mismatch stops before sending).
 
 Seen 17 November 2026 (app 455): `id/notification` on Home opens a screen
 whose `id/action_bar_title` is "Notifications" (so that title is not identity

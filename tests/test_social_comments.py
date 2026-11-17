@@ -41,6 +41,14 @@ def no_sleep(monkeypatch):
     monkeypatch.setattr(social_delivery.time, "sleep", lambda _: None)
 
 
+def spread(changes, key):
+    """A changed comments screen stands for every read of it (found, back, row)."""
+    changes = dict(changes)
+    if key in changes:
+        changes.update({f"{key}_back": changes[key], f"{key}_row": changes[key]})
+    return changes
+
+
 ORIGINAL = "Which glue did you use for the hinge on this one?"
 BODY = "Plain wood glue, clamped overnight."
 
@@ -84,9 +92,13 @@ def tt_published(age="Just now", badge="Creator", body=BODY):
 
 
 def tt_screens(**changes):
+    # Each search finds its match, looks one page below it, comes back; the
+    # comment's page is read once more for its row.
     screens = dict(home=TT_NAV, nav=TT_NAV, profile=TT_PROFILE, nav2=TT_NAV, inbox=TT_INBOX, activity=tt_activity(),
-                   comments=tt_comments(), composer=tt_composer(), typed=tt_composer(BODY), after=tt_published())
-    screens.update(changes)
+                   activity_below=TT_NAV, activity_back=tt_activity(), comments=tt_comments(), comments_below=TT_NAV,
+                   comments_back=tt_comments(), comments_row=tt_comments(),
+                   composer=tt_composer(), typed=tt_composer(BODY), after=tt_published())
+    screens.update(spread(changes, "comments"))
     return Client(list(screens.values()), TT)
 
 
@@ -112,7 +124,7 @@ def test_tiktok_finds_the_comment_types_once_and_proves_it():
     dict(composer=tt_composer("Leftover draft")),                        # Editor not empty.
     dict(typed=tt_composer("Something else")),                           # Text changed after typing.
     dict(typed=[n for n in tt_composer(BODY) if n.get("desc") != "Post comment"]),  # No send control.
-    dict(comments=tt_comments(extra=[node(BODY)])),                      # The reply is already there.
+    dict(composer=tt_composer() + [node(BODY)]),                         # The reply is already there.
 ])
 def test_tiktok_stops_before_sending_on_any_mismatch(changes):
     client = tt_screens(**changes)
@@ -205,9 +217,10 @@ def ig_published(age="1s", who="owner.makes", body=f"@asker_01 {BODY}"):
 
 
 def ig_screens(**changes):
-    screens = dict(home=IG_NAV, profile=IG_PROFILE, opened=ig_news(), news=ig_news(), comments=ig_comments(),
+    screens = dict(home=IG_NAV, profile=IG_PROFILE, opened=ig_news(), news=ig_news(), news_below=IG_NAV, news_back=ig_news(),
+                   comments=ig_comments(), comments_below=IG_NAV, comments_back=ig_comments(), comments_row=ig_comments(),
                    composer=ig_composer(), typed=ig_composer(f"@asker_01 {BODY}"), after=ig_published())
-    screens.update(changes)
+    screens.update(spread(changes, "comments"))
     return Client(list(screens.values()), "com.instagram.android")
 
 
@@ -301,8 +314,10 @@ def fb_published(age="Just now", who="Owner Name"):
 
 def fb_screens(**changes):
     screens = dict(home=fb_tabs(), tabs=fb_tabs(), profile=FB_PROFILE, tabs2=fb_tabs(), notifications=fb_notifications(),
-                   post=fb_post(), composer=fb_composer(), typed=fb_composer(f"Asker Name {BODY}"), after=fb_published())
-    screens.update(changes)
+                   notifications_below=fb_tabs(), notifications_back=fb_notifications(), post=fb_post(), post_below=fb_tabs(),
+                   post_back=fb_post(), post_row=fb_post(),
+                   composer=fb_composer(), typed=fb_composer(f"Asker Name {BODY}"), after=fb_published())
+    screens.update(spread(changes, "post"))
     return Client(list(screens.values()), "com.facebook.katana")
 
 
@@ -320,7 +335,7 @@ def test_facebook_scrolls_once_to_show_a_collapsed_tab_bar():
     client = fb_screens(tabs=fb_tabs(bounds=(0, 0, 0, 0)))
     client.screens.insert(2, fb_tabs())
     social_delivery.facebook_reply(client, FB_REVIEW)
-    assert len([d for _, d in client.calls if d.get("action") == "swipe"]) == 1
+    assert len([d for _, d in client.calls if d.get("action") == "swipe" and d["duration_ms"] == 300]) == 1
     assert client.calls[-1][0] == "/reviews/f/complete"
 
 
@@ -411,3 +426,55 @@ def test_open_url_opens_the_new_apps_in_their_own_app():
     assert _url_app("https://www.facebook.com/some.page/posts/1") == "com.facebook.katana"
     with pytest.raises(ValueError):
         _url_app("https://tiktok.com.evil.test/")
+
+
+# Review follow-ups
+
+def test_a_second_match_one_page_below_stops_delivery():
+    second = tt_activity(line=f"replied to your comment: {ORIGINAL}")
+    client = tt_screens(activity_below=second)
+    with pytest.raises(NotSent, match="more than one notification"):
+        tiktok_reply(client, TT_REVIEW)
+    assert not client.taps(text="Reply")
+    older = [dict(n, text="3d") if n.get("text") == "2h" else n for n in tt_comments()]  # Same words, another comment.
+    client = tt_screens(comments_below=older)
+    with pytest.raises(NotSent, match="more than once"):
+        tiktok_reply(client, TT_REVIEW)
+    assert not client.taps(text="Reply")
+
+
+def test_the_same_row_seen_again_below_is_not_a_duplicate():
+    client = tt_screens(activity_below=tt_activity(), comments_below=tt_comments())
+    tiktok_reply(client, TT_REVIEW)
+    assert client.calls[-1][0] == "/reviews/t/complete"
+
+
+def test_the_match_must_still_be_there_after_looking_below():
+    client = tt_screens(activity_back=TT_NAV)
+    with pytest.raises(NotSent, match="again"):
+        tiktok_reply(client, TT_REVIEW)
+    assert not client.taps(text=f"commented: {ORIGINAL}")
+
+
+def test_an_earlier_reply_in_any_printed_form_stops_before_typing():
+    composer = ig_composer() + ig_line(3, "owner.makes", f"@asker_01 {BODY}")
+    client = ig_screens(composer=composer)
+    with pytest.raises(NotSent, match="already visible"):
+        instagram_reply(client, IG_REVIEW)
+    assert not client.typed()
+
+
+def test_tiktok_typed_fallback_never_overrides_a_visible_other_target():
+    typed = tt_comments() + [node("Reply to Other Person"), node(BODY, cls="android.widget.EditText"), node(desc="Post comment")]
+    client = tt_screens(typed=typed)
+    with pytest.raises(NotSent):
+        tiktok_reply(client, TT_REVIEW)
+    assert not client.taps(desc="Post comment")
+
+
+@pytest.mark.parametrize("draft", ["Add a comment about the hinge", "Comment as someone.else...", "Reply to asker_01 later"])
+def test_drafts_that_look_like_hints_are_never_cleared(draft):
+    client = ig_screens(composer=ig_composer(draft))
+    with pytest.raises(NotSent, match="not empty"):
+        instagram_reply(client, IG_REVIEW)
+    assert not client.typed()

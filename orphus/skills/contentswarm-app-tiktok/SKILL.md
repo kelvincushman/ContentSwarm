@@ -85,8 +85,9 @@ For each comment worth answering, record for the review:
 
 The worker later goes the same way: the notification must name the author and
 show the comment, the comment's row must show the author and one Reply, and
-the composer must reply to that author. If two comments by the same person
-have the same text, it stops; reply to those yourself.
+the composer must reply to that author. If another notification or comment
+by the same person with the same text is on the same page or the next one
+down, it stops; reply to those yourself. It does not open `source_url`.
 
 ## Pitfalls
 
